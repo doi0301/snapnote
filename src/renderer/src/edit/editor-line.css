@@ -1,0 +1,120 @@
+/* 인덴트 구역: 레벨마다 1px 세로 가이드 (repeating) */
+.editor-line {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: 1px solid #ececec;
+  min-height: 28px;
+}
+
+.editor-line-editor {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.editor-line-mirror {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  padding: 5px 10px;
+  font-size: 14px;
+  line-height: 1.38;
+  white-space: pre-wrap;
+  word-break: break-word;
+  pointer-events: none;
+  color: #1a1a1a;
+  z-index: 0;
+  box-sizing: border-box;
+}
+
+.editor-line-textarea--mirror {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: #1a1a1a;
+}
+
+/* 빈 줄 mirror 영역 — 레이아웃·클릭 영역이 textarea와 맞도록 최소 높이 */
+.editor-line-mirror-empty {
+  display: inline-block;
+  min-height: calc(1.38em + 1px);
+  min-width: 1px;
+  vertical-align: top;
+}
+
+.inline-bold {
+  font-weight: 700;
+}
+
+.inline-strike {
+  text-decoration: line-through;
+}
+
+.inline-hl-yellow {
+  background-color: rgba(254, 240, 138, 0.88);
+  border-radius: 2px;
+}
+
+.inline-hl-green {
+  background-color: rgba(187, 247, 208, 0.88);
+  border-radius: 2px;
+}
+
+.inline-hl-pink {
+  background-color: rgba(251, 207, 232, 0.88);
+  border-radius: 2px;
+}
+
+.editor-line-gutter {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-right: 1px solid #e0e0e0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent calc(var(--indent-step, 20px) - 1px),
+    #ddd calc(var(--indent-step, 20px) - 1px),
+    #ddd var(--indent-step, 20px)
+  );
+  background-size: var(--indent-step, 20px) 100%;
+}
+
+.editor-line-textarea {
+  --indent-step: 20px;
+  -webkit-app-region: no-drag;
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: none;
+  margin: 0;
+  resize: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.38;
+  background: transparent;
+  color: #1a1a1a;
+  /* 기본 overflow:auto → 줄마다 세로 스크롤+화살표가 생김. 높이는 JS/field-sizing으로 맞춤 */
+  overflow: hidden;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  field-sizing: content;
+}
+
+/* field-sizing 미지원 브라우저 대비 */
+@supports not (field-sizing: content) {
+  .editor-line-textarea {
+    min-height: 46px;
+  }
+}
+
+.editor-line-textarea:focus {
+  outline: none;
+}

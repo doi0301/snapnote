@@ -1,0 +1,199 @@
+/* folded panel — 높이는 콘텐츠 hug + 메인 setContentSize */
+html,
+body {
+  margin: 0;
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+}
+
+#root {
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.folded-root {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #222;
+  background: #f4f4f5;
+  border-radius: 10px;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d4d4d8;
+  user-select: none;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.folded-drag {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: #f0f0f2;
+  border-bottom: 1px solid #e4e4e7;
+  font-weight: 600;
+  font-size: 12px;
+}
+.folded-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.folded-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folded-close-btn {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.folded-close-btn:hover {
+  background: #e4e4e7;
+  color: #18181b;
+}
+
+.folded-close-icon {
+  font-size: 16px;
+  font-weight: 300;
+}
+.folded-body {
+  padding: 8px 10px 6px;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.folded-slot-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.memo-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  /* 왼쪽은 직선 → 컬러 border-left 오른쪽이 세로 일자로 떨어짐 (전체 8px 라운딩 시 띠 안쪽이 촌스럽게 굽음) */
+  border-radius: 0 8px 8px 0;
+  border: 1px solid #e4e4e7;
+  box-sizing: border-box;
+}
+
+.memo-slot:last-child {
+  margin-bottom: 0;
+}
+
+.memo-preview-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.memo-actions {
+  display: flex;
+  gap: 4px;
+}
+.memo-actions button {
+  -webkit-app-region: no-drag;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 6px;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.memo-actions button:hover {
+  color: #0f172a;
+}
+
+.memo-trash-btn svg {
+  display: block;
+}
+.empty-state {
+  text-align: center;
+  padding: 12px 10px 8px;
+  color: #71717a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.empty-state-text {
+  margin: 0;
+}
+
+.empty-state-hint {
+  margin: 6px 0 0;
+  color: #a1a1aa;
+  font-size: 11px;
+}
+
+.folded-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid #e4e4e7;
+  background: #ececee;
+  flex-shrink: 0;
+}
+
+.folded-footer-btn {
+  -webkit-app-region: no-drag;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.folded-footer-btn--ghost {
+  border-color: #d4d4d8;
+  background: #fff;
+  color: #3f3f46;
+}
+
+.folded-footer-btn--ghost:hover {
+  background: #f4f4f5;
+}
+
+.folded-footer-btn--primary {
+  border-color: #6366f1;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.folded-footer-btn--primary:hover {
+  background: #4338ca;
+}

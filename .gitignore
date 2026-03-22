@@ -1,0 +1,10 @@
+node_modules
+dist
+out
+.cursor/
+.DS_Store
+.eslintcache
+*.log*
+test-results/
+playwright-report/
+playwright/.cache/

@@ -1,0 +1,33 @@
+.editor-line-checkbox {
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+  width: 32px;
+  min-width: 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5px 0 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #52525b;
+  font-size: 16px;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.editor-line-checkbox:hover {
+  color: #18181b;
+}
+
+.editor-line-checkbox:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.editor-line-checkbox-icon {
+  display: block;
+  user-select: none;
+}

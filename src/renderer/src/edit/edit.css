@@ -1,0 +1,269 @@
+/* 풀블리드: 기본 body 여백 제거, 창 가장자리가 하얗게 비지 않도록 */
+html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  /* #root만 클립 — 포털(형제 #edit-popover-root)은 창 전체에 그릴 수 있음 */
+  overflow: visible;
+  background: transparent;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 클립보드·이모지 팔레트: #root 밖 포털, 전창 z-order + 클릭 통과(패널만 포인터) */
+#edit-popover-root {
+  position: fixed;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 2147483000;
+}
+
+.edit-root {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+  background: #fafafa;
+  overflow: hidden;
+  position: relative;
+}
+
+.edit-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #fff;
+}
+
+.edit-loading {
+  padding: 16px;
+  color: #71717a;
+}
+
+.edit-textarea {
+  -webkit-app-region: no-drag;
+  flex: 1;
+  min-height: 120px;
+  width: 100%;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.edit-textarea:focus {
+  outline: none;
+  border-color: #94a3b8;
+}
+
+.edit-topbar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f4f4f5;
+  border-bottom: 1px solid #e4e4e7;
+  flex-shrink: 0;
+}
+
+.edit-topbar--compact {
+  justify-content: flex-end;
+  padding: 4px 8px;
+  min-height: 0;
+}
+
+.edit-topbar-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #52525b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-topbar-actions {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.edit-topbar--compact .edit-icon-btn {
+  width: 30px;
+  height: 26px;
+  font-size: 13px;
+}
+
+.edit-icon-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.edit-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.edit-icon-btn:hover {
+  background: #e4e4e7;
+  color: #18181b;
+}
+
+.edit-icon-btn[data-active='true'] {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+/* 메모별 루트 면색 = 상·하단 바와 동일 → 측면·모서리 틈이 포인트색으로 채워짐 (@shared/memoChrome 동기화) */
+.edit-root--memo-coral {
+  background: #b84a38;
+}
+
+.edit-root--memo-green {
+  background: #2a7d4d;
+}
+
+.edit-root--memo-blue {
+  background: #3569a8;
+}
+
+.edit-root--memo-default {
+  background: #556376;
+}
+
+/* 펼친 편집 창 — 본문은 연한 틴트, 포인트 색은 상단·하단 바 배경 (왼쪽 라인 없음) */
+.edit-root--memo-coral .edit-body {
+  background: #fef8f6;
+}
+
+.edit-root--memo-green .edit-body {
+  background: #f5fcf8;
+}
+
+.edit-root--memo-blue .edit-body {
+  background: #f6f9fe;
+}
+
+.edit-root--memo-default .edit-body {
+  background: #fff;
+}
+
+/* 상단 탭: 포인트 면색 + 밝은 아이콘/텍스트 (명도 대비) */
+.edit-root--memo-coral .edit-topbar {
+  background: #b84a38;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.edit-root--memo-coral .edit-icon-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.edit-root--memo-coral .edit-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.edit-root--memo-coral .edit-icon-btn[data-active='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.edit-root--memo-green .edit-topbar {
+  background: #2a7d4d;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.edit-root--memo-green .edit-icon-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.edit-root--memo-green .edit-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.edit-root--memo-green .edit-icon-btn[data-active='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.edit-root--memo-blue .edit-topbar {
+  background: #3569a8;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.edit-root--memo-blue .edit-icon-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.edit-root--memo-blue .edit-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.edit-root--memo-blue .edit-icon-btn[data-active='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.edit-root--memo-default .edit-topbar {
+  background: #556376;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
+}
+
+.edit-root--memo-default .edit-icon-btn {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.edit-root--memo-default .edit-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.edit-root--memo-default .edit-icon-btn[data-active='true'] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}

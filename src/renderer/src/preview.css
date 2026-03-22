@@ -1,0 +1,70 @@
+/* 호버 프리뷰: 애니메이션 없음 (즉시 표시) */
+.preview-root {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  height: 100vh;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  color: #333;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  outline: none;
+}
+
+.preview-root:focus-visible {
+  box-shadow: 0 0 0 2px #5b8fd4;
+}
+
+.preview-inner {
+  padding: 10px 12px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.preview-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.preview-hint {
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #5b8fd4;
+  font-size: 11px;
+}
+
+.preview-body {
+  line-height: 1.38;
+  word-break: break-word;
+}
+
+.preview-root--memo-coral {
+  border-left: 4px solid #f28b74;
+  background: #fdf4f1;
+}
+
+.preview-root--memo-green {
+  border-left: 4px solid #5bb47a;
+  background: #f1faf4;
+}
+
+.preview-root--memo-blue {
+  border-left: 4px solid #5b8fd4;
+  background: #f2f7fd;
+}
+
+.preview-root--memo-default {
+  border-left: 4px solid #cbd5e1;
+}

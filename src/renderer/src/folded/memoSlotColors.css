@@ -1,0 +1,32 @@
+/**
+ * 접힌 패널 슬롯 — 메모별 면색 배경·테두리 (그라데이션 없음, 명도는 본문 가독성 우선)
+ * 색값은 MemoRepository COLOR_ROTATION과 동일 계열
+ */
+.memo-slot--coral {
+  background: #fdf4f1;
+  border-color: rgba(242, 139, 116, 0.45);
+  border-left: 5px solid #f28b74;
+}
+
+.memo-slot--green {
+  background: #f1faf4;
+  border-color: rgba(91, 180, 122, 0.45);
+  border-left: 5px solid #5bb47a;
+}
+
+.memo-slot--blue {
+  background: #f2f7fd;
+  border-color: rgba(91, 143, 212, 0.45);
+  border-left: 5px solid #5b8fd4;
+}
+
+.memo-slot--default {
+  background: #f8fafc;
+  border-color: #e4e4e7;
+  border-left: 5px solid #94a3b8;
+}
+
+/* 설정 colorSlot1~3 — 왼쪽·배경은 MemoSlot 인라인 스타일 */
+.memo-slot--custom {
+  border-color: #e4e4e7;
+}

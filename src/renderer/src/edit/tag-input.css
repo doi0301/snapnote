@@ -1,0 +1,96 @@
+.tag-input-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+.tag-input-wrap--bottom {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-input-field {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.tag-input-field:focus {
+  outline: none;
+  border-color: #94a3b8;
+}
+
+.tag-input-field::placeholder {
+  color: #a1a1aa;
+}
+
+/* 하단 한 줄: 태그는 남는 폭만 쓰고 길면 … (포커스 시에는 가로 스크롤로 전체 편집) */
+.tag-input-wrap--bottom .tag-input-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.tag-input-wrap--bottom .tag-input-field:not(:focus) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-input-wrap--bottom .tag-input-field:focus {
+  overflow-x: auto;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.tag-suggest {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.tag-suggest li {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #3f3f46;
+}
+
+.tag-suggest li[data-active='true'] {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.tag-suggest li:hover {
+  background: #f4f4f5;
+}
+
+.edit-tags-serialized {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

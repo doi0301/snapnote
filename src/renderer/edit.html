@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>SnapNote — Edit</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- overflow:hidden(#root) 밖 — 팝업이 편집 영역 위에 겹침 -->
+    <div id="edit-popover-root" aria-hidden="true"></div>
+    <script type="module" src="/src/edit-main.tsx"></script>
+  </body>
+</html>
