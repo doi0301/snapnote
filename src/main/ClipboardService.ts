@@ -29,6 +29,7 @@ export class ClipboardService {
   private timer: ReturnType<typeof setInterval> | null = null
   private lastTextSnapshot = ''
   private lastImageHash = ''
+  private suppressNextTextSnapshot: string | null = null
 
   constructor(opts: ClipboardServiceOptions) {
     this.repo = opts.repo
@@ -136,9 +137,18 @@ export class ClipboardService {
       return
     }
     if (text === this.lastTextSnapshot) return
+    if (this.suppressNextTextSnapshot !== null && text === this.suppressNextTextSnapshot) {
+      this.lastTextSnapshot = text
+      this.suppressNextTextSnapshot = null
+      return
+    }
     this.lastTextSnapshot = text
     if (!text) return
     const item = this.repo.addItem(text)
     if (item) this.onItemAdded(item)
+  }
+
+  suppressNextClipboardText(text: string): void {
+    this.suppressNextTextSnapshot = text
   }
 }

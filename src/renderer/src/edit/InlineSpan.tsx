@@ -7,18 +7,42 @@ const HL_CLASS: Record<string, string> = {
   pink: 'inline-hl-pink'
 }
 
-function collectBreakpoints(text: string, spans: TextSpan[]): number[] {
+function collectBreakpoints(
+  text: string,
+  spans: TextSpan[],
+  selectionStart?: number,
+  selectionEnd?: number
+): number[] {
   const p = new Set<number>([0, text.length])
   for (const s of spans) {
     p.add(clamp(s.start, 0, text.length))
     p.add(clamp(s.end, 0, text.length))
   }
+  if (selectionStart !== undefined && selectionEnd !== undefined) {
+    p.add(clamp(selectionStart, 0, text.length))
+    p.add(clamp(selectionEnd, 0, text.length))
+  }
   return [...p].sort((a, b) => a - b)
 }
 
-function classForSlice(mid: number, spans: TextSpan[], lineStrike: boolean): string {
+function classForSlice(
+  mid: number,
+  spans: TextSpan[],
+  lineStrike: boolean,
+  selectionStart?: number,
+  selectionEnd?: number
+): string {
   const parts: string[] = []
   if (lineStrike) parts.push('inline-strike')
+  if (
+    selectionStart !== undefined &&
+    selectionEnd !== undefined &&
+    selectionEnd > selectionStart &&
+    mid >= selectionStart &&
+    mid < selectionEnd
+  ) {
+    parts.push('inline-selected')
+  }
   for (const s of spans) {
     if (mid >= s.start && mid < s.end) {
       if (s.bold) parts.push('inline-bold')
@@ -37,10 +61,18 @@ export interface SpannedLineMirrorProps {
   spans?: TextSpan[] | undefined
   /** 체크 완료 줄: 전체 취소선 (줄 단위) */
   lineFormatting?: LineFormatting
+  selectionStart?: number
+  selectionEnd?: number
 }
 
 /** 읽기 전용 미러 레이어 — textarea 위에 동일 타이포로 볼드/취소선/하이라이트 표시 */
-export function SpannedLineMirror({ text, spans, lineFormatting }: SpannedLineMirrorProps): React.JSX.Element {
+export function SpannedLineMirror({
+  text,
+  spans,
+  lineFormatting,
+  selectionStart,
+  selectionEnd
+}: SpannedLineMirrorProps): React.JSX.Element {
   const s = spans ?? []
   const lineStrike = Boolean(
     lineFormatting?.checkboxChecked && lineFormatting?.hasCheckbox
@@ -48,7 +80,7 @@ export function SpannedLineMirror({ text, spans, lineFormatting }: SpannedLineMi
   if (!text) {
     return <span className="editor-line-mirror-empty" />
   }
-  const bp = collectBreakpoints(text, s)
+  const bp = collectBreakpoints(text, s, selectionStart, selectionEnd)
   const parts: React.JSX.Element[] = []
   for (let k = 0; k < bp.length - 1; k++) {
     const a = bp[k]!
@@ -56,7 +88,7 @@ export function SpannedLineMirror({ text, spans, lineFormatting }: SpannedLineMi
     if (a === b) continue
     const slice = text.slice(a, b)
     const mid = Math.min(a + Math.floor((b - a - 1) / 2), text.length - 1)
-    const cls = classForSlice(mid >= a ? mid : a, s, lineStrike)
+    const cls = classForSlice(mid >= a ? mid : a, s, lineStrike, selectionStart, selectionEnd)
     parts.push(
       <span key={`${a}:${b}`} className={cls}>
         {slice}

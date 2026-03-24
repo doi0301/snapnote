@@ -32,7 +32,7 @@ export interface SnapnotePreloadAPI {
   clipboard: {
     getHistory: () => Promise<ClipboardItem[]>
     insert: (payload: ClipboardInsertPayload) => Promise<void>
-    writeSystem: (text: string) => Promise<void>
+    writeSystem: (text: string, opts?: { skipHistory?: boolean }) => Promise<void>
     hasEditInsertTarget: () => Promise<boolean>
     getImagePreview: (id: number) => Promise<{ dataUrl: string } | null>
     writeSystemImage: (id: number) => Promise<void>

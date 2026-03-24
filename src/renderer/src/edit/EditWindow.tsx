@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Memo } from '@shared/types'
+import type { Memo, Settings } from '@shared/types'
 import { useWindowPersist } from '@renderer/hooks/useWindowPersist'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
 import { TopBar } from './TopBar'
@@ -20,6 +20,7 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
   const [pinned, setPinned] = useState(false)
   const [tagRaw, setTagRaw] = useState('')
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+  const [settings, setSettings] = useState<Settings | null>(null)
   /** 서버에서 태그 입력값을 채우기 전에는 자동 저장으로 태그를 덮어쓰지 않음 */
   const tagsHydratedRef = useRef(false)
 
@@ -64,6 +65,11 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
     return window.snapnote.on.memoUpdated(refreshSuggestions)
   }, [])
 
+  useEffect(() => {
+    void window.snapnote.settings.get().then(setSettings)
+    return window.snapnote.on.settingsChanged((s) => setSettings(s))
+  }, [])
+
   const saveTags = useCallback(async () => {
     if (!memoId || !tagsHydratedRef.current) return
     const tags = parseTagString(tagRaw)
@@ -97,9 +103,20 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
   }
 
   const hue = memoHue(memo.color)
+  const bgAlpha = Math.min(1, Math.max(0.6, Number(settings?.windowOpacity) || 1))
+  const textAlpha = Math.max(0.92, bgAlpha)
 
   return (
-    <div ref={rootRef} className={`edit-root edit-root--memo-${hue}`}>
+    <div
+      ref={rootRef}
+      className={`edit-root edit-root--memo-${hue}`}
+      style={
+        {
+          '--window-bg-alpha': String(bgAlpha),
+          '--window-text-alpha': String(textAlpha)
+        } as React.CSSProperties
+      }
+    >
       <TopBar
         isPinned={pinned}
         onPinToggle={onPinToggle}

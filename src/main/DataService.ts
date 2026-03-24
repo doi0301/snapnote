@@ -201,6 +201,9 @@ export class DataService {
     ipcMain.handle(IPC_CHANNELS.SETTINGS_UPDATE, (_e, patch: SettingsUpdatePatch) => {
       const s = this.settings.updateSettings(patch)
       this.broadcast(IPC_CHANNELS.SETTINGS_CHANGED, s)
+      if (patch.windowOpacity !== undefined) {
+        this.windowManager.applyConfiguredOpacityToOpenWindows()
+      }
       this.clipboardService.syncWithSettings()
       if (patch.globalShortcut !== undefined) {
         this.globalShortcutService.syncFromSettings(s)
@@ -218,11 +221,17 @@ export class DataService {
       this.windowManager.pasteClipboardToEdit(payload.text, payload.targetMemoId ?? null)
     })
 
-    ipcMain.handle(IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM, (_e, text: string) => {
+    ipcMain.handle(
+      IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM,
+      (_e, text: string, opts?: { skipHistory?: boolean }) => {
       if (typeof text === 'string' && text.length > 0) {
+        if (opts?.skipHistory) {
+          this.clipboardService.suppressNextClipboardText(text)
+        }
         clipboard.writeText(text)
       }
-    })
+      }
+    )
 
     ipcMain.handle(IPC_CHANNELS.CLIPBOARD_HAS_EDIT_TARGET, () => {
       return this.windowManager.lastFocusedEditMemoId != null

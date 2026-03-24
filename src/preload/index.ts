@@ -42,8 +42,8 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
       ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_GET_HISTORY),
     insert: (payload: ClipboardInsertPayload): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_INSERT, payload),
-    writeSystem: (text: string): Promise<void> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM, text),
+    writeSystem: (text: string, opts?: { skipHistory?: boolean }): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM, text, opts),
     hasEditInsertTarget: (): Promise<boolean> =>
       ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_HAS_EDIT_TARGET),
     getImagePreview: (id: number): Promise<{ dataUrl: string } | null> =>

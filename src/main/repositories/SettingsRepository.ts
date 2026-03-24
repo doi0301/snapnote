@@ -20,6 +20,7 @@ function rowToSettings(row: SqlRow): Settings {
     colorSlot3: String(row.color_slot_3),
     defaultWindowWidth: Number(row.default_window_width),
     defaultWindowHeight: Number(row.default_window_height),
+    windowOpacity: Number(row.window_opacity),
     globalShortcut: String(row.global_shortcut)
   }
 }
@@ -51,6 +52,7 @@ export class SettingsRepository {
   updateSettings(patch: SettingsUpdatePatch): Settings {
     const cur = this.getSettings()
     const next: Settings = { ...cur, ...patch }
+    next.windowOpacity = Math.min(1, Math.max(0.6, Number(next.windowOpacity) || 1))
     run(
       this.getDb(),
       `UPDATE settings SET
@@ -62,6 +64,7 @@ export class SettingsRepository {
         color_slot_3 = ?,
         default_window_width = ?,
         default_window_height = ?,
+        window_opacity = ?,
         global_shortcut = ?
       WHERE id = 'singleton'`,
       [
@@ -73,6 +76,7 @@ export class SettingsRepository {
         next.colorSlot3,
         next.defaultWindowWidth,
         next.defaultWindowHeight,
+        next.windowOpacity,
         next.globalShortcut
       ]
     )

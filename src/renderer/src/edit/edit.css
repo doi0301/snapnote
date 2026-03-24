@@ -23,6 +23,7 @@ body {
   padding: 0;
   width: 100%;
   height: 100%;
+  border-radius: 1px;
   overflow: hidden;
 }
 
@@ -45,8 +46,11 @@ body {
   flex-direction: column;
   font-family: system-ui, sans-serif;
   font-size: 13px;
-  color: #1a1a1a;
-  background: #fafafa;
+  color: rgba(26, 26, 26, var(--window-text-alpha, 1));
+  --window-bg-alpha: 1;
+  --window-text-alpha: 1;
+  background: transparent;
+  border-radius: 1px;
   overflow: hidden;
   position: relative;
 }
@@ -58,7 +62,7 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
-  background: #fff;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 .edit-loading {
@@ -159,36 +163,36 @@ body {
 
 /* 메모별 루트 면색 = 상·하단 바와 동일 → 측면·모서리 틈이 포인트색으로 채워짐 (@shared/memoChrome 동기화) */
 .edit-root--memo-coral {
-  background: #b84a38;
+  background: transparent;
 }
 
 .edit-root--memo-green {
-  background: #2a7d4d;
+  background: transparent;
 }
 
 .edit-root--memo-blue {
-  background: #3569a8;
+  background: transparent;
 }
 
 .edit-root--memo-default {
-  background: #556376;
+  background: transparent;
 }
 
 /* 펼친 편집 창 — 본문은 연한 틴트, 포인트 색은 상단·하단 바 배경 (왼쪽 라인 없음) */
 .edit-root--memo-coral .edit-body {
-  background: #fef8f6;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 .edit-root--memo-green .edit-body {
-  background: #f5fcf8;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 .edit-root--memo-blue .edit-body {
-  background: #f6f9fe;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 .edit-root--memo-default .edit-body {
-  background: #fff;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 /* 상단 탭: 포인트 면색 + 밝은 아이콘/텍스트 (명도 대비) */

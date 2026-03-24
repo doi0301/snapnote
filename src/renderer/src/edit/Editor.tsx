@@ -45,6 +45,13 @@ interface EditorProps {
   tagSuggestions: string[]
 }
 
+interface MultiLineSelection {
+  anchorLine: number
+  anchorOffset: number
+  focusLine: number
+  focusOffset: number
+}
+
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   { memo, onMemoUpdated, onHeadLineChange, tagRaw, onTagRawChange, tagSuggestions },
   imperativeRef
@@ -60,6 +67,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const [lastHighlightColor, setLastHighlightColor] = useState<HighlightColor>('yellow')
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
+  const [compactToolbarActions, setCompactToolbarActions] = useState(false)
+  const [multiLineSelection, setMultiLineSelection] = useState<MultiLineSelection | null>(null)
+  const draggingSelectionRef = useRef(false)
+  const toolbarStackRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let raf = 0
@@ -72,6 +83,31 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       cancelAnimationFrame(raf)
       document.removeEventListener('selectionchange', onSel)
     }
+  }, [])
+
+  useLayoutEffect(() => {
+    const root = toolbarStackRef.current
+    if (!root) return
+    const update = (): void => {
+      const w = root.getBoundingClientRect().width
+      setCompactToolbarActions(w < 360)
+    }
+    update()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
+    if (ro) ro.observe(root)
+    window.addEventListener('resize', update)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onUp = (): void => {
+      draggingSelectionRef.current = false
+    }
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
   }, [])
 
   useEffect(() => {
@@ -122,13 +158,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const ta = textareaRefs.current[idx]
     const pendingBold = Boolean(line && pendingBoldLineIdsRef.current.has(line.id))
     const lineCheckboxActive = Boolean(line?.formatting?.hasCheckbox)
+    const lineDividerActive = Boolean(line?.formatting?.hasDivider)
 
     if (!line || !ta) {
       return {
         boldActive: pendingBold,
         strikeActive: false,
         highlightActive: false,
-        lineCheckboxActive
+        lineCheckboxActive,
+        lineDividerActive
       }
     }
 
@@ -146,7 +184,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         boldActive: pendingBold || boldAtCaret,
         strikeActive: strikeAtCaret,
         highlightActive: hlAtCaret,
-        lineCheckboxActive
+        lineCheckboxActive,
+        lineDividerActive
       }
     }
 
@@ -154,13 +193,83 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       boldActive: pendingBold || rangeFullyHasProp(sp, s, e, 'bold'),
       strikeActive: rangeFullyHasProp(sp, s, e, 'strikethrough'),
       highlightActive: rangeFullyHasAnyHighlight(sp, s, e),
-      lineCheckboxActive
+      lineCheckboxActive,
+      lineDividerActive
     }
   }, [lines, focusLineIndex, selectionTick, toolbarTick])
 
   const bumpToolbar = useCallback(() => {
     setToolbarTick((t) => t + 1)
   }, [])
+
+  const normalizeSelection = useCallback((sel: MultiLineSelection) => {
+    const startBeforeEnd =
+      sel.anchorLine < sel.focusLine ||
+      (sel.anchorLine === sel.focusLine && sel.anchorOffset <= sel.focusOffset)
+    if (startBeforeEnd) {
+      return {
+        startLine: sel.anchorLine,
+        startOffset: sel.anchorOffset,
+        endLine: sel.focusLine,
+        endOffset: sel.focusOffset
+      }
+    }
+    return {
+      startLine: sel.focusLine,
+      startOffset: sel.focusOffset,
+      endLine: sel.anchorLine,
+      endOffset: sel.anchorOffset
+    }
+  }, [])
+
+  const getLineSelectionRange = useCallback(
+    (index: number): { start: number; end: number } | null => {
+      if (!multiLineSelection) return null
+      const norm = normalizeSelection(multiLineSelection)
+      if (index < norm.startLine || index > norm.endLine) return null
+      const t = lines[index]?.text ?? ''
+      const len = t.length
+      if (norm.startLine === norm.endLine) {
+        return {
+          start: Math.min(norm.startOffset, len),
+          end: Math.min(norm.endOffset, len)
+        }
+      }
+      if (index === norm.startLine) {
+        return { start: Math.min(norm.startOffset, len), end: len }
+      }
+      if (index === norm.endLine) {
+        return { start: 0, end: Math.min(norm.endOffset, len) }
+      }
+      return { start: 0, end: len }
+    },
+    [lines, multiLineSelection, normalizeSelection]
+  )
+
+  useLayoutEffect(() => {
+    const sel = multiLineSelection
+    if (!sel) return
+    const norm = normalizeSelection(sel)
+    for (let i = 0; i < textareaRefs.current.length; i++) {
+      const ta = textareaRefs.current[i]
+      if (!ta) continue
+      const len = ta.value.length
+      if (i < norm.startLine || i > norm.endLine) {
+        ta.setSelectionRange(0, 0)
+      } else if (norm.startLine === norm.endLine) {
+        ta.setSelectionRange(
+          Math.min(norm.startOffset, len),
+          Math.min(norm.endOffset, len)
+        )
+      } else if (i === norm.startLine) {
+        ta.setSelectionRange(Math.min(norm.startOffset, len), len)
+      } else if (i === norm.endLine) {
+        ta.setSelectionRange(0, Math.min(norm.endOffset, len))
+      } else {
+        ta.setSelectionRange(0, len)
+      }
+    }
+  }, [lines, multiLineSelection, normalizeSelection])
 
   const handleLineChange = useCallback(
     (index: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -181,7 +290,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const mergeWithPrevious = useCallback(
-    (index: number) => {
+    (index: number, cutStart = 0) => {
       if (index <= 0) return
       setLines((prev) => {
         const before = prev[index - 1]
@@ -189,11 +298,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         if (!before || !current) return prev
         const joinAt = before.text.length
         pendingFocusRef.current = { index: index - 1, cursor: joinAt }
-        const shifted = shiftSpans(before.text.length, current.spans)
+        const remaining = current.text.slice(cutStart)
+        const shiftedSource =
+          cutStart > 0 ? remapSpansAfterEdit(current.text, remaining, current.spans) : current.spans
+        const shifted = shiftSpans(before.text.length, shiftedSource)
         const mergedSpans = [...(before.spans ?? []), ...shifted]
         const merged: EditorLineModel = {
           ...before,
-          text: before.text + current.text,
+          text: before.text + remaining,
           spans: mergedSpans.length ? mergedSpans : undefined,
           formatting: { ...(before.formatting ?? {}) }
         }
@@ -245,6 +357,36 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     })
   }, [])
 
+  const deleteMultiLineSelection = useCallback(
+    (sel: MultiLineSelection) => {
+      const norm = normalizeSelection(sel)
+      setLines((prev) => {
+        const first = prev[norm.startLine]
+        const last = prev[norm.endLine]
+        if (!first || !last) return prev
+        const mergedText =
+          first.text.slice(0, norm.startOffset) + last.text.slice(norm.endOffset)
+        const merged: EditorLineModel = {
+          ...first,
+          text: mergedText,
+          spans: undefined
+        }
+        const removed = prev.slice(norm.startLine + 1, norm.endLine + 1)
+        for (const line of removed) pendingBoldLineIdsRef.current.delete(line.id)
+        const next = [
+          ...prev.slice(0, norm.startLine),
+          merged,
+          ...prev.slice(norm.endLine + 1)
+        ]
+        pendingFocusRef.current = { index: norm.startLine, cursor: norm.startOffset }
+        return next.length ? next : normalizeEditorLines([])
+      })
+      setMultiLineSelection(null)
+      bumpToolbar()
+    },
+    [bumpToolbar, normalizeSelection]
+  )
+
   const applyHighlightToSelection = useCallback((color: HighlightColor) => {
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
@@ -289,6 +431,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     )
   }, [])
 
+  const toggleLineDivider = useCallback(() => {
+    const i = lastFocusIndex.current
+    setLines((prev) =>
+      prev.map((l, idx) => {
+        if (idx !== i) return l
+        const f = l.formatting ?? {}
+        return { ...l, formatting: { ...f, hasDivider: !f.hasDivider } }
+      })
+    )
+  }, [])
+
   const insertTextAtCursor = useCallback((snippet: string) => {
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
@@ -310,6 +463,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const handleEmojiSelect = useCallback(
     (char: string) => {
       insertTextAtCursor(char)
+      void window.snapnote.clipboard.writeSystem(char, { skipHistory: true })
       setEmojiPaletteOpen(false)
     },
     [insertTextAtCursor]
@@ -346,6 +500,37 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const ta = e.currentTarget
       const start = ta.selectionStart
       const end = ta.selectionEnd
+
+      if (
+        multiLineSelection &&
+        (multiLineSelection.anchorLine !== multiLineSelection.focusLine ||
+          multiLineSelection.anchorOffset !== multiLineSelection.focusOffset)
+      ) {
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault()
+          deleteMultiLineSelection(multiLineSelection)
+          return
+        }
+        if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'c') {
+          e.preventDefault()
+          const norm = normalizeSelection(multiLineSelection)
+          const parts: string[] = []
+          for (let i = norm.startLine; i <= norm.endLine; i++) {
+            const t = lines[i]?.text ?? ''
+            if (i === norm.startLine && i === norm.endLine) {
+              parts.push(t.slice(norm.startOffset, norm.endOffset))
+            } else if (i === norm.startLine) {
+              parts.push(t.slice(norm.startOffset))
+            } else if (i === norm.endLine) {
+              parts.push(t.slice(0, norm.endOffset))
+            } else {
+              parts.push(t)
+            }
+          }
+          void window.snapnote.clipboard.writeSystem(parts.join('\n'), { skipHistory: true })
+          return
+        }
+      }
 
       if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
@@ -396,13 +581,21 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return
       }
 
-      if (e.key === 'Backspace' && start === 0 && end === 0 && index > 0) {
+      if (e.key === 'Backspace' && start === 0 && index > 0) {
         e.preventDefault()
-        mergeWithPrevious(index)
+        mergeWithPrevious(index, end)
         return
       }
     },
-    [lines, mergeWithPrevious, toggleBold, toggleStrikethrough]
+    [
+      deleteMultiLineSelection,
+      lines,
+      mergeWithPrevious,
+      multiLineSelection,
+      normalizeSelection,
+      toggleBold,
+      toggleStrikethrough
+    ]
   )
 
   useImperativeHandle(
@@ -443,10 +636,51 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                 placeholder={index === 0 ? '내용을 입력하세요.' : ''}
                 onChange={(e) => handleLineChange(index, e)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
+                onMouseDown={(e) => {
+                  draggingSelectionRef.current = true
+                  const ta = e.currentTarget
+                  ta.focus()
+                  lastFocusIndex.current = index
+                  setFocusLineIndex(index)
+                  setMultiLineSelection({
+                    anchorLine: index,
+                    anchorOffset: ta.selectionStart,
+                    focusLine: index,
+                    focusOffset: ta.selectionEnd
+                  })
+                }}
+                onMouseMove={(e) => {
+                  if (!draggingSelectionRef.current || (e.buttons & 1) !== 1) return
+                  const ta = e.currentTarget
+                  ta.focus()
+                  lastFocusIndex.current = index
+                  setFocusLineIndex(index)
+                  setMultiLineSelection((prev) => {
+                    if (!prev) {
+                      return {
+                        anchorLine: index,
+                        anchorOffset: ta.selectionStart,
+                        focusLine: index,
+                        focusOffset: ta.selectionEnd
+                      }
+                    }
+                    return {
+                      anchorLine: prev.anchorLine,
+                      anchorOffset: prev.anchorOffset,
+                      focusLine: index,
+                      focusOffset: ta.selectionEnd
+                    }
+                  })
+                }}
+                onMouseUp={() => {
+                  draggingSelectionRef.current = false
+                }}
                 onFocus={() => {
                   lastFocusIndex.current = index
                   setFocusLineIndex(index)
+                  if (!draggingSelectionRef.current) setMultiLineSelection(null)
                 }}
+                mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
                 onCheckboxToggle={
                   line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
                 }
@@ -470,19 +704,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           suggestions={tagSuggestions}
           variant="bottom"
         />
-        <div className="editor-toolbar-stack">
+        <div className="editor-toolbar-stack" ref={toolbarStackRef}>
           <ClipboardHistoryControl />
           <FormatToolbar
             boldActive={toolbarToggleUi.boldActive}
             strikeActive={toolbarToggleUi.strikeActive}
             highlightActive={toolbarToggleUi.highlightActive}
             lineCheckboxActive={toolbarToggleUi.lineCheckboxActive}
+            lineDividerActive={toolbarToggleUi.lineDividerActive}
             onBold={toggleBold}
             onStrikethrough={toggleStrikethrough}
             lastHighlightColor={lastHighlightColor}
             onHighlightPrimaryClick={onHighlightPrimaryClick}
             onPickHighlightColor={onPickHighlightColor}
             onToggleLineCheckbox={toggleLineHasCheckbox}
+            onToggleLineDivider={toggleLineDivider}
+            compactActions={compactToolbarActions}
             symbolPaletteOpen={emojiPaletteOpen}
             onToggleSymbolPalette={toggleEmojiPalette}
             onSymbolSelect={handleEmojiSelect}

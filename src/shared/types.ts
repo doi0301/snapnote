@@ -21,6 +21,7 @@ export interface LineFormatting {
   highlight?: HighlightColor | null
   hasCheckbox?: boolean
   checkboxChecked?: boolean
+  hasDivider?: boolean
 }
 
 /** 에디터 한 줄 */
@@ -77,6 +78,7 @@ export interface Settings {
   colorSlot3: string
   defaultWindowWidth: number
   defaultWindowHeight: number
+  windowOpacity: number
   globalShortcut: string
 }
 

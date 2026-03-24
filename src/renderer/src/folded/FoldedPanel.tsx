@@ -59,24 +59,20 @@ export function FoldedPanel(): React.JSX.Element {
   const onPreviewEnter = useCallback(
     (id: MemoId, slotEl: HTMLElement) => {
       clearPendingPreviewOpen()
+      const r = slotEl.getBoundingClientRect()
       previewEnterTimer.current = window.setTimeout(() => {
-        const r = slotEl.getBoundingClientRect()
         void window.snapnote.memo.openPreview({
           id,
           anchor: { left: r.left, top: r.top, width: r.width, height: r.height }
         })
-      }, 150)
+      }, 80)
     },
     [clearPendingPreviewOpen]
   )
 
-  /**
-   * 슬롯 이탈: 짧은 지연 후 닫기 → 패널 옆 프리뷰로 포인터를 옮겨 클릭할 틈 제공.
-   * 프리뷰 `mouseenter`에서 `cancelScheduledPreviewHide` 호출.
-   */
   const onPreviewLeave = useCallback(() => {
     window.clearTimeout(previewEnterTimer.current)
-    void window.snapnote.memo.schedulePreviewHide(120)
+    void window.snapnote.memo.closePreview()
   }, [])
 
   useEffect(() => () => clearPendingPreviewOpen(), [clearPendingPreviewOpen])

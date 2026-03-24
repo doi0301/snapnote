@@ -13,7 +13,6 @@ import {
   computeSnappedPosition,
   SNAP_SCREEN_EDGE_PX
 } from './utils/edgeSnap'
-import { editWindowChromeHex } from '@shared/memoChrome'
 
 const FOLDED_WIDTH = 320
 /** 최초 생성 시 높이; 이후 렌더러 측정값으로 `setContentSize` */
@@ -115,6 +114,11 @@ export class WindowManager {
 
   constructor(private readonly deps: WindowManagerDeps) {}
 
+  applyConfiguredOpacityToOpenWindows(): void {
+    // window-level opacity 대신 renderer에서 배경 알파만 반영한다.
+    // (텍스트 가독성 보장을 위해 창 전체 투명도 사용 금지)
+  }
+
   init(): void {
     if (this.foldedBootstrapDone) return
     this.foldedBootstrapDone = true
@@ -191,6 +195,10 @@ export class WindowManager {
     if (process.platform !== 'win32' && process.platform !== 'darwin') return
     const applyEdgeSnapAfterMove = debounce(() => {
       if (win.isDestroyed()) return
+      if (editMemoId) {
+        const memo = this.deps.memos.getMemo(editMemoId)
+        if (memo?.isPinned) return
+      }
       const b = win.getBounds()
       const workAreas = screen.getAllDisplays().map((d) => d.workArea)
       const { x, y } =
@@ -202,6 +210,22 @@ export class WindowManager {
       }
     }, 120)
     win.on('moved', () => applyEdgeSnapAfterMove())
+  }
+
+  private getSmartOpenPosition(width: number, height: number): { x?: number; y?: number } {
+    const focusedId = this.editFocusOrder.at(-1)
+    const focusedWin = focusedId ? this.editWindows.get(focusedId) : null
+    if (focusedWin && !focusedWin.isDestroyed()) {
+      const b = focusedWin.getBounds()
+      const target = clampPreviewTopLeft(b.x + b.width + 12, b.y, width, height)
+      return { x: target.x, y: target.y }
+    }
+    if (this.foldedPanel && !this.foldedPanel.isDestroyed()) {
+      const b = this.foldedPanel.getBounds()
+      const target = clampPreviewTopLeft(b.x + b.width + 12, b.y, width, height)
+      return { x: target.x, y: target.y }
+    }
+    return {}
   }
 
   private getOtherEditWindowBounds(excludeMemoId: MemoId): WinBounds[] {
@@ -403,8 +427,14 @@ export class WindowManager {
     const settings = this.deps.settings.getSettings()
     const w = memo.windowWidth || settings.defaultWindowWidth
     const h = memo.windowHeight || settings.defaultWindowHeight
-    const x = memo.windowX ?? undefined
-    const y = memo.windowY ?? undefined
+    let x = memo.windowX ?? undefined
+    let y = memo.windowY ?? undefined
+    const foldedStack = this.deps.settings.getAppState().foldedStack
+    if (foldedStack.includes(memoId)) {
+      const smart = this.getSmartOpenPosition(w, h)
+      x = smart.x
+      y = smart.y
+    }
 
     const win = new BrowserWindow({
       width: w,
@@ -415,11 +445,12 @@ export class WindowManager {
       minHeight: EDIT_MIN_H,
       show: false,
       frame: false,
+      transparent: true,
       resizable: true,
       thickFrame: true,
       autoHideMenuBar: true,
-      /** Win11 라운드 코너·틈에 흰색이 비지 않도록 웹 크롬색과 맞춤 */
-      backgroundColor: editWindowChromeHex(memo.color),
+      /** 실제 창 투명: 뒤 배경이 비치도록 투명 캔버스로 시작 */
+      backgroundColor: '#00000000',
       ...(process.platform === 'linux' ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -622,7 +653,24 @@ export class WindowManager {
       return
     }
 
-    if (this.previewWindow && !this.previewWindow.isDestroyed() && this.previewMemoId === memoId) {
+    if (this.previewWindow && !this.previewWindow.isDestroyed() && this.previewMemoId === memoId && anchor) {
+      const panel = this.foldedPanel
+      if (panel && !panel.isDestroyed()) {
+        const cb = panel.getContentBounds()
+        const sy = cb.y + anchor.top
+        const sh = anchor.height
+        const wa = screen.getDisplayNearestPoint({ x: cb.x, y: cb.y }).workArea
+        let fx = cb.x + cb.width + PREVIEW_GAP
+        if (fx + PREVIEW_WIDTH > wa.x + wa.width - 2) {
+          fx = cb.x - PREVIEW_WIDTH - PREVIEW_GAP
+        }
+        const fy = sy + Math.round(sh / 2 - PREVIEW_HEIGHT / 2)
+        const clamped = clampPreviewTopLeft(fx, fy, PREVIEW_WIDTH, PREVIEW_HEIGHT)
+        this.previewWindow.setBounds(
+          { x: clamped.x, y: clamped.y, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT },
+          false
+        )
+      }
       return
     }
 
@@ -671,10 +719,12 @@ export class WindowManager {
       y: finalBounds.y,
       show: false,
       frame: false,
+      transparent: true,
       focusable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
+      backgroundColor: '#00000000',
       ...(process.platform === 'linux' ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

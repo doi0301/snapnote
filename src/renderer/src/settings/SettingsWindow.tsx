@@ -187,6 +187,25 @@ export function SettingsWindow(): React.JSX.Element {
             />
           </label>
         </div>
+        <div className="settings-opacity-row">
+          <label htmlFor="settings-window-opacity">창 투명도</label>
+          <div className="settings-opacity-control">
+            <input
+              id="settings-window-opacity"
+              type="range"
+              min={60}
+              max={100}
+              step={1}
+              value={Math.round((settings.windowOpacity ?? 1) * 100)}
+              disabled={saving}
+              onChange={(e) => {
+                const pct = clamp(Number(e.currentTarget.value), 60, 100)
+                void patch({ windowOpacity: pct / 100 })
+              }}
+            />
+            <span>{Math.round((settings.windowOpacity ?? 1) * 100)}%</span>
+          </div>
+        </div>
       </section>
 
       <section className="settings-section" aria-labelledby="settings-shortcuts">

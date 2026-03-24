@@ -4,27 +4,35 @@ import { Checkbox } from './Checkbox'
 import { SpannedLineMirror } from './InlineSpan'
 import './editor-line.css'
 
-const LEVEL_BG: Record<number, string> = {
-  0: '#ffffff',
-  1: '#f8f8f8',
-  2: '#f0f0f0',
-  3: '#e8e8e8'
-}
-
 export const INDENT_PX = 20
 
 export interface EditorLineViewProps {
   line: EditorLineModel
+  mirrorSelectionRange?: { start: number; end: number }
   placeholder?: string
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onMouseDown?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
+  onMouseMove?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
+  onMouseUp?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
   onFocus?: () => void
   onCheckboxToggle?: () => void
 }
 
 export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProps>(
   function EditorLineView(props, ref) {
-    const { line, placeholder, onChange, onKeyDown, onFocus, onCheckboxToggle } = props
+    const {
+      line,
+      mirrorSelectionRange,
+      placeholder,
+      onChange,
+      onKeyDown,
+      onMouseDown,
+      onMouseMove,
+      onMouseUp,
+      onFocus,
+      onCheckboxToggle
+    } = props
     const level = Math.min(3, Math.max(0, line.indentLevel))
     const marginW = level * INDENT_PX
 
@@ -33,10 +41,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
      * `<textarea>`가 리마운트되어 Enter 직후·첫 입력 시 포커스가 풀리는 문제가 있었다.
      */
     return (
-      <div
-        className={`editor-line editor-line--level-${level}`}
-        style={{ backgroundColor: LEVEL_BG[level] ?? LEVEL_BG[0] }}
-      >
+      <div className={`editor-line editor-line--level-${level}`}>
         <div
           className="editor-line-gutter"
           style={{ width: marginW, minWidth: marginW }}
@@ -54,6 +59,8 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
               text={line.text}
               spans={line.spans}
               lineFormatting={line.formatting}
+              selectionStart={mirrorSelectionRange?.start}
+              selectionEnd={mirrorSelectionRange?.end}
             />
           </div>
           <textarea
@@ -63,11 +70,15 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
             placeholder={placeholder}
             onChange={onChange}
             onKeyDown={onKeyDown}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
             onFocus={onFocus}
             rows={1}
             spellCheck={false}
           />
         </div>
+        {line.formatting?.hasDivider ? <div className="editor-line-divider" aria-hidden /> : null}
       </div>
     )
   }

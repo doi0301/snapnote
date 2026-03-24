@@ -2,7 +2,7 @@ import type { Database } from 'sql.js'
 import { selectAll, selectOne, run } from '../repositories/sqlRun'
 
 /** 스키마 버전 (PRAGMA user_version) */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /** TRD §3.1 + DESIGN_SYSTEM 슬롯 기본색 */
 const DEFAULT_COLOR_SLOT_1 = '#F28B74'
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS settings (
   color_slot_3 TEXT NOT NULL,
   default_window_width INTEGER NOT NULL DEFAULT 400,
   default_window_height INTEGER NOT NULL DEFAULT 500,
+  window_opacity REAL NOT NULL DEFAULT 1.0,
   global_shortcut TEXT NOT NULL DEFAULT 'CommandOrControl+Shift+M',
   clipboard_notice_shown INTEGER NOT NULL DEFAULT 0
 );
@@ -102,6 +103,19 @@ function migrateClipboardHistoryImageColumns(db: Database): void {
   run(db, 'PRAGMA user_version = 4')
 }
 
+function migrateSettingsWindowOpacity(db: Database): void {
+  const verRow = selectOne(db, 'PRAGMA user_version', [])
+  const ver = verRow ? Number(verRow.user_version) : 0
+  if (ver >= 5) return
+
+  const cols = selectAll(db, 'PRAGMA table_info(settings)', [])
+  const has = cols.some((c) => String(c.name) === 'window_opacity')
+  if (!has) {
+    run(db, 'ALTER TABLE settings ADD COLUMN window_opacity REAL NOT NULL DEFAULT 1.0')
+  }
+  run(db, 'PRAGMA user_version = 5')
+}
+
 /** 테이블 생성 */
 export function applySchema(db: Database): void {
   db.run(CREATE_MEMOS)
@@ -112,6 +126,7 @@ export function applySchema(db: Database): void {
   migrateMemosPinnedAt(db)
   migrateSettingsClipboardNotice(db)
   migrateClipboardHistoryImageColumns(db)
+  migrateSettingsWindowOpacity(db)
 
   db.run(
     `INSERT OR IGNORE INTO app_state (id, folded_stack, folded_panel_x, folded_panel_y)
@@ -122,9 +137,9 @@ export function applySchema(db: Database): void {
     `INSERT OR IGNORE INTO settings (
       id, launch_on_startup, clipboard_monitoring,
       color_slot_1, color_slot_2, color_slot_3,
-      default_window_width, default_window_height, global_shortcut,
+      default_window_width, default_window_height, window_opacity, global_shortcut,
       clipboard_notice_shown
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       'singleton',
       0,
@@ -134,6 +149,7 @@ export function applySchema(db: Database): void {
       DEFAULT_COLOR_SLOT_3,
       400,
       500,
+      1.0,
       'CommandOrControl+Shift+M',
       0
     ]
