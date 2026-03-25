@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync } from 'fs'
 import { tmpdir } from 'os'
 import { app, BrowserWindow } from 'electron'
+import { setupApplicationMenu } from './applicationMenu'
 import { join } from 'path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { requestQuit, setAppQuitting } from './appLifecycle'
@@ -64,6 +65,7 @@ if (!hasMainInstanceLock) {
     .whenReady()
     .then(async () => {
       electronApp.setAppUserModelId('com.snapnote.app')
+      setupApplicationMenu()
 
       /**
        * 앱 시작 순서 (TASK-S5-02)

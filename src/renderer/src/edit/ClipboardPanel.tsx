@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import type { ClipboardItem } from '@shared/types'
 import { getEditPopoverRoot } from './editPopoverRoot'
+import { IconClipboard } from './toolbarIcons'
 import './clipboard-panel.css'
 
 /** 말줄임만 쓸 때와 비교용 — 실제 표시는 CSS line-clamp */
@@ -392,14 +393,14 @@ export function ClipboardHistoryControl(): React.JSX.Element {
         ref={btnRef}
         type="button"
         data-testid="clipboard-panel-trigger"
-        className={`format-toolbar-btn clipboard-history-trigger${open ? ' format-toolbar-btn--active' : ''}`}
+        className={`format-toolbar-btn format-toolbar-btn--icon clipboard-history-trigger${open ? ' format-toolbar-btn--active' : ''}`}
         title="클립보드 히스토리"
         aria-expanded={open}
         aria-pressed={open}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((o) => !o)}
       >
-        📋
+        <IconClipboard size={18} />
       </button>
       <ClipboardPanel open={open} anchorRef={btnRef} onClose={() => setOpen(false)} />
     </>

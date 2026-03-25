@@ -5,6 +5,22 @@
   min-height: 0;
 }
 
+/**
+ * 가상 다중 줄 선택: textarea(z-index 위)의 네이티브 선택이 미러보다 위에 그려져
+ * 배경·글자색이 겹친다. 배경만 투명하면 글자는 여전히 검게 보일 수 있어 글자도 투명 처리해
+ * 미러(.inline-selected, 흰 글자)만 보이게 한다.
+ */
+.editor--virtual-selection-active .editor-line-textarea::selection {
+  background-color: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+}
+.editor--virtual-selection-active .editor-line-textarea::-moz-selection {
+  background-color: transparent !important;
+  color: transparent !important;
+}
+
 .editor-scroll {
   flex: 1;
   min-height: 0;
@@ -37,8 +53,15 @@
   padding: 8px 10px;
   -webkit-app-region: no-drag;
   min-width: 0;
-  /* 툴바 고정 폭 + 태그 최소 폭 충돌 시에만 가로 스크롤 */
-  overflow-x: hidden;
+  /* 이모지·팝오버는 포털로 그리지만, 줄바꿈 시 툴바가 잘리지 않도록 가로 overflow 허용 */
+  overflow-x: visible;
+  overflow-y: visible;
+}
+
+.editor-bottom-bar-tags {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .editor-lines {

@@ -24,6 +24,11 @@ function PreviewApp(): React.JSX.Element {
     return window.snapnote.on.settingsChanged((s) => setSettings(s))
   }, [])
 
+  /** 폴디드 슬롯 이탈 시 지연 닫기가 걸려 있으면, 미리보기 창이 뜬 뒤 취소해 고정 방지 */
+  useEffect(() => {
+    void window.snapnote.memo.cancelScheduledPreviewHide()
+  }, [])
+
   const body = memo ? fullContentPreview(memo.content, 700) : '메모를 불러올 수 없습니다.'
 
   const openEdit = useCallback(() => {
@@ -34,6 +39,14 @@ function PreviewApp(): React.JSX.Element {
   const hue = memo ? memoHue(memo.color) : 'default'
   const bgAlpha = Math.min(1, Math.max(0.6, Number(settings?.windowOpacity) || 1))
   const textAlpha = Math.max(0.92, bgAlpha)
+
+  const onPreviewPointerEnter = useCallback(() => {
+    void window.snapnote.memo.cancelScheduledPreviewHide()
+  }, [])
+
+  const onPreviewPointerLeave = useCallback(() => {
+    void window.snapnote.memo.schedulePreviewHide(220)
+  }, [])
 
   return (
     <div
@@ -48,6 +61,8 @@ function PreviewApp(): React.JSX.Element {
       role="button"
       tabIndex={0}
       title="클릭하여 편집"
+      onPointerEnter={onPreviewPointerEnter}
+      onPointerLeave={onPreviewPointerLeave}
       onClick={openEdit}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

@@ -25,7 +25,20 @@ function collectBreakpoints(
   return [...p].sort((a, b) => a - b)
 }
 
+function sliceOverlapsSelection(
+  a: number,
+  b: number,
+  selectionStart?: number,
+  selectionEnd?: number
+): boolean {
+  if (selectionStart === undefined || selectionEnd === undefined) return false
+  if (selectionEnd <= selectionStart) return false
+  return a < selectionEnd && b > selectionStart
+}
+
 function classForSlice(
+  sliceStart: number,
+  sliceEnd: number,
   mid: number,
   spans: TextSpan[],
   lineStrike: boolean,
@@ -34,13 +47,7 @@ function classForSlice(
 ): string {
   const parts: string[] = []
   if (lineStrike) parts.push('inline-strike')
-  if (
-    selectionStart !== undefined &&
-    selectionEnd !== undefined &&
-    selectionEnd > selectionStart &&
-    mid >= selectionStart &&
-    mid < selectionEnd
-  ) {
+  if (sliceOverlapsSelection(sliceStart, sliceEnd, selectionStart, selectionEnd)) {
     parts.push('inline-selected')
   }
   for (const s of spans) {
@@ -88,7 +95,7 @@ export function SpannedLineMirror({
     if (a === b) continue
     const slice = text.slice(a, b)
     const mid = Math.min(a + Math.floor((b - a - 1) / 2), text.length - 1)
-    const cls = classForSlice(mid >= a ? mid : a, s, lineStrike, selectionStart, selectionEnd)
+    const cls = classForSlice(a, b, mid >= a ? mid : a, s, lineStrike, selectionStart, selectionEnd)
     parts.push(
       <span key={`${a}:${b}`} className={cls}>
         {slice}

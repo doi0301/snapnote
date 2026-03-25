@@ -70,12 +70,35 @@ export function FoldedPanel(): React.JSX.Element {
     [clearPendingPreviewOpen]
   )
 
+  /** 즉시 closePreview 하면 슬롯→미리보기 창으로 포인터가 옮겨질 때 mouseleave 가 늦거나 누락되어 미리보기가 고정되는 경우가 있다. 짧은 지연 닫기 + 미리보기 쪽에서 취소 */
   const onPreviewLeave = useCallback(() => {
     window.clearTimeout(previewEnterTimer.current)
-    void window.snapnote.memo.closePreview()
+    void window.snapnote.memo.schedulePreviewHide(200)
   }, [])
 
-  useEffect(() => () => clearPendingPreviewOpen(), [clearPendingPreviewOpen])
+  useEffect(() => {
+    const onVis = (): void => {
+      if (document.hidden) void window.snapnote.memo.schedulePreviewHide(0)
+    }
+    const onWinBlur = (): void => {
+      void window.snapnote.memo.schedulePreviewHide(0)
+    }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('blur', onWinBlur)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('blur', onWinBlur)
+    }
+  }, [])
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(previewEnterTimer.current)
+      void window.snapnote.memo.cancelScheduledPreviewHide()
+      void window.snapnote.memo.closePreview()
+    },
+    []
+  )
 
   const onNewMemo = useCallback(async () => {
     const m = await window.snapnote.memo.create()

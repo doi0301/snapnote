@@ -27,6 +27,8 @@ import {
   toggleHighlightColor,
   toggleSpanProperty
 } from './spanFormat'
+import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
+import { IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
 
 export { normalizeEditorLines } from './editorLines'
@@ -52,6 +54,16 @@ interface MultiLineSelection {
   focusOffset: number
 }
 
+function multiLineSelectionEqual(a: MultiLineSelection | null, b: MultiLineSelection): boolean {
+  if (!a) return false
+  return (
+    a.anchorLine === b.anchorLine &&
+    a.anchorOffset === b.anchorOffset &&
+    a.focusLine === b.focusLine &&
+    a.focusOffset === b.focusOffset
+  )
+}
+
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   { memo, onMemoUpdated, onHeadLineChange, tagRaw, onTagRawChange, tagSuggestions },
   imperativeRef
@@ -69,12 +81,27 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const [selectionTick, setSelectionTick] = useState(0)
   const [compactToolbarActions, setCompactToolbarActions] = useState(false)
   const [multiLineSelection, setMultiLineSelection] = useState<MultiLineSelection | null>(null)
+  const multiLineSelectionRef = useRef<MultiLineSelection | null>(null)
+  multiLineSelectionRef.current = multiLineSelection
+  const selectionAnchorRef = useRef<{ line: number; anchorOffset: number } | null>(null)
+  const suppressNextFocusSelectionClearRef = useRef(false)
+  /** document 포인터 리스너 정리용 — 새 드래그 시작·언마운트 시 이전 세션 종료 */
+  const endSelectionDragRef = useRef<(() => void) | null>(null)
   const draggingSelectionRef = useRef(false)
   const toolbarStackRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    return () => {
+      endSelectionDragRef.current?.()
+      endSelectionDragRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
     let raf = 0
     const onSel = (): void => {
+      /** 가상 다중 줄 드래그 중 setSelectionRange 동기화가 매 프레임 selectionchange 를 쏘아 툴바·전체 줄이 흔들린다 */
+      if (draggingSelectionRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => setSelectionTick((t) => t + 1))
     }
@@ -256,23 +283,56 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const len = ta.value.length
       if (i < norm.startLine || i > norm.endLine) {
         ta.setSelectionRange(0, 0)
-      } else if (norm.startLine === norm.endLine) {
-        ta.setSelectionRange(
-          Math.min(norm.startOffset, len),
-          Math.min(norm.endOffset, len)
-        )
-      } else if (i === norm.startLine) {
-        ta.setSelectionRange(Math.min(norm.startOffset, len), len)
-      } else if (i === norm.endLine) {
-        ta.setSelectionRange(0, Math.min(norm.endOffset, len))
-      } else {
-        ta.setSelectionRange(0, len)
+        continue
       }
+      /**
+       * 포커스가 없는 textarea 는 Chromium/Electron 에서 ::selection 글자색(투명)이 적용되지 않는 경우가 있어
+       * 네이티브 선택이 파란 배경+검정 글자로 미러(흰 글자)와 섞여 보인다.
+       * 가상 다중 줄 선택은 미러만 전 구간을 칠하고, 네이티브 범위는 포커스 줄(커서가 있는 줄)에만 둔다.
+       */
+      if (i !== sel.focusLine) {
+        ta.setSelectionRange(0, 0)
+        continue
+      }
+      let s = 0
+      let e = 0
+      if (norm.startLine === norm.endLine) {
+        s = Math.min(norm.startOffset, len)
+        e = Math.min(norm.endOffset, len)
+      } else if (i === norm.startLine) {
+        s = Math.min(norm.startOffset, len)
+        e = len
+      } else if (i === norm.endLine) {
+        s = 0
+        e = Math.min(norm.endOffset, len)
+      } else {
+        s = 0
+        e = len
+      }
+      if (s === e) {
+        ta.setSelectionRange(s, e)
+        continue
+      }
+      /**
+       * 기본 setSelectionRange 는 forward → 캐럿이 항상 range 끝(아래쪽)에 그려짐.
+       * 아래→위 드래그 시 포커스는 위쪽 끝인데 캐럿이 아래 끝에 있으면 네이티브 선택 하이라이트가
+       * 커서가 닿은 쪽만 검정 글자로 덮는 것처럼 보인다. 포커스 줄에서 방향을 맞춘다.
+       */
+      const fo = Math.min(Math.max(sel.focusOffset, 0), len)
+      let direction: 'forward' | 'backward' = 'forward'
+      if (fo <= s) direction = 'backward'
+      else if (fo >= e) direction = 'forward'
+      else {
+        direction = fo - s <= e - fo ? 'backward' : 'forward'
+      }
+      ta.setSelectionRange(s, e, direction)
     }
   }, [lines, multiLineSelection, normalizeSelection])
 
   const handleLineChange = useCallback(
     (index: number, e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      /** 클릭으로만 잡힌 multiLineSelection 이 남으면 lines 변경 시 selection sync effect 가 오래된 offset 으로 커서를 되돌려 앞쪽 삽입 버그가 난다 */
+      setMultiLineSelection(null)
       const newT = e.target.value
       setLines((prev) => {
         const line = prev[index]
@@ -443,6 +503,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [])
 
   const insertTextAtCursor = useCallback((snippet: string) => {
+    setMultiLineSelection(null)
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
     if (!ta) return
@@ -491,6 +552,27 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     )
   }, [])
 
+  const copyMultiLineSelectionToClipboard = useCallback(
+    (sel: MultiLineSelection) => {
+      const norm = normalizeSelection(sel)
+      const parts: string[] = []
+      for (let i = norm.startLine; i <= norm.endLine; i++) {
+        const t = lines[i]?.text ?? ''
+        if (i === norm.startLine && i === norm.endLine) {
+          parts.push(t.slice(norm.startOffset, norm.endOffset))
+        } else if (i === norm.startLine) {
+          parts.push(t.slice(norm.startOffset))
+        } else if (i === norm.endLine) {
+          parts.push(t.slice(0, norm.endOffset))
+        } else {
+          parts.push(t)
+        }
+      }
+      void window.snapnote.clipboard.writeSystem(parts.join('\n'), { skipHistory: true })
+    },
+    [lines, normalizeSelection]
+  )
+
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.nativeEvent.isComposing || e.key === 'Process') return
@@ -500,6 +582,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const ta = e.currentTarget
       const start = ta.selectionStart
       const end = ta.selectionEnd
+      /** Windows Ctrl / macOS Cmd — 단축키 일관 처리 */
+      const mod = (e.ctrlKey || e.metaKey) && !e.altKey
+      const key = e.key.toLowerCase()
 
       if (
         multiLineSelection &&
@@ -511,33 +596,26 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           deleteMultiLineSelection(multiLineSelection)
           return
         }
-        if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'c') {
+        /** 여러 줄 가상 선택: 네이티브 cut 이 한 textarea 에만 적용되어 실패하므로 명시 처리 */
+        if (mod && key === 'x' && !e.shiftKey) {
           e.preventDefault()
-          const norm = normalizeSelection(multiLineSelection)
-          const parts: string[] = []
-          for (let i = norm.startLine; i <= norm.endLine; i++) {
-            const t = lines[i]?.text ?? ''
-            if (i === norm.startLine && i === norm.endLine) {
-              parts.push(t.slice(norm.startOffset, norm.endOffset))
-            } else if (i === norm.startLine) {
-              parts.push(t.slice(norm.startOffset))
-            } else if (i === norm.endLine) {
-              parts.push(t.slice(0, norm.endOffset))
-            } else {
-              parts.push(t)
-            }
-          }
-          void window.snapnote.clipboard.writeSystem(parts.join('\n'), { skipHistory: true })
+          copyMultiLineSelectionToClipboard(multiLineSelection)
+          deleteMultiLineSelection(multiLineSelection)
+          return
+        }
+        if (mod && key === 'c' && !e.shiftKey) {
+          e.preventDefault()
+          copyMultiLineSelectionToClipboard(multiLineSelection)
           return
         }
       }
 
-      if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'b') {
+      if (mod && key === 'b') {
         e.preventDefault()
         toggleBold()
         return
       }
-      if (e.ctrlKey && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'x') {
+      if (mod && e.shiftKey && key === 'x') {
         e.preventDefault()
         toggleStrikethrough()
         return
@@ -588,11 +666,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
     },
     [
+      copyMultiLineSelectionToClipboard,
       deleteMultiLineSelection,
       lines,
       mergeWithPrevious,
       multiLineSelection,
-      normalizeSelection,
       toggleBold,
       toggleStrikethrough
     ]
@@ -602,6 +680,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     imperativeRef,
     () => ({
       appendTextFromClipboard: (text: string) => {
+        setMultiLineSelection(null)
         const i = lastFocusIndex.current
         setLines((prev) =>
           prev.map((l, idx) => {
@@ -623,8 +702,143 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     textareaRefs.current[i] = el
   }, [])
 
+  const onLinePointerDown = useCallback((index: number, e: React.PointerEvent<HTMLTextAreaElement>) => {
+    if (e.button !== 0) return
+    const ta = e.currentTarget
+    endSelectionDragRef.current?.()
+    endSelectionDragRef.current = null
+
+    draggingSelectionRef.current = true
+    ta.focus()
+    lastFocusIndex.current = index
+    setFocusLineIndex(index)
+    /**
+     * mousedown 직후에는 브라우저가 아직 캐럿/선택을 갱신하지 않아 selectionStart/End 가 이전 줄 전체 선택 등
+     * 으로 남을 수 있다. multiLineSelection 을 여기서 채우면 sync effect 가 그대로 DOM 에 박혀
+     * "줄 클릭 시 전체 선택" 처럼 보인다. 실제 드래그가 시작된 뒤에만 가상 선택을 연다.
+     */
+    setMultiLineSelection(null)
+    selectionAnchorRef.current = null
+    const dragStartClient = { x: e.clientX, y: e.clientY }
+    const lineIndexDown = index
+    let dragSelectionActive = false
+    let moveRafId = 0
+    let pendingPointer: { x: number; y: number } | null = null
+
+    const flushMove = (): void => {
+      moveRafId = 0
+      if (!draggingSelectionRef.current) return
+      const p = pendingPointer
+      if (!p) return
+      const clientX = p.x
+      const clientY = p.y
+      const found = findEditorTextareaUnderPoint(clientX, clientY, textareaRefs.current, lineIndexDown)
+      if (!found) return
+
+      if (!dragSelectionActive) {
+        const movedEnough =
+          Math.hypot(clientX - dragStartClient.x, clientY - dragStartClient.y) >= 4
+        const lineChanged = found.index !== lineIndexDown
+        if (!movedEnough && !lineChanged) return
+        const ta0 = textareaRefs.current[lineIndexDown]
+        if (!ta0) return
+        dragSelectionActive = true
+        const s = Math.min(ta0.selectionStart, ta0.selectionEnd)
+        selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: s }
+        const { ta: taUnder, index: elIndex } = found
+        taUnder.focus()
+        lastFocusIndex.current = elIndex
+        setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
+        const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
+        const nextSel: MultiLineSelection = {
+          anchorLine: lineIndexDown,
+          anchorOffset: s,
+          focusLine: elIndex,
+          focusOffset
+        }
+        setMultiLineSelection((prev) => (multiLineSelectionEqual(prev, nextSel) ? prev : nextSel))
+        return
+      }
+
+      const { ta: taUnder, index: elIndex } = found
+      taUnder.focus()
+      lastFocusIndex.current = elIndex
+      setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
+      const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
+      setMultiLineSelection((prev) => {
+        const anchor = selectionAnchorRef.current
+        if (!anchor) return prev
+        const next: MultiLineSelection = !prev
+          ? {
+              anchorLine: anchor.line,
+              anchorOffset: anchor.anchorOffset,
+              focusLine: elIndex,
+              focusOffset
+            }
+          : {
+              anchorLine: prev.anchorLine,
+              anchorOffset: prev.anchorOffset,
+              focusLine: elIndex,
+              focusOffset
+            }
+        return multiLineSelectionEqual(prev, next) ? prev : next
+      })
+    }
+
+    const move = (ev: PointerEvent): void => {
+      if (!draggingSelectionRef.current) return
+      if ((ev.buttons & 1) !== 1) return
+      pendingPointer = { x: ev.clientX, y: ev.clientY }
+      if (moveRafId) return
+      moveRafId = requestAnimationFrame(flushMove)
+    }
+
+    const endDrag = (): void => {
+      if (moveRafId) {
+        cancelAnimationFrame(moveRafId)
+        moveRafId = 0
+      }
+      pendingPointer = null
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerup', endDrag)
+      document.removeEventListener('pointercancel', endDrag)
+      endSelectionDragRef.current = null
+      draggingSelectionRef.current = false
+      selectionAnchorRef.current = null
+      const before = multiLineSelectionRef.current
+      setMultiLineSelection((p) => {
+        if (!p) return null
+        if (p.anchorLine === p.focusLine && p.anchorOffset === p.focusOffset) return null
+        return p
+      })
+      const hadRange =
+        before &&
+        !(before.anchorLine === before.focusLine && before.anchorOffset === before.focusOffset)
+      if (hadRange) {
+        suppressNextFocusSelectionClearRef.current = true
+        window.setTimeout(() => {
+          suppressNextFocusSelectionClearRef.current = false
+        }, 0)
+      }
+    }
+
+    endSelectionDragRef.current = endDrag
+    document.addEventListener('pointermove', move)
+    document.addEventListener('pointerup', endDrag)
+    document.addEventListener('pointercancel', endDrag)
+  }, [])
+
+  const virtualSelectionActive =
+    multiLineSelection !== null &&
+    (multiLineSelection.anchorLine !== multiLineSelection.focusLine ||
+      multiLineSelection.anchorOffset !== multiLineSelection.focusOffset)
+
   return (
-    <div className="editor-root-inner">
+    <div
+      className={
+        virtualSelectionActive ? 'editor-root-inner editor--virtual-selection-active' : 'editor-root-inner'
+      }
+    >
       <div className="editor-scroll">
         <div className="editor-shell editor-shell--flat">
           <div className="editor-lines">
@@ -636,48 +850,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                 placeholder={index === 0 ? '내용을 입력하세요.' : ''}
                 onChange={(e) => handleLineChange(index, e)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                onMouseDown={(e) => {
-                  draggingSelectionRef.current = true
-                  const ta = e.currentTarget
-                  ta.focus()
-                  lastFocusIndex.current = index
-                  setFocusLineIndex(index)
-                  setMultiLineSelection({
-                    anchorLine: index,
-                    anchorOffset: ta.selectionStart,
-                    focusLine: index,
-                    focusOffset: ta.selectionEnd
-                  })
-                }}
-                onMouseMove={(e) => {
-                  if (!draggingSelectionRef.current || (e.buttons & 1) !== 1) return
-                  const ta = e.currentTarget
-                  ta.focus()
-                  lastFocusIndex.current = index
-                  setFocusLineIndex(index)
-                  setMultiLineSelection((prev) => {
-                    if (!prev) {
-                      return {
-                        anchorLine: index,
-                        anchorOffset: ta.selectionStart,
-                        focusLine: index,
-                        focusOffset: ta.selectionEnd
-                      }
-                    }
-                    return {
-                      anchorLine: prev.anchorLine,
-                      anchorOffset: prev.anchorOffset,
-                      focusLine: index,
-                      focusOffset: ta.selectionEnd
-                    }
-                  })
-                }}
-                onMouseUp={() => {
-                  draggingSelectionRef.current = false
-                }}
+                onPointerDown={(e) => onLinePointerDown(index, e)}
                 onFocus={() => {
                   lastFocusIndex.current = index
                   setFocusLineIndex(index)
+                  if (suppressNextFocusSelectionClearRef.current) {
+                    suppressNextFocusSelectionClearRef.current = false
+                    return
+                  }
                   if (!draggingSelectionRef.current) setMultiLineSelection(null)
                 }}
                 mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
@@ -698,12 +878,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         </div>
       </div>
       <div className="editor-bottom-bar">
-        <TagInput
-          value={tagRaw}
-          onChange={onTagRawChange}
-          suggestions={tagSuggestions}
-          variant="bottom"
-        />
+        <div className="editor-bottom-bar-tags">
+          <TagInput
+            value={tagRaw}
+            onChange={onTagRawChange}
+            suggestions={tagSuggestions}
+            variant="bottom"
+          />
+        </div>
         <div className="editor-toolbar-stack" ref={toolbarStackRef}>
           <ClipboardHistoryControl />
           <FormatToolbar
@@ -728,13 +910,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           <span className="editor-toolbar-flex-spacer" aria-hidden />
           <button
             type="button"
-            className="format-toolbar-btn format-toolbar-btn--history"
+            className="format-toolbar-btn format-toolbar-btn--history format-toolbar-btn--icon"
             title="메모 히스토리 (Ctrl+H)"
             aria-label="메모 히스토리"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void window.snapnote.app.openHistory()}
           >
-            🕐
+            <IconToolbarHistory size={18} />
           </button>
         </div>
       </div>

@@ -12,9 +12,7 @@ export interface EditorLineViewProps {
   placeholder?: string
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  onMouseDown?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
-  onMouseMove?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
-  onMouseUp?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
+  onPointerDown?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onFocus?: () => void
   onCheckboxToggle?: () => void
 }
@@ -27,9 +25,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
       placeholder,
       onChange,
       onKeyDown,
-      onMouseDown,
-      onMouseMove,
-      onMouseUp,
+      onPointerDown,
       onFocus,
       onCheckboxToggle
     } = props
@@ -70,9 +66,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
             placeholder={placeholder}
             onChange={onChange}
             onKeyDown={onKeyDown}
-            onMouseDown={onMouseDown}
-            onMouseMove={onMouseMove}
-            onMouseUp={onMouseUp}
+            onPointerDown={onPointerDown}
             onFocus={onFocus}
             rows={1}
             spellCheck={false}

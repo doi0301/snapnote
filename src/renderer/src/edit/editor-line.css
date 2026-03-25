@@ -77,7 +77,22 @@
 .inline-selected {
   background-color: #3b82f6;
   color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
   border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* 볼드·하이라이트와 겹쳐도 선택 강조가 항상 위에 오도록 */
+.editor-line-mirror span.inline-selected {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: #3b82f6 !important;
+  text-shadow: none !important;
+}
+
+.editor-line-mirror span.inline-selected.inline-bold {
+  text-shadow: 0.35px 0 #ffffff, -0.35px 0 #ffffff !important;
 }
 
 .editor-line-gutter {

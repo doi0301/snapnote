@@ -40,6 +40,12 @@ export function useEditResizeCursorAffordance(rootRef: RefObject<HTMLElement | n
     const onMove = (e: MouseEvent): void => {
       const el = rootRef.current
       if (!el) return
+      /** 상단바는 창 이동(drag) 영역 — 여기서 nw-resize 등을 씌우면 OS가 리사이즈로 처리하는 경우가 있음 */
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      if (hit?.closest('.edit-topbar')) {
+        el.style.removeProperty('cursor')
+        return
+      }
       const c = resizeCursorForClientPos(e.clientX, e.clientY, window.innerWidth, window.innerHeight)
       if (c) {
         el.style.cursor = c

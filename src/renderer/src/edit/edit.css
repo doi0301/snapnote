@@ -135,6 +135,14 @@ body {
   flex-shrink: 0;
 }
 
+.edit-icon-btn--line {
+  color: inherit;
+}
+
+.edit-icon-btn--line svg {
+  stroke: currentColor;
+}
+
 .edit-icon-btn {
   display: flex;
   align-items: center;

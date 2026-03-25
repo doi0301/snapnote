@@ -1,4 +1,5 @@
 import { TrashIcon } from '@renderer/components/TrashIcon'
+import { IconTopBarMinimize, IconTopBarPin } from './toolbarIcons'
 
 interface TopBarProps {
   isPinned: boolean
@@ -14,26 +15,26 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
       <div className="edit-topbar-actions">
         <button
           type="button"
-          className="edit-icon-btn"
+          className="edit-icon-btn edit-icon-btn--line"
           title={isPinned ? '항상 위 고정 해제' : '항상 위에 고정'}
           data-active={isPinned ? 'true' : 'false'}
           aria-pressed={isPinned}
           onClick={() => void onPinToggle()}
         >
-          {'\uD83D\uDCCC'}
+          <IconTopBarPin size={17} />
         </button>
         <button
           type="button"
-          className="edit-icon-btn"
+          className="edit-icon-btn edit-icon-btn--line"
           title="접기 (폴디드 유지)"
           data-testid="edit-fold-btn"
           onClick={() => void onFold()}
         >
-          {'\u2501'}
+          <IconTopBarMinimize size={17} />
         </button>
         <button
           type="button"
-          className="edit-icon-btn edit-icon-btn--trash"
+          className="edit-icon-btn edit-icon-btn--trash edit-icon-btn--line"
           title="스택에서 제거 (휴지통)"
           aria-label="스택에서 제거"
           onClick={() => void onCloseFromStack()}
