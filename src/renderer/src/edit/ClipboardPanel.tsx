@@ -11,6 +11,10 @@ const VIEW_MARGIN = 8
 const GAP_PX = 6
 const PANEL_MAX_W = 320
 const PANEL_MAX_H = 360
+const IMAGE_HOVER_SHOW_DELAY_MS = 120
+const IMAGE_HOVER_HIDE_DELAY_MS = 70
+const IMAGE_HOVER_HIDE_PANEL_LEAVE_MS = 20
+const EDIT_TARGET_POLL_MS = 1200
 
 function useClipboardPanelFixedStyle(
   open: boolean,
@@ -85,6 +89,8 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
   const imagePreviewCacheRef = useRef<Map<number, string>>(new Map())
   const imageHoverShowTimerRef = useRef<number | null>(null)
   const imageHoverHideTimerRef = useRef<number | null>(null)
+  const hoveredImageItemIdRef = useRef<number | null>(null)
+  const lastHoverRectRef = useRef<DOMRect | null>(null)
   const fixedStyle = useClipboardPanelFixedStyle(open, anchorRef)
 
   useEffect(() => {
@@ -104,7 +110,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
       setCanInsert(ok)
     }
     void tick()
-    const id = window.setInterval(tick, 400)
+    const id = window.setInterval(tick, EDIT_TARGET_POLL_MS)
     const onWinFocus = (): void => void tick()
     window.addEventListener('focus', onWinFocus)
     return () => {
@@ -115,7 +121,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
 
   useEffect(() => {
     if (!open) return
-    const onDocMouseDown = (ev: MouseEvent): void => {
+    const onDocPointerDown = (ev: PointerEvent): void => {
       const panel = panelRef.current
       const anchor = anchorRef.current
       const t = ev.target as Node
@@ -123,12 +129,9 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
       if (anchor?.contains(t)) return
       onClose()
     }
-    const id = window.setTimeout(() => {
-      document.addEventListener('mousedown', onDocMouseDown)
-    }, 0)
+    document.addEventListener('pointerdown', onDocPointerDown, true)
     return () => {
-      window.clearTimeout(id)
-      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('pointerdown', onDocPointerDown, true)
     }
   }, [open, onClose, anchorRef])
 
@@ -171,6 +174,8 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
   const showImagePreviewForRow = useCallback(
     (itemId: number, anchor: DOMRect): void => {
       clearImageHoverTimers()
+      hoveredImageItemIdRef.current = itemId
+      lastHoverRectRef.current = anchor
       imageHoverShowTimerRef.current = window.setTimeout(() => {
         void (async (): Promise<void> => {
           let dataUrl = imagePreviewCacheRef.current.get(itemId)
@@ -180,19 +185,24 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
             dataUrl = res.dataUrl
             imagePreviewCacheRef.current.set(itemId, dataUrl)
           }
+          if (hoveredImageItemIdRef.current !== itemId) return
           const { left, top } = positionImageTooltip(anchor)
           setImageTooltip({ id: itemId, dataUrl, left, top })
         })()
-      }, 180)
+      }, IMAGE_HOVER_SHOW_DELAY_MS)
     },
     [clearImageHoverTimers, positionImageTooltip]
   )
 
-  const scheduleHideImageTooltip = useCallback((): void => {
+  const scheduleHideImageTooltip = useCallback((delayMs = IMAGE_HOVER_HIDE_DELAY_MS): void => {
     if (imageHoverHideTimerRef.current != null) {
       window.clearTimeout(imageHoverHideTimerRef.current)
     }
-    imageHoverHideTimerRef.current = window.setTimeout(() => setImageTooltip(null), 380)
+    imageHoverHideTimerRef.current = window.setTimeout(() => {
+      hoveredImageItemIdRef.current = null
+      lastHoverRectRef.current = null
+      setImageTooltip(null)
+    }, delayMs)
   }, [])
 
   const cancelHideImageTooltip = useCallback((): void => {
@@ -202,11 +212,57 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
     }
   }, [])
 
+  const updateHoverPreviewFromPoint = useCallback(
+    (clientX: number, clientY: number): void => {
+      const el = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+      const row = el?.closest?.('[data-clipboard-image-id]') as HTMLElement | null
+      if (!row) {
+        scheduleHideImageTooltip()
+        return
+      }
+      const rawId = row.dataset.clipboardImageId
+      const id = rawId ? Number(rawId) : NaN
+      if (!Number.isFinite(id)) {
+        scheduleHideImageTooltip()
+        return
+      }
+      cancelHideImageTooltip()
+      const rect = row.getBoundingClientRect()
+      const prevRect = lastHoverRectRef.current
+      const movedFar =
+        !prevRect ||
+        Math.abs(prevRect.left - rect.left) > 1 ||
+        Math.abs(prevRect.top - rect.top) > 1 ||
+        Math.abs(prevRect.width - rect.width) > 1 ||
+        Math.abs(prevRect.height - rect.height) > 1
+      if (hoveredImageItemIdRef.current === id && !movedFar) return
+      showImagePreviewForRow(id, rect)
+    },
+    [cancelHideImageTooltip, scheduleHideImageTooltip, showImagePreviewForRow]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const panel = panelRef.current
+    if (!panel) return
+    const onPanelPointerMove = (ev: PointerEvent): void => {
+      updateHoverPreviewFromPoint(ev.clientX, ev.clientY)
+    }
+    const onPanelPointerLeave = (): void => {
+      scheduleHideImageTooltip(IMAGE_HOVER_HIDE_PANEL_LEAVE_MS)
+    }
+    panel.addEventListener('pointermove', onPanelPointerMove)
+    panel.addEventListener('pointerleave', onPanelPointerLeave)
+    return () => {
+      panel.removeEventListener('pointermove', onPanelPointerMove)
+      panel.removeEventListener('pointerleave', onPanelPointerLeave)
+    }
+  }, [open, scheduleHideImageTooltip, updateHoverPreviewFromPoint])
+
   const onInsert = useCallback(async (text: string): Promise<void> => {
-    const ok = await window.snapnote.clipboard.hasEditInsertTarget()
-    if (!ok) return
+    if (!canInsert) return
     await window.snapnote.clipboard.insert({ text })
-  }, [])
+  }, [canInsert])
 
   const onCopyText = useCallback(async (text: string): Promise<void> => {
     await window.snapnote.clipboard.writeSystem(text)
@@ -224,7 +280,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
       className="clipboard-panel"
       style={fixedStyle}
       role="dialog"
-      aria-label="클립보드 히스토리"
+      aria-label="클립보드"
       tabIndex={-1}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -242,6 +298,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
               <li
                 key={item.id}
                 className={`clipboard-panel-row${isImage ? ' clipboard-panel-row--image' : ''}`}
+                data-clipboard-image-id={isImage ? String(item.id) : undefined}
                 onMouseEnter={
                   isImage
                     ? (e) => {
@@ -260,7 +317,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                 }
               >
                 {isImage ? (
-                  <div className="clipboard-panel-image-label" title="마우스를 올리면 이미지 미리보기">
+                  <div className="clipboard-panel-image-label" title="이미지 미리보기">
                     <span className="clipboard-panel-image-badge" aria-hidden>
                       🖼
                     </span>
@@ -274,16 +331,10 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                     type="button"
                     className="clipboard-panel-preview clipboard-panel-preview--expandable"
                     title={
-                      isExpanded
-                        ? '클릭하여 접기'
-                        : `${item.text.slice(0, 220)}${item.text.length > 220 ? '…' : ''}`
+                      isExpanded ? '접기' : '펼쳐 보기'
                     }
                     aria-expanded={isExpanded}
-                    aria-label={
-                      isExpanded
-                        ? '미리보기 접기'
-                        : '긴 복사 내용 — 클릭하면 전체를 스크롤하여 볼 수 있습니다'
-                    }
+                    aria-label={isExpanded ? '접기' : '펼쳐 보기'}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => setExpandedItemId((id) => (id === item.id ? null : item.id))}
                   >
@@ -318,10 +369,10 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                     disabled={!canInsert || isImage}
                     title={
                       isImage
-                        ? '이미지는 텍스트 편집창에 삽입할 수 없습니다'
+                        ? '이미지는 삽입 불가'
                         : canInsert
-                          ? '마지막 포커스 편집 창 커서에 삽입'
-                          : '편집 창을 먼저 포커스한 뒤 삽입할 수 있습니다'
+                          ? '편집창에 삽입'
+                          : '편집창을 먼저 선택'
                     }
                     aria-label="삽입"
                     onMouseDown={(e) => {
@@ -335,7 +386,7 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                   <button
                     type="button"
                     className="clipboard-panel-icon-btn"
-                    title={isImage ? '이미지를 시스템 클립보드에 복사' : '시스템 클립보드에 복사'}
+                    title="클립보드에 복사"
                     aria-label="복사"
                     onMouseDown={(e) => {
                       e.preventDefault()
@@ -364,10 +415,8 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
               left: imageTooltip.left,
               top: imageTooltip.top,
               zIndex: 2147483640,
-              pointerEvents: 'auto'
+              pointerEvents: 'none'
             }}
-            onMouseEnter={cancelHideImageTooltip}
-            onMouseLeave={scheduleHideImageTooltip}
           >
             <img src={imageTooltip.dataUrl} alt="" draggable={false} />
           </div>,
@@ -394,7 +443,7 @@ export function ClipboardHistoryControl(): React.JSX.Element {
         type="button"
         data-testid="clipboard-panel-trigger"
         className={`format-toolbar-btn format-toolbar-btn--icon clipboard-history-trigger${open ? ' format-toolbar-btn--active' : ''}`}
-        title="클립보드 히스토리"
+        title="클립보드"
         aria-expanded={open}
         aria-pressed={open}
         onMouseDown={(e) => e.preventDefault()}

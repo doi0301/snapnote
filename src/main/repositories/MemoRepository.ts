@@ -88,9 +88,39 @@ export class MemoRepository {
   getAllMemos(): Memo[] {
     const rows = selectAll(
       this.getDb(),
-      'SELECT * FROM memos ORDER BY updated_at DESC'
+      'SELECT * FROM memos ORDER BY updated_at DESC, created_at DESC, id DESC'
     )
     return rows.map(rowToMemo)
+  }
+
+  /**
+   * 창 이동/리사이즈 저장 전용 업데이트.
+   * 히스토리 정렬 안정성을 위해 `updatedAt`은 유지한다.
+   */
+  updateMemoWindowBounds(
+    id: MemoId,
+    patch: { windowX: number | null; windowY: number | null; windowWidth: number; windowHeight: number }
+  ): Memo {
+    const existing = this.getMemo(id)
+    if (!existing) {
+      throw new Error(`Memo not found: ${id}`)
+    }
+    const next: Memo = {
+      ...existing,
+      windowX: patch.windowX,
+      windowY: patch.windowY,
+      windowWidth: patch.windowWidth,
+      windowHeight: patch.windowHeight
+    }
+    run(
+      this.getDb(),
+      `UPDATE memos SET
+        window_x = ?, window_y = ?, window_width = ?, window_height = ?
+      WHERE id = ?`,
+      [next.windowX, next.windowY, next.windowWidth, next.windowHeight, id]
+    )
+    this.persist()
+    return this.getMemo(id)!
   }
 
   updateMemo(id: MemoId, patch: MemoUpdatePatch): Memo {

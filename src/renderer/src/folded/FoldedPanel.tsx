@@ -17,7 +17,6 @@ export function FoldedPanel(): React.JSX.Element {
   const [stack, setStack] = useState<MemoId[]>([])
   const [memos, setMemos] = useState<Memo[]>([])
   const [slotColors, setSlotColors] = useState<SlotColorMap | undefined>(undefined)
-  const previewEnterTimer = useRef<number | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement | null>(null)
 
   useFoldedPanelContentHeight(rootRef, [stack.length, memos.length])
@@ -50,38 +49,31 @@ export function FoldedPanel(): React.JSX.Element {
     }
   }, [stack])
 
-  /** 슬롯 쪽 호버 진입 시: 열기 대기 취소 + 닫기 예약 취소 */
-  const clearPendingPreviewOpen = useCallback(() => {
-    window.clearTimeout(previewEnterTimer.current)
-    void window.snapnote.memo.cancelScheduledPreviewHide()
-  }, [])
-
   const onPreviewEnter = useCallback(
     (id: MemoId, slotEl: HTMLElement) => {
-      clearPendingPreviewOpen()
       const r = slotEl.getBoundingClientRect()
-      previewEnterTimer.current = window.setTimeout(() => {
-        void window.snapnote.memo.openPreview({
-          id,
-          anchor: { left: r.left, top: r.top, width: r.width, height: r.height }
-        })
-      }, 80)
+      void window.snapnote.memo.openPreview({
+        id,
+        anchor: { left: r.left, top: r.top, width: r.width, height: r.height }
+      })
     },
-    [clearPendingPreviewOpen]
+    []
   )
 
-  /** 즉시 closePreview 하면 슬롯→미리보기 창으로 포인터가 옮겨질 때 mouseleave 가 늦거나 누락되어 미리보기가 고정되는 경우가 있다. 짧은 지연 닫기 + 미리보기 쪽에서 취소 */
   const onPreviewLeave = useCallback(() => {
-    window.clearTimeout(previewEnterTimer.current)
-    void window.snapnote.memo.schedulePreviewHide(200)
+    void window.snapnote.memo.closePreview()
+  }, [])
+
+  const onRootPointerLeave = useCallback(() => {
+    void window.snapnote.memo.closePreview()
   }, [])
 
   useEffect(() => {
     const onVis = (): void => {
-      if (document.hidden) void window.snapnote.memo.schedulePreviewHide(0)
+      if (document.hidden) void window.snapnote.memo.closePreview()
     }
     const onWinBlur = (): void => {
-      void window.snapnote.memo.schedulePreviewHide(0)
+      void window.snapnote.memo.closePreview()
     }
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('blur', onWinBlur)
@@ -93,14 +85,13 @@ export function FoldedPanel(): React.JSX.Element {
 
   useEffect(
     () => () => {
-      window.clearTimeout(previewEnterTimer.current)
-      void window.snapnote.memo.cancelScheduledPreviewHide()
       void window.snapnote.memo.closePreview()
     },
     []
   )
 
   const onNewMemo = useCallback(async () => {
+    await window.snapnote.memo.closePreview()
     const m = await window.snapnote.memo.create()
     await window.snapnote.memo.openEdit(m.id)
   }, [])
@@ -109,16 +100,26 @@ export function FoldedPanel(): React.JSX.Element {
     void window.snapnote.app.openHistory()
   }, [])
 
+  const onOpenEditFromSlot = useCallback(async (id: MemoId): Promise<void> => {
+    await window.snapnote.memo.closePreview()
+    await window.snapnote.memo.openEdit(id)
+  }, [])
+
   return (
-    <div className="folded-root" ref={rootRef} data-testid="folded-panel">
+    <div
+      className="folded-root"
+      ref={rootRef}
+      data-testid="folded-panel"
+      onPointerLeave={onRootPointerLeave}
+    >
       <header className="folded-drag">
         <span>SnapNote</span>
         <div className="folded-header-right folded-no-drag">
           <button
             type="button"
             className="folded-close-btn"
-            title="닫기 (트레이에서 다시 열기)"
-            aria-label="폴디드 패널 닫기"
+            title="접기창 닫기"
+            aria-label="접기창 닫기"
             onClick={() => void window.snapnote.app.hideFoldedPanel()}
           >
             <span className="folded-close-icon" aria-hidden>
@@ -139,7 +140,7 @@ export function FoldedPanel(): React.JSX.Element {
                 slotColors={slotColors}
                 onMouseEnter={(el) => onPreviewEnter(memo.id, el)}
                 onMouseLeave={onPreviewLeave}
-                onOpenEdit={() => void window.snapnote.memo.openEdit(memo.id)}
+                onOpenEdit={() => void onOpenEditFromSlot(memo.id)}
                 onCloseFromStack={() => void window.snapnote.memo.closeFromStack(memo.id)}
               />
             ))}

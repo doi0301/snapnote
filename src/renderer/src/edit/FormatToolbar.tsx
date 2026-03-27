@@ -130,8 +130,8 @@ export function FormatToolbar({
       ref={symbolBtnRef}
       type="button"
       className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--symbols${symbolPaletteOpen ? ' format-toolbar-btn--active' : ''}`}
-      title="이모지·특수문자 팔레트"
-      aria-label="이모지·특수문자 팔레트"
+      title="기호 입력"
+      aria-label="기호 입력"
       aria-expanded={symbolPaletteOpen}
       aria-pressed={symbolPaletteOpen}
       onMouseDown={(e) => e.preventDefault()}
@@ -147,7 +147,7 @@ export function FormatToolbar({
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--bold${boldActive ? ' format-toolbar-btn--active' : ''}`}
         aria-pressed={boldActive}
-        title="Bold (Ctrl+B)"
+        title="굵게 (Ctrl+B)"
         onMouseDown={(e) => e.preventDefault()}
         onClick={onBold}
       >
@@ -157,7 +157,7 @@ export function FormatToolbar({
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--strike${strikeActive ? ' format-toolbar-btn--active' : ''}`}
         aria-pressed={strikeActive}
-        title="Strikethrough (Ctrl+Shift+X)"
+        title="취소선 (Ctrl+Shift+X)"
         onMouseDown={(e) => e.preventDefault()}
         onClick={onStrikethrough}
       >
@@ -166,7 +166,7 @@ export function FormatToolbar({
       <button
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon ${hlBtnClass}`}
-        title="하이라이트 (클릭: 마지막 색 / 우클릭·길게 누르기: 색 선택)"
+        title="하이라이트"
         onPointerDown={(e) => {
           e.preventDefault()
           onHlPointerDown()
@@ -190,7 +190,7 @@ export function FormatToolbar({
       <button
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--checkbox${lineCheckboxActive ? ' format-toolbar-btn--active' : ''}`}
-        title="줄 체크박스"
+        title="체크박스"
         aria-pressed={lineCheckboxActive}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onToggleLineCheckbox}
@@ -200,7 +200,7 @@ export function FormatToolbar({
       <button
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--divider${lineDividerActive ? ' format-toolbar-btn--active' : ''}`}
-        title="중간 구분선"
+        title="구분선"
         aria-pressed={lineDividerActive}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onToggleLineDivider}
@@ -224,8 +224,8 @@ export function FormatToolbar({
           <button
             type="button"
             className="format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--text-tools"
-            title="텍스트 서식 (굵게, 하이라이트 등)"
-            aria-label="텍스트 서식 열기"
+            title="텍스트 서식"
+            aria-label="텍스트 서식"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setActionModalOpen(true)}
           >
@@ -243,7 +243,7 @@ export function FormatToolbar({
           className="format-toolbar-modal-backdrop"
           onMouseDown={() => setActionModalOpen(false)}
           role="dialog"
-          aria-label="텍스트 편집 도구"
+          aria-label="서식 도구"
         >
           <div className="format-toolbar-modal" onMouseDown={(e) => e.stopPropagation()}>
             <p className="format-toolbar-modal-title">텍스트 서식</p>

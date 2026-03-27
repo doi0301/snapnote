@@ -24,15 +24,26 @@ function PreviewApp(): React.JSX.Element {
     return window.snapnote.on.settingsChanged((s) => setSettings(s))
   }, [])
 
-  /** 폴디드 슬롯 이탈 시 지연 닫기가 걸려 있으면, 미리보기 창이 뜬 뒤 취소해 고정 방지 */
   useEffect(() => {
-    void window.snapnote.memo.cancelScheduledPreviewHide()
+    const onWinBlur = (): void => {
+      void window.snapnote.memo.closePreview()
+    }
+    const onVisibility = (): void => {
+      if (document.hidden) void window.snapnote.memo.closePreview()
+    }
+    window.addEventListener('blur', onWinBlur)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('blur', onWinBlur)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   const body = memo ? fullContentPreview(memo.content, 700) : '메모를 불러올 수 없습니다.'
 
   const openEdit = useCallback(() => {
     if (!memoId) return
+    void window.snapnote.memo.closePreview()
     void window.snapnote.memo.openEdit(memoId)
   }, [memoId])
 
@@ -41,11 +52,11 @@ function PreviewApp(): React.JSX.Element {
   const textAlpha = Math.max(0.92, bgAlpha)
 
   const onPreviewPointerEnter = useCallback(() => {
-    void window.snapnote.memo.cancelScheduledPreviewHide()
+    // 즉시 close 정책: enter 시 별도 동작 없음
   }, [])
 
   const onPreviewPointerLeave = useCallback(() => {
-    void window.snapnote.memo.schedulePreviewHide(220)
+    void window.snapnote.memo.closePreview()
   }, [])
 
   return (
@@ -60,7 +71,7 @@ function PreviewApp(): React.JSX.Element {
       data-testid="preview-root"
       role="button"
       tabIndex={0}
-      title="클릭하여 편집"
+      title="편집 열기"
       onPointerEnter={onPreviewPointerEnter}
       onPointerLeave={onPreviewPointerLeave}
       onClick={openEdit}

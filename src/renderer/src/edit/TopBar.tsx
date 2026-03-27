@@ -16,7 +16,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         <button
           type="button"
           className="edit-icon-btn edit-icon-btn--line"
-          title={isPinned ? '항상 위 고정 해제' : '항상 위에 고정'}
+          title={isPinned ? '고정 해제' : '항상 위 고정'}
           data-active={isPinned ? 'true' : 'false'}
           aria-pressed={isPinned}
           onClick={() => void onPinToggle()}
@@ -26,7 +26,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         <button
           type="button"
           className="edit-icon-btn edit-icon-btn--line"
-          title="접기 (폴디드 유지)"
+          title="접기"
           data-testid="edit-fold-btn"
           onClick={() => void onFold()}
         >
@@ -35,7 +35,7 @@ export function TopBar(props: TopBarProps): React.JSX.Element {
         <button
           type="button"
           className="edit-icon-btn edit-icon-btn--trash edit-icon-btn--line"
-          title="스택에서 제거 (휴지통)"
+          title="스택에서 제거"
           aria-label="스택에서 제거"
           onClick={() => void onCloseFromStack()}
         >

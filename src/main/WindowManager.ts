@@ -76,7 +76,7 @@ export class WindowManager {
   private readonly editWindows = new Map<MemoId, BrowserWindow>()
   private previewWindow: BrowserWindow | null = null
   private previewMemoId: MemoId | null = null
-  private previewHideTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly previewWindows = new Set<BrowserWindow>()
   private historyWindow: BrowserWindow | null = null
   private settingsWindow: BrowserWindow | null = null
 
@@ -195,10 +195,6 @@ export class WindowManager {
     if (process.platform !== 'win32' && process.platform !== 'darwin') return
     const applyEdgeSnapAfterMove = debounce(() => {
       if (win.isDestroyed()) return
-      if (editMemoId) {
-        const memo = this.deps.memos.getMemo(editMemoId)
-        if (memo?.isPinned) return
-      }
       const b = win.getBounds()
       const workAreas = screen.getAllDisplays().map((d) => d.workArea)
       const { x, y } =
@@ -410,15 +406,12 @@ export class WindowManager {
   }
 
   openEditWindow(memoId: MemoId): void {
+    this.hidePreview()
     const existing = this.editWindows.get(memoId)
     if (existing && !existing.isDestroyed()) {
       existing.show()
       existing.focus()
       return
-    }
-
-    if (this.previewMemoId === memoId) {
-      this.hidePreview()
     }
 
     const memo = this.deps.memos.getMemo(memoId)
@@ -459,6 +452,7 @@ export class WindowManager {
     })
 
     this.editWindows.set(memoId, win)
+    win.setMovable(true)
     loadSnapRenderer(win, 'edit', memoId)
 
     this.attachEdgeSnap(win, memoId)
@@ -542,6 +536,7 @@ export class WindowManager {
       const m = this.deps.memos.getMemo(id)
       if (!m?.isPinned) {
         win.setAlwaysOnTop(false)
+        win.setMovable(true)
       }
     }
 
@@ -561,6 +556,7 @@ export class WindowManager {
       const w = this.editWindows.get(pinned[i].memoId)
       if (w && !w.isDestroyed()) {
         w.setAlwaysOnTop(true, 'floating', Z_PINNED_EDIT_BASE + i)
+        w.setMovable(true)
       }
     }
   }
@@ -573,13 +569,12 @@ export class WindowManager {
         if (!w || w.isDestroyed()) return
         const b = w.getBounds()
         try {
-          const updated = this.deps.memos.updateMemo(memoId, {
+          this.deps.memos.updateMemoWindowBounds(memoId, {
             windowX: b.x,
             windowY: b.y,
             windowWidth: b.width,
             windowHeight: b.height
           })
-          this.deps.broadcast(IPC_CHANNELS.MEMO_UPDATED, updated)
         } catch {
           /* 창 닫는 중 등 */
         }
@@ -736,9 +731,11 @@ export class WindowManager {
 
     this.previewWindow = win
     this.previewMemoId = memoId
+    this.previewWindows.add(win)
     loadSnapRenderer(win, 'preview', memoId)
 
     win.on('closed', () => {
+      this.previewWindows.delete(win)
       this.previewWindow = null
       this.previewMemoId = null
     })
@@ -749,27 +746,22 @@ export class WindowManager {
     })
   }
 
-  /** 슬롯 이탈 후 잠깐 뒤 닫기(프리뷰로 포인터 옮길 틈). `delayMs` 0이면 다음 틱에서 즉시. */
   schedulePreviewHide(delayMs: number): void {
-    this.cancelScheduledPreviewHide()
-    this.previewHideTimer = setTimeout(
-      () => {
-        this.previewHideTimer = null
-        this.hidePreview()
-      },
-      Math.max(0, delayMs)
-    )
+    void delayMs
+    this.hidePreview()
   }
 
   cancelScheduledPreviewHide(): void {
-    if (this.previewHideTimer !== null) {
-      clearTimeout(this.previewHideTimer)
-      this.previewHideTimer = null
-    }
+    // 단순 동작: delay hide를 사용하지 않음
   }
 
   hidePreview(): void {
-    this.cancelScheduledPreviewHide()
+    for (const win of [...this.previewWindows]) {
+      if (!win.isDestroyed()) {
+        win.close()
+      }
+    }
+    this.previewWindows.clear()
     if (this.previewWindow && !this.previewWindow.isDestroyed()) {
       this.previewWindow.close()
     }
@@ -787,6 +779,7 @@ export class WindowManager {
       width: 520,
       height: 640,
       show: false,
+      frame: false,
       autoHideMenuBar: true,
       backgroundColor: '#ffffff',
       ...(process.platform === 'linux' ? { icon } : {}),

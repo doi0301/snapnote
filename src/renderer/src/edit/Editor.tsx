@@ -54,6 +54,12 @@ interface MultiLineSelection {
   focusOffset: number
 }
 
+interface EditorSnapshot {
+  lines: EditorLineModel[]
+  focusIndex: number
+  cursor: number
+}
+
 function multiLineSelectionEqual(a: MultiLineSelection | null, b: MultiLineSelection): boolean {
   if (!a) return false
   return (
@@ -89,6 +95,39 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const endSelectionDragRef = useRef<(() => void) | null>(null)
   const draggingSelectionRef = useRef(false)
   const toolbarStackRef = useRef<HTMLDivElement | null>(null)
+  const undoStackRef = useRef<EditorSnapshot[]>([])
+  const redoStackRef = useRef<EditorSnapshot[]>([])
+
+  const cloneLines = useCallback((src: EditorLineModel[]): EditorLineModel[] => {
+    return src.map((line) => ({
+      ...line,
+      formatting: { ...(line.formatting ?? {}) },
+      spans: line.spans ? line.spans.map((s) => ({ ...s })) : undefined
+    }))
+  }, [])
+
+  const pushUndoSnapshot = useCallback(
+    (srcLines: EditorLineModel[], focusIndex: number, cursor: number) => {
+      const next: EditorSnapshot = {
+        lines: cloneLines(srcLines),
+        focusIndex,
+        cursor
+      }
+      undoStackRef.current.push(next)
+      if (undoStackRef.current.length > 50) undoStackRef.current.shift()
+      redoStackRef.current = []
+    },
+    [cloneLines]
+  )
+
+  const restoreSnapshot = useCallback((snapshot: EditorSnapshot) => {
+    setLines(cloneLines(snapshot.lines))
+    setMultiLineSelection(null)
+    pendingFocusRef.current = {
+      index: Math.max(0, Math.min(snapshot.focusIndex, snapshot.lines.length - 1)),
+      cursor: Math.max(0, snapshot.cursor)
+    }
+  }, [cloneLines])
 
   useEffect(() => {
     return () => {
@@ -153,7 +192,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     onMemoUpdated(updated)
   }, [memo.id, lines, onMemoUpdated])
 
-  useAutoSave(save, [lines, memo])
+  useAutoSave(save, [lines, memo.id])
 
   const resizeTextareas = useCallback(() => {
     textareaRefs.current.forEach((el) => {
@@ -573,6 +612,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [lines, normalizeSelection]
   )
 
+  const moveFocusToLine = useCallback((nextIndex: number, nextCursor: number) => {
+    const ta = textareaRefs.current[nextIndex]
+    if (!ta) return
+    ta.focus()
+    ta.setSelectionRange(nextCursor, nextCursor)
+    lastFocusIndex.current = nextIndex
+    setFocusLineIndex(nextIndex)
+    if (!draggingSelectionRef.current) setMultiLineSelection(null)
+  }, [])
+
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.nativeEvent.isComposing || e.key === 'Process') return
@@ -591,14 +640,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         (multiLineSelection.anchorLine !== multiLineSelection.focusLine ||
           multiLineSelection.anchorOffset !== multiLineSelection.focusOffset)
       ) {
+        const norm = normalizeSelection(multiLineSelection)
         if (e.key === 'Backspace' || e.key === 'Delete') {
           e.preventDefault()
+          pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
           deleteMultiLineSelection(multiLineSelection)
           return
         }
         /** 여러 줄 가상 선택: 네이티브 cut 이 한 textarea 에만 적용되어 실패하므로 명시 처리 */
         if (mod && key === 'x' && !e.shiftKey) {
           e.preventDefault()
+          pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
           copyMultiLineSelectionToClipboard(multiLineSelection)
           deleteMultiLineSelection(multiLineSelection)
           return
@@ -608,6 +660,32 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           copyMultiLineSelectionToClipboard(multiLineSelection)
           return
         }
+      }
+
+      if (mod && key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        const prev = undoStackRef.current.pop()
+        if (!prev) return
+        redoStackRef.current.push({
+          lines: cloneLines(lines),
+          focusIndex: index,
+          cursor: start
+        })
+        restoreSnapshot(prev)
+        return
+      }
+
+      if (mod && e.shiftKey && key === 'z') {
+        e.preventDefault()
+        const next = redoStackRef.current.pop()
+        if (!next) return
+        undoStackRef.current.push({
+          lines: cloneLines(lines),
+          focusIndex: index,
+          cursor: start
+        })
+        restoreSnapshot(next)
+        return
       }
 
       if (mod && key === 'b') {
@@ -630,6 +708,48 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             return { ...l, indentLevel: next }
           })
         )
+        return
+      }
+
+      if (e.key === 'ArrowUp' && start === end && start === 0 && index > 0) {
+        e.preventDefault()
+        const prevLen = lines[index - 1]?.text.length ?? 0
+        moveFocusToLine(index - 1, prevLen)
+        return
+      }
+
+      if (
+        e.key === 'ArrowDown' &&
+        start === end &&
+        end === line.text.length &&
+        index < lines.length - 1
+      ) {
+        e.preventDefault()
+        moveFocusToLine(index + 1, 0)
+        return
+      }
+
+      if (
+        e.key === '>' &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        start === end &&
+        start > 0 &&
+        line.text[start - 1] === '-'
+      ) {
+        e.preventDefault()
+        const replaceStart = start - 1
+        const replaceEnd = start
+        pendingFocusRef.current = { index, cursor: replaceStart + 1 }
+        setLines((prev) => {
+          const cur = prev[index]
+          if (!cur) return prev
+          const oldT = cur.text
+          const newT = oldT.slice(0, replaceStart) + '→' + oldT.slice(replaceEnd)
+          const spans = remapSpansAfterEdit(oldT, newT, cur.spans)
+          return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
+        })
         return
       }
 
@@ -667,10 +787,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     },
     [
       copyMultiLineSelectionToClipboard,
+      cloneLines,
       deleteMultiLineSelection,
       lines,
       mergeWithPrevious,
+      moveFocusToLine,
       multiLineSelection,
+      normalizeSelection,
+      pushUndoSnapshot,
+      restoreSnapshot,
       toggleBold,
       toggleStrikethrough
     ]
@@ -828,6 +953,34 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     document.addEventListener('pointercancel', endDrag)
   }, [])
 
+  const onEditorScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement | null
+    if (!target) return
+    if (target.closest('.editor-line')) return
+    if (target.closest('button,input,textarea,[role="button"]')) return
+    e.preventDefault()
+    setLines((prev) => {
+      const safe = prev.length ? prev : normalizeEditorLines([])
+      const lastIndex = safe.length - 1
+      const last = safe[lastIndex]
+      if (!last) return safe
+      if ((last.text ?? '').trim().length === 0) {
+        pendingFocusRef.current = { index: lastIndex, cursor: 0 }
+        return safe
+      }
+      const nextLine: EditorLineModel = {
+        id: crypto.randomUUID(),
+        text: '',
+        indentLevel: 0,
+        formatting: {}
+      }
+      const next = [...safe, nextLine]
+      pendingFocusRef.current = { index: next.length - 1, cursor: 0 }
+      return next
+    })
+  }, [])
+
   const virtualSelectionActive =
     multiLineSelection !== null &&
     (multiLineSelection.anchorLine !== multiLineSelection.focusLine ||
@@ -839,43 +992,41 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         virtualSelectionActive ? 'editor-root-inner editor--virtual-selection-active' : 'editor-root-inner'
       }
     >
-      <div className="editor-scroll">
-        <div className="editor-shell editor-shell--flat">
-          <div className="editor-lines">
-            {lines.map((line, index) => (
-              <EditorLineView
-                key={line.id}
-                ref={(el) => setRefAt(index, el)}
-                line={line}
-                placeholder={index === 0 ? '내용을 입력하세요.' : ''}
-                onChange={(e) => handleLineChange(index, e)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPointerDown={(e) => onLinePointerDown(index, e)}
-                onFocus={() => {
-                  lastFocusIndex.current = index
-                  setFocusLineIndex(index)
-                  if (suppressNextFocusSelectionClearRef.current) {
-                    suppressNextFocusSelectionClearRef.current = false
-                    return
-                  }
-                  if (!draggingSelectionRef.current) setMultiLineSelection(null)
-                }}
-                mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
-                onCheckboxToggle={
-                  line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
+      <div className="editor-scroll" onPointerDown={onEditorScrollPointerDown}>
+        <div className="editor-lines">
+          {lines.map((line, index) => (
+            <EditorLineView
+              key={line.id}
+              ref={(el) => setRefAt(index, el)}
+              line={line}
+              placeholder={index === 0 ? '내용을 입력하세요.' : ''}
+              onChange={(e) => handleLineChange(index, e)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              onPointerDown={(e) => onLinePointerDown(index, e)}
+              onFocus={() => {
+                lastFocusIndex.current = index
+                setFocusLineIndex(index)
+                if (suppressNextFocusSelectionClearRef.current) {
+                  suppressNextFocusSelectionClearRef.current = false
+                  return
                 }
-              />
-            ))}
-          </div>
-          <textarea
-            className="edit-serialized-content"
-            aria-hidden
-            tabIndex={-1}
-            readOnly
-            value={serialized}
-            onChange={() => {}}
-          />
+                if (!draggingSelectionRef.current) setMultiLineSelection(null)
+              }}
+              mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
+              onCheckboxToggle={
+                line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
+              }
+            />
+          ))}
         </div>
+        <textarea
+          className="edit-serialized-content"
+          aria-hidden
+          tabIndex={-1}
+          readOnly
+          value={serialized}
+          onChange={() => {}}
+        />
       </div>
       <div className="editor-bottom-bar">
         <div className="editor-bottom-bar-tags">
@@ -911,8 +1062,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           <button
             type="button"
             className="format-toolbar-btn format-toolbar-btn--history format-toolbar-btn--icon"
-            title="메모 히스토리 (Ctrl+H)"
-            aria-label="메모 히스토리"
+            title="히스토리 (Ctrl+H)"
+            aria-label="히스토리"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void window.snapnote.app.openHistory()}
           >

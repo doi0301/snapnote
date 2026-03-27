@@ -222,7 +222,7 @@ export function SettingsWindow(): React.JSX.Element {
             onChange={(e) => setShortcutDraft(e.target.value)}
             placeholder={DEFAULT_SHORTCUT}
             spellCheck={false}
-            aria-label="전역 폴디드 토글 단축키"
+            aria-label="전역 단축키"
           />
           <button type="button" className="settings-btn" disabled={saving} onClick={() => void applyShortcut()}>
             적용

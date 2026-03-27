@@ -78,7 +78,7 @@ export function EmojiPalette({
 
   useEffect(() => {
     if (!open) return
-    const onDocMouseDown = (ev: MouseEvent): void => {
+    const onDocPointerDown = (ev: PointerEvent): void => {
       const panel = panelRef.current
       const anchor = anchorRef.current
       const t = ev.target as Node
@@ -86,12 +86,9 @@ export function EmojiPalette({
       if (anchor?.contains(t)) return
       onClose()
     }
-    const id = window.setTimeout(() => {
-      document.addEventListener('mousedown', onDocMouseDown)
-    }, 0)
+    document.addEventListener('pointerdown', onDocPointerDown, true)
     return () => {
-      window.clearTimeout(id)
-      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('pointerdown', onDocPointerDown, true)
     }
   }, [open, onClose, anchorRef])
 

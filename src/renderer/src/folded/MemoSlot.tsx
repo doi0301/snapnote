@@ -65,7 +65,7 @@ export function MemoSlot(props: MemoSlotProps): React.JSX.Element {
         {preview || '…'}
       </span>
       <div className="memo-actions">
-        <button type="button" title="편집" onClick={() => void onOpenEdit()}>
+        <button type="button" title="편집 열기" onClick={() => void onOpenEdit()}>
           {'\u270F\uFE0F'}
         </button>
         <button

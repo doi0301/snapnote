@@ -21,7 +21,7 @@ export function TagFilterBar({ allTags, selectedTags, onChange }: TagFilterBarPr
   }
 
   return (
-    <div className="history-tag-filter" role="group" aria-label="태그 필터">
+    <div className="history-tag-filter" role="group" aria-label="태그 선택">
       <div className="history-tag-filter-scroll">
         <button
           type="button"

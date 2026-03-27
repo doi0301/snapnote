@@ -86,7 +86,6 @@ export function HistoryModal(): React.JSX.Element {
 
   const onOpenMemo = useCallback(async (m: Memo): Promise<void> => {
     await window.snapnote.memo.openEdit(m.id)
-    closeWindow()
   }, [])
 
   const onDeleteMemo = useCallback(
@@ -101,9 +100,8 @@ export function HistoryModal(): React.JSX.Element {
         next.delete(m.id)
         return next
       })
-      load()
     },
-    [load]
+    []
   )
 
   const onDeleteSelected = useCallback(async (): Promise<void> => {
@@ -115,8 +113,7 @@ export function HistoryModal(): React.JSX.Element {
       await window.snapnote.memo.delete(id)
     }
     setSelectedIds(new Set())
-    load()
-  }, [selectedIds, load])
+  }, [selectedIds])
 
   const onDebouncedQuery = useCallback((q: string) => setDebouncedQuery(q), [])
 

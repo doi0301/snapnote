@@ -70,8 +70,8 @@ export function MemoListItem({
       <button
         type="button"
         className="history-memo-trash"
-        title="영구 삭제"
-        aria-label="메모 영구 삭제"
+        title="삭제"
+        aria-label="삭제"
         onClick={(e) => {
           e.stopPropagation()
           onDelete(memo)

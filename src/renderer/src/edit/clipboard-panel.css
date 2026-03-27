@@ -167,6 +167,7 @@ button.clipboard-panel-preview--expandable:focus-visible {
   border: 1px solid #e4e4e7;
   background: #fff;
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
 }
 
 .clipboard-panel-image-hover img {

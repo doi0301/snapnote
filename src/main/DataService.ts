@@ -35,6 +35,7 @@ export class DataService {
   private readonly clipboardService: ClipboardService
   private readonly globalShortcutService: GlobalShortcutService
   readonly windowManager: WindowManager
+  private ipcHandlersRegistered = false
 
   constructor() {
     const db = (): ReturnType<typeof getDatabase> => getDatabase()
@@ -154,6 +155,8 @@ export class DataService {
   }
 
   registerIpcHandlers(): void {
+    if (this.ipcHandlersRegistered) return
+    this.ipcHandlersRegistered = true
     ipcMain.handle(IPC_CHANNELS.MEMO_CREATE, () => {
       return this.createMemoWithStack()
     })

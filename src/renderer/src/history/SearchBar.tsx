@@ -31,7 +31,7 @@ export function SearchBar({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
-        aria-label="메모 검색"
+        aria-label="검색"
         autoComplete="off"
         spellCheck={false}
       />
