@@ -8,6 +8,7 @@ export interface MemoListProps {
   onToggleSelect: (id: MemoId) => void
   onOpen: (memo: Memo) => void
   onDelete: (memo: Memo) => void
+  onToggleDone: (memo: Memo) => void
 }
 
 export function MemoList({
@@ -15,7 +16,8 @@ export function MemoList({
   selectedIds,
   onToggleSelect,
   onOpen,
-  onDelete
+  onDelete,
+  onToggleDone
 }: MemoListProps): JSX.Element {
   if (memos.length === 0) {
     return <></>
@@ -31,6 +33,7 @@ export function MemoList({
           onToggleSelect={onToggleSelect}
           onOpen={onOpen}
           onDelete={onDelete}
+          onToggleDone={onToggleDone}
         />
       ))}
     </ul>

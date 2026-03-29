@@ -202,6 +202,47 @@ body {
   flex-shrink: 0;
 }
 
+.history-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 23, 42, 0.35);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.history-confirm-dialog {
+  width: min(400px, 100%);
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  padding: 18px 20px 16px;
+}
+
+.history-confirm-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.history-confirm-message {
+  margin: 0 0 18px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #3f3f46;
+  white-space: pre-wrap;
+}
+
+.history-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .history-modal-body {
   -webkit-app-region: no-drag;
   flex: 1;
@@ -232,6 +273,39 @@ body {
   align-items: stretch;
   gap: 0;
   border-bottom: 1px solid #f4f4f5;
+}
+
+.history-memo-item--done {
+  background: #f4f4f5;
+  opacity: 0.88;
+}
+
+.history-memo-item--done .history-memo-preview {
+  color: #71717a;
+  font-weight: 500;
+}
+
+.history-memo-item--done .history-memo-meta,
+.history-memo-item--done .history-memo-tag {
+  color: #a1a1aa;
+}
+
+.history-memo-done {
+  flex-shrink: 0;
+  align-self: center;
+  margin-right: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #52525b;
+  background: #fafafa;
+  border: 1px solid #e4e4e7;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.history-memo-done:hover {
+  background: #f4f4f5;
 }
 
 .history-memo-check {

@@ -35,6 +35,8 @@ export const EMOJI_PALETTE_ITEMS: EmojiPaletteEntry[] = [
   { kind: 'sym', char: '⇄', label: '양방향' },
   { kind: 'sym', char: '⇒', label: '이중 화살표' },
   { kind: 'sym', char: '⟹', label: '굵은 이중 화살표' },
+  { kind: 'sym', char: '🤖', label: '로봇' },
+  { kind: 'sym', char: '🕐', label: '시계' },
   { kind: 'sep' },
   { kind: 'sym', char: '•', label: '점' },
   { kind: 'sym', char: '○', label: '빈 원' },

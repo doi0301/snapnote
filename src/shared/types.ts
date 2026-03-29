@@ -13,7 +13,7 @@ export interface TextSpan {
   highlight?: HighlightColor
 }
 
-export type HighlightColor = 'yellow' | 'green' | 'pink'
+export type HighlightColor = 'yellow' | 'green' | 'pink' | 'blue' | 'orange'
 
 export interface LineFormatting {
   bold?: boolean
@@ -48,6 +48,8 @@ export interface Memo {
   windowY: number | null
   windowWidth: number
   windowHeight: number
+  /** 히스토리에서 완료 처리 시 시각적 강조 완화 */
+  isDone: boolean
   createdAt: string
   updatedAt: string
 }
@@ -65,6 +67,7 @@ export type MemoUpdatePatch = Partial<
     | 'windowY'
     | 'windowWidth'
     | 'windowHeight'
+    | 'isDone'
   >
 >
 

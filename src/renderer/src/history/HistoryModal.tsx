@@ -3,6 +3,7 @@ import type { Memo, MemoId } from '@shared/types'
 import { memoHasTextContent } from '@shared/memoContent'
 import { filterHistoryMemos } from '@shared/historyFilter'
 import { collectAllTags } from '@renderer/edit/tagUtils'
+import { ConfirmDialog } from './ConfirmDialog'
 import { MemoList } from './MemoList'
 import { SearchBar } from './SearchBar'
 import { TagFilterBar } from './TagFilterBar'
@@ -19,6 +20,11 @@ export function HistoryModal(): React.JSX.Element {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set())
   const [selectedIds, setSelectedIds] = useState<Set<MemoId>>(() => new Set())
+  const [confirmDelete, setConfirmDelete] = useState<
+    | { kind: 'one'; memo: Memo }
+    | { kind: 'bulk'; ids: MemoId[] }
+    | null
+  >(null)
 
   const load = useCallback((): void => {
     void window.snapnote.memo.getAll().then(setMemos)
@@ -88,32 +94,38 @@ export function HistoryModal(): React.JSX.Element {
     await window.snapnote.memo.openEdit(m.id)
   }, [])
 
-  const onDeleteMemo = useCallback(
-    async (m: Memo): Promise<void> => {
-      const ok = window.confirm(
-        `이 메모를 영구 삭제할까요?\n\n"${(m.content[0]?.text ?? '').trim().slice(0, 60) || '(제목 없음)'}"`
-      )
-      if (!ok) return
-      await window.snapnote.memo.delete(m.id)
+  const onDeleteMemo = useCallback((m: Memo): void => {
+    setConfirmDelete({ kind: 'one', memo: m })
+  }, [])
+
+  const confirmDeleteAction = useCallback(async (): Promise<void> => {
+    const c = confirmDelete
+    if (!c) return
+    if (c.kind === 'one') {
+      await window.snapnote.memo.delete(c.memo.id)
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        next.delete(m.id)
+        next.delete(c.memo.id)
         return next
       })
-    },
-    []
-  )
+    } else {
+      for (const id of c.ids) {
+        await window.snapnote.memo.delete(id)
+      }
+      setSelectedIds(new Set())
+    }
+    setConfirmDelete(null)
+  }, [confirmDelete])
 
-  const onDeleteSelected = useCallback(async (): Promise<void> => {
+  const onDeleteSelected = useCallback((): void => {
     const ids = [...selectedIds]
     if (ids.length === 0) return
-    const ok = window.confirm(`선택한 ${ids.length}개 메모를 영구 삭제할까요?`)
-    if (!ok) return
-    for (const id of ids) {
-      await window.snapnote.memo.delete(id)
-    }
-    setSelectedIds(new Set())
+    setConfirmDelete({ kind: 'bulk', ids })
   }, [selectedIds])
+
+  const onToggleDone = useCallback(async (m: Memo): Promise<void> => {
+    await window.snapnote.memo.update({ id: m.id, patch: { isDone: !m.isDone } })
+  }, [])
 
   const onDebouncedQuery = useCallback((q: string) => setDebouncedQuery(q), [])
 
@@ -122,6 +134,13 @@ export function HistoryModal(): React.JSX.Element {
   const emptyFiltered = !emptyAll && filtered.length === 0
   const selectionCount = selectedIds.size
 
+  const confirmMessage =
+    confirmDelete?.kind === 'one'
+      ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n이 메모를 영구 삭제할까요?`
+      : confirmDelete?.kind === 'bulk'
+        ? `선택한 ${confirmDelete.ids.length}개 메모를 영구 삭제할까요?`
+        : ''
+
   return (
     <div
       className="history-window"
@@ -129,6 +148,16 @@ export function HistoryModal(): React.JSX.Element {
       aria-modal="true"
       aria-labelledby="history-modal-title"
     >
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="메모 삭제"
+        message={confirmMessage}
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        danger
+        onConfirm={() => void confirmDeleteAction()}
+        onCancel={() => setConfirmDelete(null)}
+      />
       <header className="history-modal-header">
         <h1 id="history-modal-title" className="history-modal-title">
           메모 히스토리
@@ -184,7 +213,8 @@ export function HistoryModal(): React.JSX.Element {
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             onOpen={(m) => void onOpenMemo(m)}
-            onDelete={(m) => void onDeleteMemo(m)}
+            onDelete={onDeleteMemo}
+            onToggleDone={(m) => void onToggleDone(m)}
           />
         )}
       </div>

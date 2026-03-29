@@ -234,12 +234,18 @@ export function SettingsWindow(): React.JSX.Element {
         <h2 id="settings-data" className="settings-section-title">
           데이터
         </h2>
+        <p className="settings-hint">
+          다른 PC로 옮기려면 내보내기로 JSON 파일을 저장한 뒤, USB·클라우드 등으로 복사해 그 PC의 SnapNote 설정에서 가져오기를 실행하세요.
+        </p>
+        <p className="settings-hint">
+          가져오기는 이미 있는 메모 id와 겹치면 건너뛰고, 없는 메모만 추가합니다(기존 히스토리는 유지). 메모는 최대 50개까지이며, 한도를 넘기면 오래된 항목이 정리될 수 있습니다.
+        </p>
         <div className="settings-data-actions">
           <button type="button" className="settings-btn" disabled={saving} onClick={() => void window.snapnote.app.exportMemos()}>
-            메모보내기 (JSON)
+            내보내기 (JSON)
           </button>
           <button type="button" className="settings-btn" disabled={saving} onClick={() => void window.snapnote.app.importMemos()}>
-            메모 가져오기 (JSON)
+            가져오기 (JSON)
           </button>
           <button type="button" className="settings-btn settings-btn--danger" disabled={saving} onClick={() => void onClearAll()}>
             모든 메모·클립보드 기록 삭제…

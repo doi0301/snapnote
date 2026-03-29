@@ -11,6 +11,7 @@ export interface EditorLineViewProps {
   mirrorSelectionRange?: { start: number; end: number }
   placeholder?: string
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  onBeforeInput?: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onPointerDown?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onFocus?: () => void
@@ -24,6 +25,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
       mirrorSelectionRange,
       placeholder,
       onChange,
+      onBeforeInput,
       onKeyDown,
       onPointerDown,
       onFocus,
@@ -65,6 +67,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
             value={line.text}
             placeholder={placeholder}
             onChange={onChange}
+            onBeforeInput={onBeforeInput}
             onKeyDown={onKeyDown}
             onPointerDown={onPointerDown}
             onFocus={onFocus}

@@ -4,7 +4,9 @@ import { clamp } from './spanFormat'
 const HL_CLASS: Record<string, string> = {
   yellow: 'inline-hl-yellow',
   green: 'inline-hl-green',
-  pink: 'inline-hl-pink'
+  pink: 'inline-hl-pink',
+  blue: 'inline-hl-blue',
+  orange: 'inline-hl-orange'
 }
 
 function collectBreakpoints(

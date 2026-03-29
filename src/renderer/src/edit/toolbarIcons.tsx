@@ -149,3 +149,27 @@ export function IconTopBarMinimize(props: { size?: number; className?: string })
     </svg>
   )
 }
+
+export function IconToolbarRobot(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <rect x="6" y="7" width="12" height="11" rx="2" stroke="currentColor" strokeWidth={stroke} />
+      <circle cx="9.5" cy="11" r="1.2" fill="currentColor" />
+      <circle cx="14.5" cy="11" r="1.2" fill="currentColor" />
+      <path d="M9 15h6" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M12 4v3" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <circle cx="12" cy="3" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+export function IconToolbarClock(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth={stroke} />
+      <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

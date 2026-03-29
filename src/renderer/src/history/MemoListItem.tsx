@@ -25,6 +25,7 @@ export interface MemoListItemProps {
   onToggleSelect: (id: MemoId) => void
   onOpen: (memo: Memo) => void
   onDelete: (memo: Memo) => void
+  onToggleDone: (memo: Memo) => void
 }
 
 export function MemoListItem({
@@ -32,13 +33,14 @@ export function MemoListItem({
   selected,
   onToggleSelect,
   onOpen,
-  onDelete
+  onDelete,
+  onToggleDone
 }: MemoListItemProps): JSX.Element {
   const titlePreview = firstLinePreview(memo.content, 80)
   const preview = preview30(memo.content)
 
   return (
-    <li className="history-memo-item">
+    <li className={`history-memo-item${memo.isDone ? ' history-memo-item--done' : ''}`}>
       <label className="history-memo-check" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
@@ -47,6 +49,17 @@ export function MemoListItem({
           aria-label={`${preview || '메모'} 선택`}
         />
       </label>
+      <button
+        type="button"
+        className="history-memo-done"
+        title={memo.isDone ? '진행 중으로 표시' : '완료로 표시'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleDone(memo)
+        }}
+      >
+        {memo.isDone ? '진행' : '완료'}
+      </button>
       <button
         type="button"
         className="history-memo-item-main"

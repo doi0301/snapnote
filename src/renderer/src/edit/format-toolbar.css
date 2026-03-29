@@ -103,6 +103,14 @@
   border-color: #db2777;
 }
 
+.format-toolbar-btn--hl-blue {
+  border-color: #2563eb;
+}
+
+.format-toolbar-btn--hl-orange {
+  border-color: #ea580c;
+}
+
 .format-toolbar-btn--text-tools {
   min-width: 32px;
 }

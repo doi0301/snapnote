@@ -75,6 +75,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   imperativeRef
 ) {
   const [lines, setLines] = useState<EditorLineModel[]>(() => normalizeEditorLines(memo.content))
+  const linesRef = useRef(lines)
+  linesRef.current = lines
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([])
   const lastFocusIndex = useRef(0)
   /** Enter·줄 병합·삽입 직후 DOM 반영 뒤 포커스 복구 (리마운트/배치 타이밍 이슈 방지) */
@@ -97,6 +99,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const toolbarStackRef = useRef<HTMLDivElement | null>(null)
   const undoStackRef = useRef<EditorSnapshot[]>([])
   const redoStackRef = useRef<EditorSnapshot[]>([])
+  /** undo/redo로 `setLines` 할 때 `beforeinput` 스냅 푸시 방지 */
+  const isApplyingUndoRedoRef = useRef(false)
 
   const cloneLines = useCallback((src: EditorLineModel[]): EditorLineModel[] => {
     return src.map((line) => ({
@@ -121,12 +125,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const restoreSnapshot = useCallback((snapshot: EditorSnapshot) => {
+    isApplyingUndoRedoRef.current = true
     setLines(cloneLines(snapshot.lines))
     setMultiLineSelection(null)
     pendingFocusRef.current = {
       index: Math.max(0, Math.min(snapshot.focusIndex, snapshot.lines.length - 1)),
       cursor: Math.max(0, snapshot.cursor)
     }
+    queueMicrotask(() => {
+      isApplyingUndoRedoRef.current = false
+    })
   }, [cloneLines])
 
   useEffect(() => {
@@ -423,6 +431,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     if (!ta) return
     const s = ta.selectionStart
     const e = ta.selectionEnd
+    pushUndoSnapshot(lines, i, s)
     setLines((prev) => {
       const line = prev[i]
       if (!line) return prev
@@ -439,7 +448,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       queueMicrotask(bumpToolbar)
       return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
     })
-  }, [bumpToolbar])
+  }, [bumpToolbar, lines, pushUndoSnapshot])
 
   const toggleStrikethrough = useCallback(() => {
     const i = lastFocusIndex.current
@@ -448,13 +457,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const s = ta.selectionStart
     const e = ta.selectionEnd
     if (s === e) return
+    pushUndoSnapshot(lines, i, s)
     setLines((prev) => {
       const line = prev[i]
       if (!line) return prev
       const nextSpans = toggleSpanProperty(line.spans, 'strikethrough', s, e, line.text.length)
       return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
     })
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const deleteMultiLineSelection = useCallback(
     (sel: MultiLineSelection) => {
@@ -493,13 +503,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const s = ta.selectionStart
     const e = ta.selectionEnd
     if (s === e) return
+    pushUndoSnapshot(lines, i, s)
     setLines((prev) => {
       const line = prev[i]
       if (!line) return prev
       const nextSpans = toggleHighlightColor(line.spans, s, e, color, line.text.length)
       return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
     })
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const onHighlightPrimaryClick = useCallback(() => {
     applyHighlightToSelection(lastHighlightColor)
@@ -515,6 +526,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const toggleLineHasCheckbox = useCallback(() => {
     const i = lastFocusIndex.current
+    const ta = textareaRefs.current[i]
+    pushUndoSnapshot(lines, i, ta?.selectionStart ?? 0)
     setLines((prev) =>
       prev.map((l, idx) => {
         if (idx !== i) return l
@@ -528,10 +541,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
       })
     )
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const toggleLineDivider = useCallback(() => {
     const i = lastFocusIndex.current
+    const ta = textareaRefs.current[i]
+    pushUndoSnapshot(lines, i, ta?.selectionStart ?? 0)
     setLines((prev) =>
       prev.map((l, idx) => {
         if (idx !== i) return l
@@ -539,7 +554,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return { ...l, formatting: { ...f, hasDivider: !f.hasDivider } }
       })
     )
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const insertTextAtCursor = useCallback((snippet: string) => {
     setMultiLineSelection(null)
@@ -548,6 +563,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     if (!ta) return
     const start = ta.selectionStart
     const end = ta.selectionEnd
+    pushUndoSnapshot(lines, i, start)
     const caret = start + snippet.length
     pendingFocusRef.current = { index: i, cursor: caret }
     setLines((prev) => {
@@ -558,7 +574,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const spans = remapSpansAfterEdit(oldT, newT, line.spans)
       return prev.map((l, j) => (j === i ? { ...l, text: newT, spans } : l))
     })
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const handleEmojiSelect = useCallback(
     (char: string) => {
@@ -574,6 +590,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [])
 
   const handleLineCheckboxToggle = useCallback((index: number) => {
+    const ta = textareaRefs.current[index]
+    pushUndoSnapshot(lines, index, ta?.selectionStart ?? 0)
     setLines((prev) =>
       prev.map((l, i) => {
         if (i !== index || !l.formatting?.hasCheckbox) return l
@@ -589,7 +607,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
       })
     )
-  }, [])
+  }, [lines, pushUndoSnapshot])
 
   const copyMultiLineSelectionToClipboard = useCallback(
     (sel: MultiLineSelection) => {
@@ -622,6 +640,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     if (!draggingSelectionRef.current) setMultiLineSelection(null)
   }, [])
 
+  const handleBeforeLineInput = useCallback(
+    (index: number, e: React.FormEvent<HTMLTextAreaElement>) => {
+      if (isApplyingUndoRedoRef.current) return
+      const ne = e.nativeEvent as InputEvent
+      if (ne.isComposing) return
+      const it = ne.inputType
+      if (it === 'historyUndo' || it === 'historyRedo') return
+      if (it && (it.startsWith('insertComposition') || it.startsWith('deleteComposition'))) return
+      const ta = e.currentTarget
+      pushUndoSnapshot(lines, index, ta.selectionStart)
+    },
+    [lines, pushUndoSnapshot]
+  )
+
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.nativeEvent.isComposing || e.key === 'Process') return
@@ -634,6 +666,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       /** Windows Ctrl / macOS Cmd — 단축키 일관 처리 */
       const mod = (e.ctrlKey || e.metaKey) && !e.altKey
       const key = e.key.toLowerCase()
+
+      if (mod && key === 'a') {
+        e.preventDefault()
+        if (lines.length === 0) return
+        const lastLine = lines.length - 1
+        const lastLen = lines[lastLine]?.text.length ?? 0
+        setMultiLineSelection({
+          anchorLine: 0,
+          anchorOffset: 0,
+          focusLine: lastLine,
+          focusOffset: lastLen
+        })
+        lastFocusIndex.current = lastLine
+        setFocusLineIndex(lastLine)
+        pendingFocusRef.current = { index: lastLine, cursor: lastLen }
+        return
+      }
 
       if (
         multiLineSelection &&
@@ -701,6 +750,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       if (e.key === 'Tab') {
         e.preventDefault()
+        pushUndoSnapshot(lines, index, start)
         setLines((prev) =>
           prev.map((l, i) => {
             if (i !== index) return l
@@ -735,6 +785,33 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         !e.metaKey &&
         !e.ctrlKey &&
         start === end &&
+        start > 0
+      ) {
+        const prevCh = line.text[start - 1]
+        if (prevCh === '-' || prevCh === '=') {
+          e.preventDefault()
+          const replaceStart = start - 1
+          const replaceEnd = start
+          const insert = prevCh === '-' ? '→' : '⇒'
+          pendingFocusRef.current = { index, cursor: replaceStart + 1 }
+          setLines((prev) => {
+            const cur = prev[index]
+            if (!cur) return prev
+            const oldT = cur.text
+            const newT = oldT.slice(0, replaceStart) + insert + oldT.slice(replaceEnd)
+            const spans = remapSpansAfterEdit(oldT, newT, cur.spans)
+            return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
+          })
+          return
+        }
+      }
+
+      if (
+        e.key === '<' &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        start === end &&
         start > 0 &&
         line.text[start - 1] === '-'
       ) {
@@ -746,15 +823,40 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           const cur = prev[index]
           if (!cur) return prev
           const oldT = cur.text
-          const newT = oldT.slice(0, replaceStart) + '→' + oldT.slice(replaceEnd)
+          const newT = oldT.slice(0, replaceStart) + '←' + oldT.slice(replaceEnd)
           const spans = remapSpansAfterEdit(oldT, newT, cur.spans)
           return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
         })
         return
       }
 
+      if (
+        e.key === ']' &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        start === 1 &&
+        line.text === '['
+      ) {
+        e.preventDefault()
+        pendingFocusRef.current = { index, cursor: 0 }
+        setLines((prev) =>
+          prev.map((l, i) => {
+            if (i !== index) return l
+            const f = l.formatting ?? {}
+            return {
+              ...l,
+              text: '',
+              formatting: { ...f, hasCheckbox: true, checkboxChecked: false, strikethrough: false }
+            }
+          })
+        )
+        return
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
+        pushUndoSnapshot(lines, index, start)
         const before = line.text.slice(0, start)
         const after = line.text.slice(end)
         const [leftSpans, rightSpans] = splitSpansAt(line.spans, start)
@@ -781,6 +883,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       if (e.key === 'Backspace' && start === 0 && index > 0) {
         e.preventDefault()
+        pushUndoSnapshot(lines, index, start)
         mergeWithPrevious(index, end)
         return
       }
@@ -797,7 +900,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       pushUndoSnapshot,
       restoreSnapshot,
       toggleBold,
-      toggleStrikethrough
+      toggleStrikethrough,
+      handleBeforeLineInput
     ]
   )
 
@@ -807,6 +911,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       appendTextFromClipboard: (text: string) => {
         setMultiLineSelection(null)
         const i = lastFocusIndex.current
+        const ta = textareaRefs.current[i]
+        pushUndoSnapshot(linesRef.current, i, ta?.selectionStart ?? 0)
         setLines((prev) =>
           prev.map((l, idx) => {
             if (idx !== i) return l
@@ -818,7 +924,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         )
       }
     }),
-    []
+    [pushUndoSnapshot]
   )
 
   const serialized = useMemo(() => JSON.stringify(lines), [lines])
@@ -1001,6 +1107,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
               line={line}
               placeholder={index === 0 ? '내용을 입력하세요.' : ''}
               onChange={(e) => handleLineChange(index, e)}
+              onBeforeInput={(e) => handleBeforeLineInput(index, e)}
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPointerDown={(e) => onLinePointerDown(index, e)}
               onFocus={() => {

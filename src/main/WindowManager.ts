@@ -39,6 +39,8 @@ const PREVIEW_GAP = 4
 
 type WinBounds = { x: number; y: number; width: number; height: number }
 
+const EDIT_WORK_MARGIN = 8
+
 function clampPreviewTopLeft(x: number, y: number, width: number, height: number): { x: number; y: number } {
   const wa = screen.getDisplayNearestPoint({ x: Math.floor(x + width / 2), y: Math.floor(y + height / 2) }).workArea
   let nx = x
@@ -48,6 +50,35 @@ function clampPreviewTopLeft(x: number, y: number, width: number, height: number
   if (nx < wa.x) nx = wa.x
   if (ny < wa.y) ny = wa.y
   return { x: nx, y: ny }
+}
+
+/** 편집창이 모니터 작업 영역을 넘지 않도록 크기·위치 보정 */
+function clampEditWindowOpenBounds(
+  x: number | undefined,
+  y: number | undefined,
+  width: number,
+  height: number
+): { x: number; y: number; width: number; height: number } {
+  const primary = screen.getPrimaryDisplay().workArea
+  const cx =
+    x !== undefined && x !== null ? x + width / 2 : primary.x + primary.width / 2
+  const cy =
+    y !== undefined && y !== null ? y + height / 2 : primary.y + primary.height / 2
+  const wa = screen.getDisplayNearestPoint({ x: Math.floor(cx), y: Math.floor(cy) }).workArea
+  const maxW = Math.max(EDIT_MIN_W, wa.width - EDIT_WORK_MARGIN)
+  const maxH = Math.max(EDIT_MIN_H, wa.height - EDIT_WORK_MARGIN)
+  const w = Math.min(Math.max(EDIT_MIN_W, width), maxW)
+  const h = Math.min(Math.max(EDIT_MIN_H, height), maxH)
+  const nx =
+    x !== undefined && x !== null
+      ? x
+      : wa.x + Math.max(0, Math.floor((wa.width - w) / 2))
+  const ny =
+    y !== undefined && y !== null
+      ? y
+      : wa.y + Math.max(0, Math.floor((wa.height - h) / 2))
+  const pos = clampPreviewTopLeft(nx, ny, w, h)
+  return { x: pos.x, y: pos.y, width: w, height: h }
 }
 
 export interface WindowManagerDeps {
@@ -204,8 +235,9 @@ export class WindowManager {
       if (x !== b.x || y !== b.y) {
         win.setPosition(x, y)
       }
-    }, 120)
-    win.on('moved', () => applyEdgeSnapAfterMove())
+    }, 420)
+    /** `move`는 드래그 중 연속 발생 — 짧은 debounce만 쓰면 드래그 중에도 스냅이 걸린다. 드래그 종료 후에만 스냅. */
+    win.on('move', () => applyEdgeSnapAfterMove())
   }
 
   private getSmartOpenPosition(width: number, height: number): { x?: number; y?: number } {
@@ -418,22 +450,24 @@ export class WindowManager {
     if (!memo) return
 
     const settings = this.deps.settings.getSettings()
-    const w = memo.windowWidth || settings.defaultWindowWidth
-    const h = memo.windowHeight || settings.defaultWindowHeight
+    const w0 = memo.windowWidth || settings.defaultWindowWidth
+    const h0 = memo.windowHeight || settings.defaultWindowHeight
     let x = memo.windowX ?? undefined
     let y = memo.windowY ?? undefined
     const foldedStack = this.deps.settings.getAppState().foldedStack
     if (foldedStack.includes(memoId)) {
-      const smart = this.getSmartOpenPosition(w, h)
+      const smart = this.getSmartOpenPosition(w0, h0)
       x = smart.x
       y = smart.y
     }
 
+    const bounds = clampEditWindowOpenBounds(x, y, w0, h0)
+
     const win = new BrowserWindow({
-      width: w,
-      height: h,
-      x: x !== undefined && x !== null ? x : undefined,
-      y: y !== undefined && y !== null ? y : undefined,
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
       minWidth: EDIT_MIN_W,
       minHeight: EDIT_MIN_H,
       show: false,
@@ -458,7 +492,7 @@ export class WindowManager {
     this.attachEdgeSnap(win, memoId)
 
     const scheduleBoundsPersist = this.getEditBoundsPersister(memoId)
-    win.on('moved', scheduleBoundsPersist)
+    win.on('move', scheduleBoundsPersist)
     win.on('resized', scheduleBoundsPersist)
 
     const markEditFocused = (): void => {

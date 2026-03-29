@@ -2,7 +2,7 @@ import type { Database } from 'sql.js'
 import { selectAll, selectOne, run } from '../repositories/sqlRun'
 
 /** 스키마 버전 (PRAGMA user_version) */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 /** TRD §3.1 + DESIGN_SYSTEM 슬롯 기본색 */
 const DEFAULT_COLOR_SLOT_1 = '#F28B74'
@@ -116,6 +116,19 @@ function migrateSettingsWindowOpacity(db: Database): void {
   run(db, 'PRAGMA user_version = 5')
 }
 
+function migrateMemosIsDone(db: Database): void {
+  const verRow = selectOne(db, 'PRAGMA user_version', [])
+  const ver = verRow ? Number(verRow.user_version) : 0
+  if (ver >= 6) return
+
+  const cols = selectAll(db, 'PRAGMA table_info(memos)', [])
+  const has = cols.some((c) => String(c.name) === 'is_done')
+  if (!has) {
+    run(db, 'ALTER TABLE memos ADD COLUMN is_done INTEGER NOT NULL DEFAULT 0')
+  }
+  run(db, 'PRAGMA user_version = 6')
+}
+
 /** 테이블 생성 */
 export function applySchema(db: Database): void {
   db.run(CREATE_MEMOS)
@@ -127,6 +140,7 @@ export function applySchema(db: Database): void {
   migrateSettingsClipboardNotice(db)
   migrateClipboardHistoryImageColumns(db)
   migrateSettingsWindowOpacity(db)
+  migrateMemosIsDone(db)
 
   db.run(
     `INSERT OR IGNORE INTO app_state (id, folded_stack, folded_panel_x, folded_panel_y)

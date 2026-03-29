@@ -74,6 +74,16 @@
   border-radius: 2px;
 }
 
+.inline-hl-blue {
+  background-color: rgba(191, 219, 254, 0.92);
+  border-radius: 2px;
+}
+
+.inline-hl-orange {
+  background-color: rgba(254, 215, 170, 0.92);
+  border-radius: 2px;
+}
+
 .inline-selected {
   background-color: #3b82f6;
   color: #ffffff;

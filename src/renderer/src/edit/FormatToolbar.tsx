@@ -12,12 +12,14 @@ import {
 } from './toolbarIcons'
 import './format-toolbar.css'
 
-const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink']
+const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'blue', 'orange']
 
 const HL_LABEL: Record<HighlightColor, string> = {
   yellow: '노랑',
   green: '초록',
-  pink: '분홍'
+  pink: '분홍',
+  blue: '파랑',
+  orange: '주황'
 }
 
 const LONG_PRESS_MS = 500

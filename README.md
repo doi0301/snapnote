@@ -16,6 +16,16 @@ Windows 우선 데스크톱 메모 앱 — Electron + React + TypeScript + elect
 
 - [VS Code](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
 
+## 로컬을 GitHub 최신과 맞추기
+
+다른 PC에서 푸시했거나 GitHub가 앞선 상태에서 이 PC에서 개발을 이어가려면, 저장소 루트에서 원격 최신을 가져옵니다.
+
+- **개념:** `pull`은 원격(GitHub)의 커밋을 로컬 브랜치로 합칩니다. `push`는 그 반대로 로컬 커밋을 원격에 올립니다.
+- **절차:** (선택) `git fetch origin` 후 `git status` — `behind`이면 원격이 앞선 것입니다. 반영은 `git pull` (또는 `git pull origin master`; 기본 브랜치가 `main`이면 `main`으로 바꿉니다).
+- **확인:** `git status`에 `Your branch is up to date with 'origin/master'.`가 보이거나, `git rev-parse HEAD`와 `git rev-parse origin/master` 해시가 같으면 맞춰진 상태입니다.
+
+작업 중인 변경이 있으면 `git status`로 확인한 뒤, 필요하면 커밋하거나 `git stash`로 잠시 치워 두고 `pull` 하세요.
+
 ## 명령
 
 ```bash

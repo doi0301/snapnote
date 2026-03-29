@@ -49,6 +49,25 @@ export function FoldedPanel(): React.JSX.Element {
     }
   }, [stack])
 
+  /** 편집 중 자동 저장 등으로 메모가 갱신되면 폴디드 슬롯 프리뷰도 맞춤 */
+  useEffect(() => {
+    return window.snapnote.on.memoUpdated(() => {
+      void (async () => {
+        const s = await window.snapnote.app.getState()
+        const ids = s.foldedStack
+        const next: Memo[] = []
+        for (const id of ids) {
+          try {
+            next.push(await window.snapnote.memo.get(id))
+          } catch {
+            /* ignore */
+          }
+        }
+        setMemos(next)
+      })()
+    })
+  }, [])
+
   const onPreviewEnter = useCallback(
     (id: MemoId, slotEl: HTMLElement) => {
       const r = slotEl.getBoundingClientRect()

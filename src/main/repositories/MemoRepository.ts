@@ -21,6 +21,7 @@ function rowToMemo(row: SqlRow): Memo {
     windowY: wy === null || wy === undefined ? null : Number(wy),
     windowWidth: Number(row.window_width),
     windowHeight: Number(row.window_height),
+    isDone: Number(row.is_done ?? 0) === 1,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
   }
@@ -72,8 +73,9 @@ export class MemoRepository {
       `INSERT INTO memos (
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
+        is_done,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, ?, ?)`,
       [id, JSON.stringify(emptyContent), JSON.stringify([]), color, ww, wh, now, now]
     )
     this.persist()
@@ -152,6 +154,7 @@ export class MemoRepository {
       windowY: patch.windowY !== undefined ? patch.windowY : existing.windowY,
       windowWidth: patch.windowWidth ?? existing.windowWidth,
       windowHeight: patch.windowHeight ?? existing.windowHeight,
+      isDone: patch.isDone ?? existing.isDone,
       updatedAt: new Date().toISOString()
     }
     run(
@@ -159,6 +162,7 @@ export class MemoRepository {
       `UPDATE memos SET
         content = ?, tags = ?, color = ?, is_pinned = ?, pinned_at = ?,
         window_x = ?, window_y = ?, window_width = ?, window_height = ?,
+        is_done = ?,
         updated_at = ?
       WHERE id = ?`,
       [
@@ -171,6 +175,7 @@ export class MemoRepository {
         next.windowY,
         next.windowWidth,
         next.windowHeight,
+        next.isDone ? 1 : 0,
         next.updatedAt,
         id
       ]
@@ -199,8 +204,9 @@ export class MemoRepository {
       `INSERT INTO memos (
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
+        is_done,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         m.id,
         JSON.stringify(m.content),
@@ -212,6 +218,7 @@ export class MemoRepository {
         m.windowY,
         m.windowWidth,
         m.windowHeight,
+        m.isDone ? 1 : 0,
         m.createdAt,
         m.updatedAt
       ]
