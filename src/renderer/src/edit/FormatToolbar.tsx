@@ -12,14 +12,13 @@ import {
 } from './toolbarIcons'
 import './format-toolbar.css'
 
-const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'blue', 'orange']
+/** 노랑·초록·분홍 — 대비·구분이 가장 잘 나는 고전 3색 */
+const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink']
 
 const HL_LABEL: Record<HighlightColor, string> = {
   yellow: '노랑',
   green: '초록',
-  pink: '분홍',
-  blue: '파랑',
-  orange: '주황'
+  pink: '분홍'
 }
 
 const LONG_PRESS_MS = 500
@@ -78,7 +77,12 @@ export function FormatToolbar({
 
   useEffect(() => {
     if (!paletteOpen) return
-    const onDocDown = (): void => {
+    const onDocDown = (ev: MouseEvent): void => {
+      const el = ev.target as Element | null
+      if (!el) return
+      if (el.closest('.format-highlight-popover') || el.closest('.format-toolbar-btn--highlight')) {
+        return
+      }
       setPaletteOpen(false)
     }
     const id = window.setTimeout(() => {
@@ -104,13 +108,14 @@ export function FormatToolbar({
   }, [])
 
   const onHlPointerDown = useCallback(() => {
+    if (compactActions) return
     clearLongPress()
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null
       suppressHlPrimaryClickRef.current = true
       openPalette()
     }, LONG_PRESS_MS)
-  }, [clearLongPress, openPalette])
+  }, [clearLongPress, openPalette, compactActions])
 
   const onHlPointerUp = useCallback(() => {
     clearLongPress()
@@ -118,11 +123,12 @@ export function FormatToolbar({
 
   const onHlContextMenu = useCallback(
     (e: React.MouseEvent) => {
+      if (compactActions) return
       e.preventDefault()
       clearLongPress()
       openPalette()
     },
-    [clearLongPress, openPalette]
+    [clearLongPress, openPalette, compactActions]
   )
 
   const hlBtnClass = `format-toolbar-btn--highlight format-toolbar-btn--hl-${lastHighlightColor}${highlightActive ? ' format-toolbar-btn--active' : ''}`
@@ -168,7 +174,11 @@ export function FormatToolbar({
       <button
         type="button"
         className={`format-toolbar-btn format-toolbar-btn--icon ${hlBtnClass}`}
-        title="하이라이트"
+        title={
+          compactActions
+            ? '하이라이트 (아래 색상 또는 마지막 색 적용)'
+            : '하이라이트 (클릭: 색 팔레트 · Ctrl+클릭: 마지막 색 적용)'
+        }
         onPointerDown={(e) => {
           e.preventDefault()
           onHlPointerDown()
@@ -176,13 +186,20 @@ export function FormatToolbar({
         onPointerUp={onHlPointerUp}
         onPointerCancel={onHlPointerUp}
         onPointerLeave={onHlPointerUp}
-        onClick={() => {
-          if (paletteOpen) return
+        onClick={(e) => {
           if (suppressHlPrimaryClickRef.current) {
             suppressHlPrimaryClickRef.current = false
             return
           }
-          onHighlightPrimaryClick()
+          if (compactActions) {
+            onHighlightPrimaryClick()
+            return
+          }
+          if (e.ctrlKey || e.metaKey) {
+            onHighlightPrimaryClick()
+            return
+          }
+          setPaletteOpen((o) => !o)
         }}
         onContextMenu={onHlContextMenu}
         aria-pressed={highlightActive}
@@ -229,7 +246,10 @@ export function FormatToolbar({
             title="텍스트 서식"
             aria-label="텍스트 서식"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setActionModalOpen(true)}
+            onClick={() => {
+              setPaletteOpen(false)
+              setActionModalOpen(true)
+            }}
           >
             <IconToolbarFormat size={18} />
           </button>
@@ -252,10 +272,29 @@ export function FormatToolbar({
             <div className="format-toolbar format-toolbar--modal" role="toolbar" aria-label="텍스트 서식 모달">
               {formattingButtons}
             </div>
+            <div className="format-toolbar-modal-hl" role="group" aria-label="형광펜 색상">
+              <p className="format-toolbar-modal-hl-label">형광펜 색</p>
+              <div className="format-toolbar-modal-hl-swatches">
+                {HL_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`format-hl-swatch format-hl-swatch--${c}${c === lastHighlightColor ? ' format-hl-swatch--current' : ''}`}
+                    title={HL_LABEL[c]}
+                    aria-label={HL_LABEL[c]}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onPickHighlightColor(c)
+                      setPaletteOpen(false)
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
-      {paletteOpen ? (
+      {paletteOpen && !compactActions ? (
         <div
           className="format-highlight-popover"
           role="menu"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Settings, SettingsUpdatePatch } from '@shared/types'
+import type { Settings, SettingsUpdatePatch, UpdateEventPayload } from '@shared/types'
 import './settings-window.css'
 
 const DEFAULT_SHORTCUT = 'CommandOrControl+Shift+M'
@@ -9,6 +9,12 @@ export function SettingsWindow(): React.JSX.Element {
   const [shortcutDraft, setShortcutDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState<string>('')
+  const [updatePhase, setUpdatePhase] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'uptodate'>(
+    'idle'
+  )
+  const [remoteVersion, setRemoteVersion] = useState<string | null>(null)
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     const s = await window.snapnote.settings.get()
@@ -23,6 +29,33 @@ export function SettingsWindow(): React.JSX.Element {
       setShortcutDraft(s.globalShortcut || DEFAULT_SHORTCUT)
     })
   }, [refresh])
+
+  useEffect(() => {
+    void window.snapnote.app.getVersion().then(setAppVersion)
+  }, [])
+
+  useEffect(() => {
+    return window.snapnote.on.updateEvent((p: UpdateEventPayload) => {
+      if (p.type === 'checking') {
+        setUpdatePhase('checking')
+        setUpdateProgress(null)
+      }
+      if (p.type === 'download-progress') {
+        setUpdatePhase('downloading')
+        setUpdateProgress(p.percent)
+      }
+      if (p.type === 'update-downloaded') {
+        setUpdatePhase('ready')
+        setRemoteVersion(p.version)
+        setUpdateProgress(null)
+      }
+      if (p.type === 'error') {
+        setMessage(`업데이트 오류: ${p.message}`)
+        setUpdatePhase('idle')
+        setUpdateProgress(null)
+      }
+    })
+  }, [])
 
   const patch = useCallback(async (p: SettingsUpdatePatch): Promise<void> => {
     if (!settings) return
@@ -43,6 +76,56 @@ export function SettingsWindow(): React.JSX.Element {
     await patch({ globalShortcut: v })
     setMessage('전역 단축키를 저장했습니다. 다른 앱과 겹치면 등록에 실패할 수 있습니다.')
   }, [patch, shortcutDraft])
+
+  const onCheckUpdates = useCallback(async (): Promise<void> => {
+    setMessage(null)
+    setUpdatePhase('checking')
+    setRemoteVersion(null)
+    try {
+      const r = await window.snapnote.app.checkForUpdates()
+      if (!r.ok) {
+        if (r.reason === 'not-packaged') {
+          setMessage('개발 모드에서는 GitHub 릴리즈 업데이트를 사용할 수 없습니다. 설치형 빌드를 사용하세요.')
+        } else if (r.reason === 'feed-not-configured') {
+          setMessage(
+            '업데이트 서버가 설정되지 않았습니다. 배포 시 electron-builder.yml의 publish.url을 설정한 뒤 다시 빌드하세요.'
+          )
+        } else {
+          setMessage(r.error ?? '업데이트 확인에 실패했습니다.')
+        }
+        setUpdatePhase('idle')
+        return
+      }
+      if (r.available) {
+        setRemoteVersion(r.version)
+        setUpdatePhase('available')
+        setMessage(`새 버전 ${r.version} 을(를) 받을 수 있습니다.`)
+      } else {
+        setUpdatePhase('uptodate')
+        setMessage('이미 최신 버전입니다.')
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '업데이트 확인에 실패했습니다.')
+      setUpdatePhase('idle')
+    }
+  }, [])
+
+  const onDownloadUpdate = useCallback(async (): Promise<void> => {
+    setMessage(null)
+    try {
+      const r = await window.snapnote.app.downloadUpdate()
+      if (!r.ok) {
+        setMessage(r.error ?? r.reason ?? '다운로드에 실패했습니다.')
+        return
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '다운로드에 실패했습니다.')
+    }
+  }, [])
+
+  const onQuitAndInstall = useCallback(async (): Promise<void> => {
+    await window.snapnote.app.quitAndInstall()
+  }, [])
 
   const onClearAll = useCallback(async (): Promise<void> => {
     const ok = window.confirm(
@@ -90,6 +173,54 @@ export function SettingsWindow(): React.JSX.Element {
           {message}
         </p>
       ) : null}
+
+      <section className="settings-section" aria-labelledby="settings-appinfo">
+        <h2 id="settings-appinfo" className="settings-section-title">
+          앱 정보 · 업데이트
+        </h2>
+        <p className="settings-hint">
+          설치형(NSIS) 빌드에서 GitHub 릴리즈에 올린 <code>latest.yml</code>과 설치 파일이 있으면 여기서 확인·설치할 수
+          있습니다.
+        </p>
+        <div className="settings-row settings-row--version">
+          <span>현재 버전</span>
+          <strong>{appVersion || '—'}</strong>
+        </div>
+        {updatePhase === 'downloading' && updateProgress !== null ? (
+          <p className="settings-hint" role="status">
+            다운로드 중… {Math.round(updateProgress)}%
+          </p>
+        ) : null}
+        {updatePhase === 'ready' && remoteVersion ? (
+          <p className="settings-message" role="status">
+            설치 준비됨 (v{remoteVersion}). 앱을 종료하면 설치가 진행됩니다.
+          </p>
+        ) : null}
+        <div className="settings-data-actions">
+          <button
+            type="button"
+            className="settings-btn"
+            disabled={saving || updatePhase === 'checking' || updatePhase === 'downloading'}
+            onClick={() => void onCheckUpdates()}
+          >
+            {updatePhase === 'checking' ? '확인 중…' : '업데이트 확인'}
+          </button>
+          {updatePhase === 'available' && remoteVersion ? (
+            <button type="button" className="settings-btn settings-btn--primary" onClick={() => void onDownloadUpdate()}>
+              v{remoteVersion} 받기
+            </button>
+          ) : null}
+          {updatePhase === 'ready' ? (
+            <button
+              type="button"
+              className="settings-btn settings-btn--primary"
+              onClick={() => void onQuitAndInstall()}
+            >
+              지금 설치하고 재시작
+            </button>
+          ) : null}
+        </div>
+      </section>
 
       <section className="settings-section" aria-labelledby="settings-gen">
         <h2 id="settings-gen" className="settings-section-title">

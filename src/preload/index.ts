@@ -1,7 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IPC_CHANNELS } from '@shared/ipc-channels'
-import type { SnapnotePreloadAPI } from '@shared/snapnote-api'
+import type { SnapnotePreloadAPI, UpdateCheckResult } from '@shared/snapnote-api'
+import type { UpdateEventPayload } from '@shared/types'
 import type {
   AppState,
   ClipboardInsertPayload,
@@ -60,13 +61,27 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
 
   const app = {
     exportMemos: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_EXPORT_MEMOS),
+    exportMemosAsFile: (payload: { ids: string[] }): Promise<{ ok: boolean; reason?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_EXPORT_MEMOS_AS_FILE, payload),
     importMemos: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_IMPORT_MEMOS),
     clearAllData: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_CLEAR_ALL_DATA),
     getState: (): Promise<AppState> => ipcRenderer.invoke(IPC_CHANNELS.APP_STATE_GET),
     hideFoldedPanel: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FOLDED_PANEL_HIDE),
     openHistory: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_HISTORY),
     setFoldedPanelContentHeight: (heightPx: number): Promise<void> =>
-      ipcRenderer.invoke(IPC_CHANNELS.FOLDED_PANEL_SET_CONTENT_HEIGHT, heightPx)
+      ipcRenderer.invoke(IPC_CHANNELS.FOLDED_PANEL_SET_CONTENT_HEIGHT, heightPx),
+    moveEditWindowByDelta: (dx: number, dy: number): void => {
+      ipcRenderer.send(IPC_CHANNELS.EDIT_WINDOW_MOVE_DELTA, { dx, dy })
+    },
+    notifyEditWindowDragEnd: (): void => {
+      ipcRenderer.send(IPC_CHANNELS.EDIT_WINDOW_DRAG_END)
+    },
+    getVersion: (): Promise<string> => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_VERSION),
+    checkForUpdates: (): Promise<UpdateCheckResult> => ipcRenderer.invoke(IPC_CHANNELS.APP_UPDATER_CHECK),
+    downloadUpdate: (): Promise<{ ok: boolean; reason?: string; error?: string }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_UPDATER_DOWNLOAD),
+    quitAndInstall: (): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke(IPC_CHANNELS.APP_UPDATER_QUIT_AND_INSTALL)
   }
 
   const on = {
@@ -104,6 +119,11 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
       const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)
       ipcRenderer.on(IPC_CHANNELS.CLIPBOARD_PASTE_TEXT, listener)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.CLIPBOARD_PASTE_TEXT, listener)
+    },
+    updateEvent: (cb: (payload: UpdateEventPayload) => void): (() => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, payload: UpdateEventPayload): void => cb(payload)
+      ipcRenderer.on(IPC_CHANNELS.UPDATE_EVENT, listener)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_EVENT, listener)
     }
   }
 

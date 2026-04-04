@@ -46,7 +46,15 @@ export const IPC_CHANNELS = {
   SETTINGS_UPDATE: 'settings:update',
 
   APP_EXPORT_MEMOS: 'app:export-memos',
+  /** 선택 메모를 Markdown 또는 CSV로 저장 */
+  APP_EXPORT_MEMOS_AS_FILE: 'app:export-memos-as-file',
   APP_IMPORT_MEMOS: 'app:import-memos',
+  APP_GET_VERSION: 'app:get-version',
+  APP_UPDATER_CHECK: 'app:updater-check',
+  APP_UPDATER_DOWNLOAD: 'app:updater-download',
+  APP_UPDATER_QUIT_AND_INSTALL: 'app:updater-quit-and-install',
+  /** Main → Renderer: 자동 업데이트 진행 상태 */
+  UPDATE_EVENT: 'update:event',
   /** 모든 메모·클립보드 히스토리·폴디드 스택 초기화 (설정 유지) */
   APP_CLEAR_ALL_DATA: 'app:clear-all-data',
 
@@ -58,6 +66,11 @@ export const IPC_CHANNELS = {
   FOLDED_PANEL_SET_CONTENT_HEIGHT: 'folded-panel:set-content-height',
   /** 메모 히스토리 모달 */
   APP_OPEN_HISTORY: 'app:open-history',
+
+  /** Renderer → Main (ipcRenderer.send): 편집 창 상단 스트립 드래그 — delta만큼 setPosition */
+  EDIT_WINDOW_MOVE_DELTA: 'edit-window:move-delta',
+  /** Renderer → Main (send): 상단 스트립 드래그 종료 — 가장자리 스냅 + 창 좌표 DB 반영 */
+  EDIT_WINDOW_DRAG_END: 'edit-window:drag-end',
 
   /** Main → 편집 창: 클립보드 삽입 텍스트 (preload `on.clipboardPasteText`) */
   CLIPBOARD_PASTE_TEXT: 'clipboard:paste-text'
@@ -72,6 +85,7 @@ export type IpcEventChannel =
   | typeof IPC_CHANNELS.SETTINGS_CHANGED
   | typeof IPC_CHANNELS.MEMOS_DATA_RESET
   | typeof IPC_CHANNELS.CLIPBOARD_PASTE_TEXT
+  | typeof IPC_CHANNELS.UPDATE_EVENT
 
 /** Renderer → Main invoke 채널 */
 export type IpcInvokeChannel = Exclude<

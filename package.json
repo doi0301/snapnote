@@ -1,6 +1,6 @@
 {
   "name": "snapnote",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "SnapNote - Windows desktop memo app (folded panel, structured notes)",
   "main": "./out/main/index.js",
   "author": "example.com",

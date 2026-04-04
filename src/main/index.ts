@@ -8,7 +8,6 @@ import { requestQuit, setAppQuitting } from './appLifecycle'
 import { DataService } from './DataService'
 import { closeDatabase, initDatabase } from './database/db'
 import { TrayManager } from './TrayManager'
-import { setupAutoUpdater } from './autoUpdate'
 
 app.setName('SnapNote')
 
@@ -99,8 +98,6 @@ if (!hasMainInstanceLock) {
         quit: () => requestQuit()
       })
       tray.init(resolveTrayIconPath())
-
-      setupAutoUpdater()
 
       /** E2E: OS 전역 단축키와 동일한 `toggleFoldedPanel` 경로를 메인에서 직접 호출 */
       if (isE2E) {

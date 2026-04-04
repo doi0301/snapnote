@@ -1,12 +1,11 @@
-import type { LineFormatting, TextSpan } from '@shared/types'
+import { normalizeHighlightColor } from '@shared/highlight'
+import type { HighlightColor, LineFormatting, TextSpan } from '@shared/types'
 import { clamp } from './spanFormat'
 
-const HL_CLASS: Record<string, string> = {
+const HL_CLASS: Record<HighlightColor, string> = {
   yellow: 'inline-hl-yellow',
   green: 'inline-hl-green',
-  pink: 'inline-hl-pink',
-  blue: 'inline-hl-blue',
-  orange: 'inline-hl-orange'
+  pink: 'inline-hl-pink'
 }
 
 function collectBreakpoints(
@@ -57,7 +56,8 @@ function classForSlice(
       if (s.bold) parts.push('inline-bold')
       if (s.strikethrough) parts.push('inline-strike')
       if (s.highlight) {
-        const c = HL_CLASS[s.highlight]
+        const col = normalizeHighlightColor(String(s.highlight))
+        const c = col ? HL_CLASS[col] : undefined
         if (c) parts.push(c)
       }
     }

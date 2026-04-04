@@ -70,6 +70,24 @@
   min-height: 120px;
 }
 
+.editor-copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fafafa;
+  background: rgba(24, 24, 27, 0.92);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+  max-width: calc(100vw - 24px);
+  text-align: center;
+}
+
 /* 메인 flushEditMemoDraftFromDom — JSON 라인 배열 */
 .edit-serialized-content {
   position: absolute;

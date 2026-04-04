@@ -20,6 +20,8 @@ import { MemoRepository } from './repositories/MemoRepository'
 import { SettingsRepository } from './repositories/SettingsRepository'
 import { GlobalShortcutService } from './globalShortcutService'
 import { WindowManager } from './WindowManager'
+import { registerUpdaterIpcHandlers } from './autoUpdate'
+import { memosToMarkdown } from './memoExportFormat'
 
 /** TRD §9 export JSON */
 interface ExportFile {
@@ -36,6 +38,8 @@ export class DataService {
   private readonly globalShortcutService: GlobalShortcutService
   readonly windowManager: WindowManager
   private ipcHandlersRegistered = false
+  /** 편집창 상단 IPC 드래그 중: Windows가 상단 가장자리를 리사이즈로 처리해 높이가 늘어나는 것을 막기 위해 크기 고정 */
+  private readonly editWindowDragFixedSize = new Map<number, { width: number; height: number }>()
 
   constructor() {
     const db = (): ReturnType<typeof getDatabase> => getDatabase()
@@ -157,6 +161,39 @@ export class DataService {
   registerIpcHandlers(): void {
     if (this.ipcHandlersRegistered) return
     this.ipcHandlersRegistered = true
+
+    ipcMain.on(
+      IPC_CHANNELS.EDIT_WINDOW_MOVE_DELTA,
+      (e, payload: { dx?: number; dy?: number }) => {
+        const dx = typeof payload?.dx === 'number' && Number.isFinite(payload.dx) ? payload.dx : 0
+        const dy = typeof payload?.dy === 'number' && Number.isFinite(payload.dy) ? payload.dy : 0
+        if (dx === 0 && dy === 0) return
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (!win || win.isDestroyed()) return
+        const sid = e.sender.id
+        if (!this.editWindowDragFixedSize.has(sid)) {
+          const b = win.getBounds()
+          this.editWindowDragFixedSize.set(sid, { width: b.width, height: b.height })
+        }
+        const { width, height } = this.editWindowDragFixedSize.get(sid)!
+        const [x, y] = win.getPosition()
+        win.setBounds(
+          {
+            x: Math.round(x + dx),
+            y: Math.round(y + dy),
+            width,
+            height
+          },
+          false
+        )
+      }
+    )
+
+    ipcMain.on(IPC_CHANNELS.EDIT_WINDOW_DRAG_END, (e) => {
+      this.editWindowDragFixedSize.delete(e.sender.id)
+      this.windowManager.onEditWindowPointerDragEnd(e.sender)
+    })
+
     ipcMain.handle(IPC_CHANNELS.MEMO_CREATE, () => {
       return this.createMemoWithStack()
     })
@@ -306,6 +343,35 @@ export class DataService {
     })
 
     this.windowManager.init()
+
+    ipcMain.handle(
+      IPC_CHANNELS.APP_EXPORT_MEMOS_AS_FILE,
+      async (_e, payload: { ids: MemoId[] }): Promise<{ ok: boolean; reason?: string }> => {
+        const ids = Array.isArray(payload?.ids) ? payload.ids : []
+        const memos: Memo[] = []
+        for (const id of ids) {
+          const m = this.memos.getMemo(id)
+          if (m) memos.push(m)
+        }
+        if (!memos.length) return { ok: false, reason: 'no-memos' }
+        const focused = BrowserWindow.getFocusedWindow()
+        const defaultPath =
+          memos.length === 1 ? `snapnote-${memos[0].id.slice(0, 8)}.md` : 'snapnote-export.md'
+        const saveOpts = {
+          title: '메모 내보내기 (Markdown)',
+          defaultPath,
+          filters: [{ name: 'Markdown', extensions: ['md'] }]
+        }
+        const { canceled, filePath } = focused
+          ? await dialog.showSaveDialog(focused, saveOpts)
+          : await dialog.showSaveDialog(saveOpts)
+        if (canceled || !filePath) return { ok: false, reason: 'cancelled' }
+        writeFileSync(filePath, memosToMarkdown(memos), 'utf-8')
+        return { ok: true }
+      }
+    )
+
+    registerUpdaterIpcHandlers()
 
     ipcMain.handle(IPC_CHANNELS.APP_EXPORT_MEMOS, async () => {
       const focused = BrowserWindow.getFocusedWindow()

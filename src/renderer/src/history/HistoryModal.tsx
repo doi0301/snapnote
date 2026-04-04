@@ -127,6 +127,12 @@ export function HistoryModal(): React.JSX.Element {
     await window.snapnote.memo.update({ id: m.id, patch: { isDone: !m.isDone } })
   }, [])
 
+  const exportSelected = useCallback(async (): Promise<void> => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    await window.snapnote.app.exportMemosAsFile({ ids })
+  }, [selectedIds])
+
   const onDebouncedQuery = useCallback((q: string) => setDebouncedQuery(q), [])
 
   const hasQuery = debouncedQuery.trim().length > 0
@@ -164,13 +170,23 @@ export function HistoryModal(): React.JSX.Element {
         </h1>
         <div className="history-modal-header-actions">
           {selectionCount > 0 ? (
-            <button
-              type="button"
-              className="history-btn history-btn--danger"
-              onClick={() => void onDeleteSelected()}
-            >
-              선택 삭제 ({selectionCount})
-            </button>
+            <>
+              <button
+                type="button"
+                className="history-btn"
+                title="선택한 메모를 Markdown(.md) 파일로 저장"
+                onClick={() => void exportSelected()}
+              >
+                md다운로드
+              </button>
+              <button
+                type="button"
+                className="history-btn history-btn--danger"
+                onClick={() => void onDeleteSelected()}
+              >
+                선택 삭제 ({selectionCount})
+              </button>
+            </>
           ) : null}
           <button type="button" className="history-btn history-btn--primary" onClick={() => void onNewMemo()}>
             + 새 메모

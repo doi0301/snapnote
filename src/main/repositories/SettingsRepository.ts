@@ -2,8 +2,8 @@ import type { Database } from 'sql.js'
 import type { AppState, Settings, SettingsUpdatePatch } from '@shared/types'
 import { run, selectOne, type SqlRow } from './sqlRun'
 
-/** PRD: 폴디드 스택에 최대 3개 메모 */
-export const MAX_FOLDED_STACK = 3
+/** 폴디드 스택에 최대 표시·저장 개수 (선두 유지, 초과 시 뒤에서 잘림) */
+export const MAX_FOLDED_STACK = 5
 
 function clampFoldedStack(ids: string[]): string[] {
   return ids.slice(0, MAX_FOLDED_STACK)

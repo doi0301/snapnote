@@ -13,7 +13,7 @@ export interface TextSpan {
   highlight?: HighlightColor
 }
 
-export type HighlightColor = 'yellow' | 'green' | 'pink' | 'blue' | 'orange'
+export type HighlightColor = 'yellow' | 'green' | 'pink'
 
 export interface LineFormatting {
   bold?: boolean
@@ -125,3 +125,10 @@ export interface MemoOpenPreviewPayload {
   id: MemoId
   anchor?: FoldedPreviewAnchor
 }
+
+/** Main → Renderer: 자동 업데이트 진행 (IPC `UPDATE_EVENT`) */
+export type UpdateEventPayload =
+  | { type: 'error'; message: string }
+  | { type: 'download-progress'; percent: number }
+  | { type: 'update-downloaded'; version: string }
+  | { type: 'checking' }

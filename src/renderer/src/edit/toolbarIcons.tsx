@@ -121,6 +121,28 @@ export function IconClipboard(props: { size?: number; className?: string }): Rea
   )
 }
 
+/** 메모 전체 텍스트 복사 (히스토리 제외) */
+export function IconCopyAll(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path
+        d="M8 3h11a1 1 0 011 1v11"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 6h8a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinejoin="round"
+      />
+      <path d="M7 10h6M7 13h6M7 16h4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconToolbarHistory(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (

@@ -28,13 +28,14 @@ import {
   toggleSpanProperty
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
-import { IconToolbarHistory } from './toolbarIcons'
+import { IconCopyAll, IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
 
 export { normalizeEditorLines } from './editorLines'
 
 export interface EditorHandle {
   appendTextFromClipboard: (text: string) => void
+  copyAllToClipboard: () => void
 }
 
 interface EditorProps {
@@ -70,6 +71,32 @@ function multiLineSelectionEqual(a: MultiLineSelection | null, b: MultiLineSelec
   )
 }
 
+/** 가상 다중 줄 선택이 비어 있지 않은 범위인지 */
+function isVirtualRangeSelection(sel: MultiLineSelection | null): boolean {
+  if (!sel) return false
+  return sel.anchorLine !== sel.focusLine || sel.anchorOffset !== sel.focusOffset
+}
+
+type NormSel = { startLine: number; startOffset: number; endLine: number; endOffset: number }
+
+function getSegmentForNormalizedLine(norm: NormSel, lineIndex: number, lineText: string): { s: number; e: number } | null {
+  if (lineIndex < norm.startLine || lineIndex > norm.endLine) return null
+  const len = lineText.length
+  if (norm.startLine === norm.endLine) {
+    return {
+      s: Math.min(norm.startOffset, len),
+      e: Math.min(norm.endOffset, len)
+    }
+  }
+  if (lineIndex === norm.startLine) {
+    return { s: Math.min(norm.startOffset, len), e: len }
+  }
+  if (lineIndex === norm.endLine) {
+    return { s: 0, e: Math.min(norm.endOffset, len) }
+  }
+  return { s: 0, e: len }
+}
+
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   { memo, onMemoUpdated, onHeadLineChange, tagRaw, onTagRawChange, tagSuggestions },
   imperativeRef
@@ -88,6 +115,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
   const [compactToolbarActions, setCompactToolbarActions] = useState(false)
+  const [copyToastVisible, setCopyToastVisible] = useState(false)
+  const copyToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [multiLineSelection, setMultiLineSelection] = useState<MultiLineSelection | null>(null)
   const multiLineSelectionRef = useRef<MultiLineSelection | null>(null)
   multiLineSelectionRef.current = multiLineSelection
@@ -141,6 +170,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     return () => {
       endSelectionDragRef.current?.()
       endSelectionDragRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
     }
   }, [])
 
@@ -226,6 +261,26 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     setFocusLineIndex(p.index)
   }, [lines])
 
+  const normalizeSelection = useCallback((sel: MultiLineSelection) => {
+    const startBeforeEnd =
+      sel.anchorLine < sel.focusLine ||
+      (sel.anchorLine === sel.focusLine && sel.anchorOffset <= sel.focusOffset)
+    if (startBeforeEnd) {
+      return {
+        startLine: sel.anchorLine,
+        startOffset: sel.anchorOffset,
+        endLine: sel.focusLine,
+        endOffset: sel.focusOffset
+      }
+    }
+    return {
+      startLine: sel.focusLine,
+      startOffset: sel.focusOffset,
+      endLine: sel.anchorLine,
+      endOffset: sel.anchorOffset
+    }
+  }, [])
+
   const toolbarToggleUi = useMemo(() => {
     const idx = Math.min(focusLineIndex, Math.max(0, lines.length - 1))
     const line = lines[idx]
@@ -233,6 +288,42 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const pendingBold = Boolean(line && pendingBoldLineIdsRef.current.has(line.id))
     const lineCheckboxActive = Boolean(line?.formatting?.hasCheckbox)
     const lineDividerActive = Boolean(line?.formatting?.hasDivider)
+
+    if (multiLineSelection && isVirtualRangeSelection(multiLineSelection)) {
+      const norm = normalizeSelection(multiLineSelection)
+      let hasAnySegment = false
+      let boldAll = true
+      let strikeAll = true
+      let hlAll = true
+      for (let i = norm.startLine; i <= norm.endLine; i++) {
+        const ln = lines[i]
+        if (!ln) continue
+        const seg = getSegmentForNormalizedLine(norm, i, ln.text)
+        if (!seg || seg.s === seg.e) continue
+        hasAnySegment = true
+        const sp = ln.spans ?? []
+        boldAll = boldAll && rangeFullyHasProp(sp, seg.s, seg.e, 'bold')
+        strikeAll = strikeAll && rangeFullyHasProp(sp, seg.s, seg.e, 'strikethrough')
+        hlAll = hlAll && rangeFullyHasAnyHighlight(sp, seg.s, seg.e)
+      }
+      let allCb = true
+      let allDiv = true
+      for (let i = norm.startLine; i <= norm.endLine; i++) {
+        const ln = lines[i]
+        if (!ln) continue
+        allCb = allCb && Boolean(ln.formatting?.hasCheckbox)
+        allDiv = allDiv && Boolean(ln.formatting?.hasDivider)
+      }
+      if (hasAnySegment) {
+        return {
+          boldActive: pendingBold || boldAll,
+          strikeActive: strikeAll,
+          highlightActive: hlAll,
+          lineCheckboxActive: allCb,
+          lineDividerActive: allDiv
+        }
+      }
+    }
 
     if (!line || !ta) {
       return {
@@ -270,30 +361,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       lineCheckboxActive,
       lineDividerActive
     }
-  }, [lines, focusLineIndex, selectionTick, toolbarTick])
+  }, [lines, focusLineIndex, selectionTick, toolbarTick, multiLineSelection, normalizeSelection])
 
   const bumpToolbar = useCallback(() => {
     setToolbarTick((t) => t + 1)
-  }, [])
-
-  const normalizeSelection = useCallback((sel: MultiLineSelection) => {
-    const startBeforeEnd =
-      sel.anchorLine < sel.focusLine ||
-      (sel.anchorLine === sel.focusLine && sel.anchorOffset <= sel.focusOffset)
-    if (startBeforeEnd) {
-      return {
-        startLine: sel.anchorLine,
-        startOffset: sel.anchorOffset,
-        endLine: sel.focusLine,
-        endOffset: sel.focusOffset
-      }
-    }
-    return {
-      startLine: sel.focusLine,
-      startOffset: sel.focusOffset,
-      endLine: sel.anchorLine,
-      endOffset: sel.anchorOffset
-    }
   }, [])
 
   const getLineSelectionRange = useCallback(
@@ -426,6 +497,25 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const toggleBold = useCallback(() => {
+    const virtual = multiLineSelectionRef.current
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      const norm = normalizeSelection(virtual)
+      pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+      setLines((prev) => {
+        const next = prev.map((line, lineIdx) => {
+          if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
+          const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+          if (!seg || seg.s === seg.e) return line
+          const nextSpans = toggleSpanProperty(line.spans, 'bold', seg.s, seg.e, line.text.length)
+          pendingBoldLineIdsRef.current.delete(line.id)
+          return { ...line, spans: nextSpans }
+        })
+        queueMicrotask(bumpToolbar)
+        return next
+      })
+      return
+    }
+
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
     if (!ta) return
@@ -448,9 +538,36 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       queueMicrotask(bumpToolbar)
       return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
     })
-  }, [bumpToolbar, lines, pushUndoSnapshot])
+  }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
   const toggleStrikethrough = useCallback(() => {
+    const virtual = multiLineSelectionRef.current
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      const norm = normalizeSelection(virtual)
+      let any = false
+      for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
+        const line = lines[lineIdx]
+        if (!line) continue
+        const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+        if (seg && seg.s !== seg.e) {
+          any = true
+          break
+        }
+      }
+      if (!any) return
+      pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+      setLines((prev) =>
+        prev.map((line, lineIdx) => {
+          if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
+          const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+          if (!seg || seg.s === seg.e) return line
+          const nextSpans = toggleSpanProperty(line.spans, 'strikethrough', seg.s, seg.e, line.text.length)
+          return { ...line, spans: nextSpans }
+        })
+      )
+      return
+    }
+
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
     if (!ta) return
@@ -464,7 +581,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const nextSpans = toggleSpanProperty(line.spans, 'strikethrough', s, e, line.text.length)
       return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
     })
-  }, [lines, pushUndoSnapshot])
+  }, [lines, normalizeSelection, pushUndoSnapshot])
 
   const deleteMultiLineSelection = useCallback(
     (sel: MultiLineSelection) => {
@@ -496,21 +613,51 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [bumpToolbar, normalizeSelection]
   )
 
-  const applyHighlightToSelection = useCallback((color: HighlightColor) => {
-    const i = lastFocusIndex.current
-    const ta = textareaRefs.current[i]
-    if (!ta) return
-    const s = ta.selectionStart
-    const e = ta.selectionEnd
-    if (s === e) return
-    pushUndoSnapshot(lines, i, s)
-    setLines((prev) => {
-      const line = prev[i]
-      if (!line) return prev
-      const nextSpans = toggleHighlightColor(line.spans, s, e, color, line.text.length)
-      return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
-    })
-  }, [lines, pushUndoSnapshot])
+  const applyHighlightToSelection = useCallback(
+    (color: HighlightColor) => {
+      const virtual = multiLineSelectionRef.current
+      if (virtual && isVirtualRangeSelection(virtual)) {
+        const norm = normalizeSelection(virtual)
+        let any = false
+        for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
+          const line = lines[lineIdx]
+          if (!line) continue
+          const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+          if (seg && seg.s !== seg.e) {
+            any = true
+            break
+          }
+        }
+        if (!any) return
+        pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+        setLines((prev) =>
+          prev.map((line, lineIdx) => {
+            if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
+            const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+            if (!seg || seg.s === seg.e) return line
+            const nextSpans = toggleHighlightColor(line.spans, seg.s, seg.e, color, line.text.length)
+            return { ...line, spans: nextSpans }
+          })
+        )
+        return
+      }
+
+      const i = lastFocusIndex.current
+      const ta = textareaRefs.current[i]
+      if (!ta) return
+      const s = ta.selectionStart
+      const e = ta.selectionEnd
+      if (s === e) return
+      pushUndoSnapshot(lines, i, s)
+      setLines((prev) => {
+        const line = prev[i]
+        if (!line) return prev
+        const nextSpans = toggleHighlightColor(line.spans, s, e, color, line.text.length)
+        return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
+      })
+    },
+    [lines, normalizeSelection, pushUndoSnapshot]
+  )
 
   const onHighlightPrimaryClick = useCallback(() => {
     applyHighlightToSelection(lastHighlightColor)
@@ -525,6 +672,29 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const toggleLineHasCheckbox = useCallback(() => {
+    const virtual = multiLineSelectionRef.current
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      const norm = normalizeSelection(virtual)
+      const first = lines[norm.startLine]
+      if (!first) return
+      pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+      const f0 = first.formatting ?? {}
+      const nextHas = !f0.hasCheckbox
+      setLines((prev) =>
+        prev.map((l, idx) => {
+          if (idx < norm.startLine || idx > norm.endLine) return l
+          const f = l.formatting ?? {}
+          return {
+            ...l,
+            formatting: nextHas
+              ? { ...f, hasCheckbox: true, checkboxChecked: false, strikethrough: false }
+              : { ...f, hasCheckbox: false, checkboxChecked: false, strikethrough: false }
+          }
+        })
+      )
+      return
+    }
+
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
     pushUndoSnapshot(lines, i, ta?.selectionStart ?? 0)
@@ -541,9 +711,27 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
       })
     )
-  }, [lines, pushUndoSnapshot])
+  }, [lines, normalizeSelection, pushUndoSnapshot])
 
   const toggleLineDivider = useCallback(() => {
+    const virtual = multiLineSelectionRef.current
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      const norm = normalizeSelection(virtual)
+      const first = lines[norm.startLine]
+      if (!first) return
+      pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+      const f0 = first.formatting ?? {}
+      const nextDiv = !f0.hasDivider
+      setLines((prev) =>
+        prev.map((l, idx) => {
+          if (idx < norm.startLine || idx > norm.endLine) return l
+          const f = l.formatting ?? {}
+          return { ...l, formatting: { ...f, hasDivider: nextDiv } }
+        })
+      )
+      return
+    }
+
     const i = lastFocusIndex.current
     const ta = textareaRefs.current[i]
     pushUndoSnapshot(lines, i, ta?.selectionStart ?? 0)
@@ -554,7 +742,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return { ...l, formatting: { ...f, hasDivider: !f.hasDivider } }
       })
     )
-  }, [lines, pushUndoSnapshot])
+  }, [lines, normalizeSelection, pushUndoSnapshot])
 
   const insertTextAtCursor = useCallback((snippet: string) => {
     setMultiLineSelection(null)
@@ -608,6 +796,21 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       })
     )
   }, [lines, pushUndoSnapshot])
+
+  const copyAllMemoTextToClipboard = useCallback(async () => {
+    const text = linesRef.current.map((l) => l.text).join('\n')
+    try {
+      await window.snapnote.clipboard.writeSystem(text, { skipHistory: true })
+      if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
+      setCopyToastVisible(true)
+      copyToastTimeoutRef.current = setTimeout(() => {
+        copyToastTimeoutRef.current = null
+        setCopyToastVisible(false)
+      }, 2200)
+    } catch {
+      /* 클립보드 실패 시 조용히 무시 */
+    }
+  }, [])
 
   const copyMultiLineSelectionToClipboard = useCallback(
     (sel: MultiLineSelection) => {
@@ -922,9 +1125,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             return { ...l, text: newT, spans }
           })
         )
+      },
+      copyAllToClipboard: () => {
+        void copyAllMemoTextToClipboard()
       }
     }),
-    [pushUndoSnapshot]
+    [pushUndoSnapshot, copyAllMemoTextToClipboard]
   )
 
   const serialized = useMemo(() => JSON.stringify(lines), [lines])
@@ -1146,6 +1352,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         </div>
         <div className="editor-toolbar-stack" ref={toolbarStackRef}>
           <ClipboardHistoryControl />
+          <button
+            type="button"
+            className="format-toolbar-btn format-toolbar-btn--icon"
+            title="전체 복사 (앱 클립보드 히스토리에 넣지 않음)"
+            aria-label="전체 복사, 클립보드 히스토리 제외"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => copyAllMemoTextToClipboard()}
+          >
+            <IconCopyAll size={18} />
+          </button>
           <FormatToolbar
             boldActive={toolbarToggleUi.boldActive}
             strikeActive={toolbarToggleUi.strikeActive}
@@ -1178,6 +1394,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           </button>
         </div>
       </div>
+      {copyToastVisible ? (
+        <div className="editor-copy-toast" role="status" aria-live="polite">
+          클립보드에 복사했습니다
+        </div>
+      ) : null}
     </div>
   )
 })

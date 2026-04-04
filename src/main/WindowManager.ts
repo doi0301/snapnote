@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, type BrowserWindowConstructorOptions } from 'electron'
+import { BrowserWindow, screen, type BrowserWindowConstructorOptions, type WebContents } from 'electron'
 import { join } from 'path'
 import icon from '../../resources/icon.png?asset'
 import { IPC_CHANNELS } from '@shared/ipc-channels'
@@ -216,15 +216,14 @@ export class WindowManager {
   }
 
   /**
-   * 가장자리 스냅은 `will-move`에서 하면 1px 단위 드래그가 매 프레임 다시 붙어
-   * 모서리에서 빠져나오지 못하는 문제가 생김 → 드래그가 잠시 멈춘 뒤에만 스냅.
-   */
-  /**
+   * 가장자리·창 간 스냅은 드래그 **종료 후**에만 적용한다.
+   * `move`+디바운스는 드래그 도중 잠깐 멈출 때마다 스냅이 실행되어 창이 튀거나 드래그가 끊기는 문제가 있었음.
+   *
    * @param editMemoId 있으면 다른 편집 창과 변 스냅(나란히 붙이기·모서리 정렬) 포함
    */
   private attachEdgeSnap(win: BrowserWindow, editMemoId?: MemoId): void {
     if (process.platform !== 'win32' && process.platform !== 'darwin') return
-    const applyEdgeSnapAfterMove = debounce(() => {
+    const applyEdgeSnap = (): void => {
       if (win.isDestroyed()) return
       const b = win.getBounds()
       const workAreas = screen.getAllDisplays().map((d) => d.workArea)
@@ -235,9 +234,8 @@ export class WindowManager {
       if (x !== b.x || y !== b.y) {
         win.setPosition(x, y)
       }
-    }, 420)
-    /** `move`는 드래그 중 연속 발생 — 짧은 debounce만 쓰면 드래그 중에도 스냅이 걸린다. 드래그 종료 후에만 스냅. */
-    win.on('move', () => applyEdgeSnapAfterMove())
+    }
+    win.on('moved', applyEdgeSnap)
   }
 
   private getSmartOpenPosition(width: number, height: number): { x?: number; y?: number } {
@@ -450,8 +448,9 @@ export class WindowManager {
     if (!memo) return
 
     const settings = this.deps.settings.getSettings()
-    const w0 = memo.windowWidth || settings.defaultWindowWidth
-    const h0 = memo.windowHeight || settings.defaultWindowHeight
+    /** 새로 열 때 크기는 항상 설정의 기본값 (메모에 저장된 windowWidth/Height는 사용하지 않음) */
+    const w0 = settings.defaultWindowWidth
+    const h0 = settings.defaultWindowHeight
     let x = memo.windowX ?? undefined
     let y = memo.windowY ?? undefined
     const foldedStack = this.deps.settings.getAppState().foldedStack
@@ -616,6 +615,30 @@ export class WindowManager {
       this.editBoundsDebouncers.set(memoId, fn)
     }
     return fn
+  }
+
+  /**
+   * CSS `-webkit-app-region: drag` 대신 IPC로 창을 옮길 때는 `moved`가 안 올 수 있음.
+   * 상단 스트립 드래그 종료 시 가장자리 스냅과 bounds 저장을 한 번 실행한다.
+   */
+  onEditWindowPointerDragEnd(sender: WebContents): void {
+    const win = BrowserWindow.fromWebContents(sender)
+    if (!win || win.isDestroyed()) return
+    const memoId = [...this.editWindows.entries()].find(([, w]) => w === win)?.[0]
+    if (memoId === undefined) return
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      const b = win.getBounds()
+      const workAreas = screen.getAllDisplays().map((d) => d.workArea)
+      const { x, y } = computeEditWindowSnapPosition(
+        b,
+        workAreas,
+        this.getOtherEditWindowBounds(memoId)
+      )
+      if (x !== b.x || y !== b.y) {
+        win.setPosition(x, y)
+      }
+    }
+    this.getEditBoundsPersister(memoId)()
   }
 
   setEditWindowPinned(memoId: MemoId, pinned: boolean): void {

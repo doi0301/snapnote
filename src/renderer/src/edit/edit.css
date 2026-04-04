@@ -91,7 +91,7 @@ body {
 }
 
 .edit-topbar {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -117,11 +117,26 @@ body {
   white-space: nowrap;
 }
 
+.edit-topbar-drag-strip {
+  flex: 1;
+  min-width: 48px;
+  min-height: 26px;
+  -webkit-app-region: no-drag;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.edit-topbar-drag-strip--dragging {
+  cursor: grabbing;
+}
+
 .edit-topbar-actions {
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .edit-topbar--compact .edit-icon-btn {
