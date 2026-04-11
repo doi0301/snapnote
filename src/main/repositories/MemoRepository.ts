@@ -5,11 +5,14 @@ import { run, selectAll, selectOne, type SqlRow } from './sqlRun'
 
 const COLOR_ROTATION = ['coral', 'green', 'blue'] as const
 const MAX_MEMOS = 50
+/** 휴지통 보관 기간 (일) */
+export const TRASH_RETENTION_DAYS = 7
 
 function rowToMemo(row: SqlRow): Memo {
   const wx = row.window_x
   const wy = row.window_y
   const pa = row.pinned_at
+  const da = row.deleted_at
   return {
     id: String(row.id),
     content: JSON.parse(String(row.content)) as EditorLine[],
@@ -23,7 +26,8 @@ function rowToMemo(row: SqlRow): Memo {
     windowHeight: Number(row.window_height),
     isDone: Number(row.is_done ?? 0) === 1,
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
+    deletedAt: da === null || da === undefined ? null : String(da)
   }
 }
 
@@ -37,16 +41,16 @@ export class MemoRepository {
     this.persistFn()
   }
 
-  /** 51번째 생성 시 가장 오래된 메모( updated_at 기준 ) 삭제 */
+  /** 51번째 생성 시 가장 오래된 활성 메모( updated_at 기준 ) 삭제 */
   private enforceMemoLimit(): void {
     const db = this.getDb()
-    const row = selectOne(db, 'SELECT COUNT(*) AS c FROM memos', [])
+    const row = selectOne(db, 'SELECT COUNT(*) AS c FROM memos WHERE deleted_at IS NULL', [])
     const count = row ? Number(row.c) : 0
     if (count >= MAX_MEMOS) {
       run(
         db,
         `DELETE FROM memos WHERE id = (
-          SELECT id FROM memos ORDER BY updated_at ASC LIMIT 1
+          SELECT id FROM memos WHERE deleted_at IS NULL ORDER BY updated_at ASC LIMIT 1
         )`
       )
     }
@@ -55,7 +59,7 @@ export class MemoRepository {
   createMemo(): Memo {
     this.enforceMemoLimit()
     const db = this.getDb()
-    const row = selectOne(db, 'SELECT COUNT(*) AS c FROM memos', [])
+    const row = selectOne(db, 'SELECT COUNT(*) AS c FROM memos WHERE deleted_at IS NULL', [])
     const n = row ? Number(row.c) : 0
     const color = COLOR_ROTATION[n % COLOR_ROTATION.length]
     const id = randomUUID()
@@ -74,8 +78,9 @@ export class MemoRepository {
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
         is_done,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, ?, ?)`,
+        created_at, updated_at,
+        deleted_at
+      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, ?, ?, NULL)`,
       [id, JSON.stringify(emptyContent), JSON.stringify([]), color, ww, wh, now, now]
     )
     this.persist()
@@ -87,10 +92,20 @@ export class MemoRepository {
     return row ? rowToMemo(row) : null
   }
 
+  /** 활성 메모만 (deleted_at IS NULL) — 히스토리 목록용 */
   getAllMemos(): Memo[] {
     const rows = selectAll(
       this.getDb(),
-      'SELECT * FROM memos ORDER BY updated_at DESC, created_at DESC, id DESC'
+      'SELECT * FROM memos WHERE deleted_at IS NULL ORDER BY updated_at DESC, created_at DESC, id DESC'
+    )
+    return rows.map(rowToMemo)
+  }
+
+  /** 휴지통 메모 (deleted_at IS NOT NULL), 이동 시각 최신순 */
+  getTrashMemos(): Memo[] {
+    const rows = selectAll(
+      this.getDb(),
+      'SELECT * FROM memos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC'
     )
     return rows.map(rowToMemo)
   }
@@ -129,6 +144,9 @@ export class MemoRepository {
     const existing = this.getMemo(id)
     if (!existing) {
       throw new Error(`Memo not found: ${id}`)
+    }
+    if (existing.deletedAt !== null) {
+      throw new Error(`Cannot update a trashed memo: ${id}`)
     }
     const nextIsPinned = patch.isPinned ?? existing.isPinned
     let nextPinnedAt: number | null
@@ -184,8 +202,34 @@ export class MemoRepository {
     return this.getMemo(id)!
   }
 
+  /** 히스토리 삭제 → 휴지통 이동 */
+  softDeleteMemo(id: MemoId): void {
+    run(this.getDb(), 'UPDATE memos SET deleted_at = ? WHERE id = ?', [new Date().toISOString(), id])
+    this.persist()
+  }
+
+  /** 휴지통에서 복원 */
+  restoreMemo(id: MemoId): void {
+    run(this.getDb(), 'UPDATE memos SET deleted_at = NULL WHERE id = ?', [id])
+    this.persist()
+  }
+
+  /** 물리 삭제 — 빈 메모 자동 제거 및 휴지통 영구 삭제 전용 */
   deleteMemo(id: MemoId): void {
     run(this.getDb(), 'DELETE FROM memos WHERE id = ?', [id])
+    this.persist()
+  }
+
+  /**
+   * 보관 기간이 지난 휴지통 메모 영구 삭제.
+   * @param beforeIso 이 시각보다 이전에 삭제된 것 모두 제거 (ISO 8601)
+   */
+  purgeTrashExpired(beforeIso: string): void {
+    run(
+      this.getDb(),
+      'DELETE FROM memos WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+      [beforeIso]
+    )
     this.persist()
   }
 
@@ -205,8 +249,9 @@ export class MemoRepository {
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
         is_done,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        created_at, updated_at,
+        deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         m.id,
         JSON.stringify(m.content),
@@ -220,7 +265,8 @@ export class MemoRepository {
         m.windowHeight,
         m.isDone ? 1 : 0,
         m.createdAt,
-        m.updatedAt
+        m.updatedAt,
+        m.deletedAt ?? null
       ]
     )
     this.persist()

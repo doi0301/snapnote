@@ -3,6 +3,7 @@ import type { Memo, MemoId } from '@shared/types'
 import { memoHasTextContent } from '@shared/memoContent'
 import { filterHistoryMemos } from '@shared/historyFilter'
 import { collectAllTags } from '@renderer/edit/tagUtils'
+import { firstLinePreview } from '@renderer/utils/memoPreview'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MemoList } from './MemoList'
 import { SearchBar } from './SearchBar'
@@ -11,24 +12,46 @@ import './history-modal.css'
 
 const LIST_CAP = 50
 
+type SortKey = 'created' | 'updated'
+
 function closeWindow(): void {
   window.close()
 }
 
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
 export function HistoryModal(): React.JSX.Element {
   const [memos, setMemos] = useState<Memo[]>([])
+  const [trashMemos, setTrashMemos] = useState<Memo[]>([])
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set())
   const [selectedIds, setSelectedIds] = useState<Set<MemoId>>(() => new Set())
+  const [sortBy, setSortBy] = useState<SortKey>('created')
   const [confirmDelete, setConfirmDelete] = useState<
     | { kind: 'one'; memo: Memo }
     | { kind: 'bulk'; ids: MemoId[] }
+    | { kind: 'permanent'; memo: Memo }
     | null
   >(null)
 
-  const load = useCallback((): void => {
+  const loadActive = useCallback((): void => {
     void window.snapnote.memo.getAll().then(setMemos)
   }, [])
+
+  const loadTrash = useCallback((): void => {
+    void window.snapnote.memo.getTrash().then(setTrashMemos)
+  }, [])
+
+  const load = useCallback((): void => {
+    loadActive()
+    loadTrash()
+  }, [loadActive, loadTrash])
 
   useEffect(() => {
     load()
@@ -53,16 +76,21 @@ export function HistoryModal(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  /** 본문에 글자가 있는 메모만 히스토리에 노출 */
   const substantiveMemos = useMemo(() => memos.filter((m) => memoHasTextContent(m)), [memos])
 
   const allTags = useMemo(() => collectAllTags(substantiveMemos), [substantiveMemos])
 
-  const filtered = useMemo(() => {
-    return filterHistoryMemos(substantiveMemos, debouncedQuery, selectedTags)
-  }, [substantiveMemos, selectedTags, debouncedQuery])
+  const filtered = useMemo(
+    () => filterHistoryMemos(substantiveMemos, debouncedQuery, selectedTags),
+    [substantiveMemos, selectedTags, debouncedQuery]
+  )
 
-  const displayList = useMemo(() => filtered.slice(0, LIST_CAP), [filtered])
+  const sorted = useMemo(() => {
+    const key = sortBy === 'created' ? 'createdAt' : 'updatedAt'
+    return [...filtered].sort((a, b) => b[key].localeCompare(a[key]))
+  }, [filtered, sortBy])
+
+  const displayList = useMemo(() => sorted.slice(0, LIST_CAP), [sorted])
 
   const toggleSelect = useCallback((id: MemoId) => {
     setSelectedIds((prev) => {
@@ -102,17 +130,19 @@ export function HistoryModal(): React.JSX.Element {
     const c = confirmDelete
     if (!c) return
     if (c.kind === 'one') {
-      await window.snapnote.memo.delete(c.memo.id)
+      await window.snapnote.memo.moveToTrash(c.memo.id)
       setSelectedIds((prev) => {
         const next = new Set(prev)
         next.delete(c.memo.id)
         return next
       })
-    } else {
+    } else if (c.kind === 'bulk') {
       for (const id of c.ids) {
-        await window.snapnote.memo.delete(id)
+        await window.snapnote.memo.moveToTrash(id)
       }
       setSelectedIds(new Set())
+    } else if (c.kind === 'permanent') {
+      await window.snapnote.memo.deletePermanent(c.memo.id)
     }
     setConfirmDelete(null)
   }, [confirmDelete])
@@ -142,10 +172,15 @@ export function HistoryModal(): React.JSX.Element {
 
   const confirmMessage =
     confirmDelete?.kind === 'one'
-      ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n이 메모를 영구 삭제할까요?`
+      ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n휴지통으로 이동할까요? 7일 후 자동으로 영구 삭제됩니다.`
       : confirmDelete?.kind === 'bulk'
-        ? `선택한 ${confirmDelete.ids.length}개 메모를 영구 삭제할까요?`
-        : ''
+        ? `선택한 ${confirmDelete.ids.length}개 메모를 휴지통으로 이동할까요? 7일 후 자동으로 영구 삭제됩니다.`
+        : confirmDelete?.kind === 'permanent'
+          ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n영구 삭제할까요? 복원할 수 없습니다.`
+          : ''
+
+  const confirmLabel =
+    confirmDelete?.kind === 'permanent' ? '영구 삭제' : '휴지통으로 이동'
 
   return (
     <div
@@ -156,9 +191,9 @@ export function HistoryModal(): React.JSX.Element {
     >
       <ConfirmDialog
         open={confirmDelete !== null}
-        title="메모 삭제"
+        title={confirmDelete?.kind === 'permanent' ? '영구 삭제' : '메모 삭제'}
         message={confirmMessage}
-        confirmLabel="삭제"
+        confirmLabel={confirmLabel}
         cancelLabel="취소"
         danger
         onConfirm={() => void confirmDeleteAction()}
@@ -207,6 +242,25 @@ export function HistoryModal(): React.JSX.Element {
 
       <TagFilterBar allTags={allTags} selectedTags={selectedTags} onChange={setSelectedTags} />
 
+      {/* 정렬 바 */}
+      <div className="history-sort-bar">
+        <span className="history-sort-label">정렬:</span>
+        <button
+          type="button"
+          className={`history-sort-btn${sortBy === 'created' ? ' history-sort-btn--active' : ''}`}
+          onClick={() => setSortBy('created')}
+        >
+          등록일순
+        </button>
+        <button
+          type="button"
+          className={`history-sort-btn${sortBy === 'updated' ? ' history-sort-btn--active' : ''}`}
+          onClick={() => setSortBy('updated')}
+        >
+          수정일순
+        </button>
+      </div>
+
       <p className="history-modal-count" role="status">
         {emptyAll ? '전체 0개' : `전체 ${substantiveMemos.length}개`}
       </p>
@@ -234,6 +288,48 @@ export function HistoryModal(): React.JSX.Element {
           />
         )}
       </div>
+
+      {/* 휴지통 섹션 */}
+      <details className="history-trash-section">
+        <summary className="history-trash-summary">
+          <span>{'🗑'}</span>
+          <span>휴지통 {trashMemos.length > 0 ? `(${trashMemos.length})` : ''}</span>
+          <span className="history-trash-chevron">{'▼'}</span>
+        </summary>
+        <p className="history-trash-notice">
+          삭제된 메모는 <strong>7일간</strong> 보관된 뒤 자동으로 영구 삭제됩니다.
+        </p>
+        {trashMemos.length === 0 ? (
+          <p className="history-trash-empty">휴지통이 비어 있습니다.</p>
+        ) : (
+          <ul className="history-trash-list">
+            {trashMemos.map((m) => (
+              <li key={m.id} className="history-trash-item">
+                <span className="history-trash-preview" title={firstLinePreview(m.content, 80)}>
+                  {firstLinePreview(m.content, 40) || '(내용 없음)'}
+                </span>
+                {m.deletedAt ? (
+                  <span className="history-trash-date">{formatDate(m.deletedAt)}</span>
+                ) : null}
+                <button
+                  type="button"
+                  className="history-trash-restore"
+                  onClick={() => void window.snapnote.memo.restore(m.id).then(load)}
+                >
+                  복원
+                </button>
+                <button
+                  type="button"
+                  className="history-trash-delete"
+                  onClick={() => setConfirmDelete({ kind: 'permanent', memo: m })}
+                >
+                  영구 삭제
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
     </div>
   )
 }

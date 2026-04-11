@@ -52,6 +52,8 @@ export interface Memo {
   isDone: boolean
   createdAt: string
   updatedAt: string
+  /** null = 활성, ISO 문자열 = 휴지통 이동 시각 */
+  deletedAt: string | null
 }
 
 /** memo:update 시 부분 갱신 */

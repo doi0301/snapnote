@@ -21,7 +21,11 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
     update: (payload: { id: MemoId; patch: MemoUpdatePatch }): Promise<Memo> =>
       ipcRenderer.invoke(IPC_CHANNELS.MEMO_UPDATE, payload),
     delete: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_DELETE, id),
+    moveToTrash: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_MOVE_TO_TRASH, id),
     getAll: (): Promise<Memo[]> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_GET_ALL),
+    getTrash: (): Promise<Memo[]> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_GET_TRASH),
+    restore: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_RESTORE, id),
+    deletePermanent: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_DELETE_PERMANENT, id),
     get: (id: MemoId): Promise<Memo> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_GET, id),
     openEdit: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_OPEN_EDIT, id),
     fold: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_FOLD, id),

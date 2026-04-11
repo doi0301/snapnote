@@ -16,7 +16,7 @@ import type {
 } from '@shared/types'
 import { getDatabase, persistDatabase } from './database/db'
 import { ClipboardRepository, isSafeClipboardImageFileName } from './repositories/ClipboardRepository'
-import { MemoRepository } from './repositories/MemoRepository'
+import { MemoRepository, TRASH_RETENTION_DAYS } from './repositories/MemoRepository'
 import { SettingsRepository } from './repositories/SettingsRepository'
 import { GlobalShortcutService } from './globalShortcutService'
 import { WindowManager } from './WindowManager'
@@ -71,12 +71,23 @@ export class DataService {
     })
   }
 
-  /** IPC 등록 직후: 클립보드 폴링 시작 + 최초 안내(1회) */
+  /** IPC 등록 직후: 클립보드 폴링 시작 + 최초 안내(1회) + 휴지통 만료 메모 정리 */
   runPostStartupTasks(): void {
     this.applyLaunchOnStartup(this.settings.getSettings().launchOnStartup)
     this.clipboardService.syncWithSettings()
     this.globalShortcutService.syncFromSettings(this.settings.getSettings())
     void this.maybeShowClipboardMonitoringNotice()
+    this.purgeExpiredTrash()
+  }
+
+  /** 보관 기간(7일)이 지난 휴지통 메모 영구 삭제 */
+  private purgeExpiredTrash(): void {
+    try {
+      const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      this.memos.purgeTrashExpired(cutoff)
+    } catch (err) {
+      console.error('[SnapNote] purgeExpiredTrash failed:', err)
+    }
   }
 
   /** Windows/macOS 로그인 시 실행 (설정 연동) */
@@ -217,6 +228,27 @@ export class DataService {
       this.settings.removeMemoFromFoldedStack(id)
       this.windowManager.onMemoDeleted(id)
       this.broadcast(IPC_CHANNELS.STACK_CHANGED, this.settings.getAppState().foldedStack)
+      this.broadcast(IPC_CHANNELS.MEMO_DELETED, id)
+    })
+
+    ipcMain.handle(IPC_CHANNELS.MEMO_MOVE_TO_TRASH, (_e, id: MemoId) => {
+      this.memos.softDeleteMemo(id)
+      this.settings.removeMemoFromFoldedStack(id)
+      this.windowManager.onMemoDeleted(id)
+      this.broadcast(IPC_CHANNELS.STACK_CHANGED, this.settings.getAppState().foldedStack)
+      this.broadcast(IPC_CHANNELS.MEMO_DELETED, id)
+    })
+
+    ipcMain.handle(IPC_CHANNELS.MEMO_GET_TRASH, () => this.memos.getTrashMemos())
+
+    ipcMain.handle(IPC_CHANNELS.MEMO_RESTORE, (_e, id: MemoId) => {
+      this.memos.restoreMemo(id)
+      const memo = this.memos.getMemo(id)
+      if (memo) this.broadcast(IPC_CHANNELS.MEMO_UPDATED, memo)
+    })
+
+    ipcMain.handle(IPC_CHANNELS.MEMO_DELETE_PERMANENT, (_e, id: MemoId) => {
+      this.memos.deleteMemo(id)
       this.broadcast(IPC_CHANNELS.MEMO_DELETED, id)
     })
 

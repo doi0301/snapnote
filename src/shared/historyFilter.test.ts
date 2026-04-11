@@ -20,7 +20,8 @@ function stubMemo(partial: Partial<Memo> & Pick<Memo, 'id'>): Memo {
     windowHeight: partial.windowHeight ?? 500,
     isDone: partial.isDone ?? false,
     createdAt: partial.createdAt ?? now,
-    updatedAt: partial.updatedAt ?? now
+    updatedAt: partial.updatedAt ?? now,
+    deletedAt: partial.deletedAt ?? null
   }
 }
 

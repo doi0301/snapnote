@@ -28,7 +28,11 @@ export interface SnapnotePreloadAPI {
     create: () => Promise<Memo>
     update: (payload: { id: MemoId; patch: MemoUpdatePatch }) => Promise<Memo>
     delete: (id: MemoId) => Promise<void>
+    moveToTrash: (id: MemoId) => Promise<void>
     getAll: () => Promise<Memo[]>
+    getTrash: () => Promise<Memo[]>
+    restore: (id: MemoId) => Promise<void>
+    deletePermanent: (id: MemoId) => Promise<void>
     get: (id: MemoId) => Promise<Memo>
     openEdit: (id: MemoId) => Promise<void>
     fold: (id: MemoId) => Promise<void>
