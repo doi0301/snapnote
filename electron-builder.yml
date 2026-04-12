@@ -39,8 +39,7 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-# 자동 업데이트: 실제 배포 시 아래 url 을 latest.yml 이 올라가는 HTTPS 경로로 변경 후 재빌드.
-# (그대로 두면 런타임에서 업데이트 검사를 건너뜀 — src/main/autoUpdate.ts)
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: doi0301
+  repo: snapnote
