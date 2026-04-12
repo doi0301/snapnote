@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { app } from 'electron'
 import type { Database } from 'sql.js'
@@ -28,7 +28,23 @@ export function persistDatabase(): void {
 }
 
 /**
+ * DB 파일이 존재하고 비어있지 않으면 `.bak` 으로 백업 복사.
+ * 매 시작마다 1회만 실행되며, 이전 `.bak`을 덮어쓴다.
+ */
+function backupDatabaseFile(filePath: string): void {
+  try {
+    if (!existsSync(filePath)) return
+    const stat = statSync(filePath)
+    if (stat.size === 0) return
+    copyFileSync(filePath, filePath + '.bak')
+  } catch {
+    console.warn('[SnapNote] DB 백업 실패 (무시)')
+  }
+}
+
+/**
  * userData/snapnote.db 열기 + 스키마 적용.
+ * DB 로딩 전 자동 백업하고, 손상 시 `.bak`에서 복구를 시도한다.
  * 반드시 `app.whenReady()` 이후 호출.
  */
 export async function initDatabase(): Promise<Database> {
@@ -45,12 +61,16 @@ export async function initDatabase(): Promise<Database> {
     locateFile: (file) => join(wasmDir, file)
   })
 
-  let fileBuffer: Buffer | undefined
-  if (existsSync(dbFilePath)) {
-    fileBuffer = readFileSync(dbFilePath)
-  }
+  backupDatabaseFile(dbFilePath)
 
-  db = fileBuffer ? new SQL.Database(new Uint8Array(fileBuffer)) : new SQL.Database()
+  db = tryLoadDatabase(SQL, dbFilePath)
+  if (!db) {
+    db = tryRestoreFromBackup(SQL, dbFilePath)
+  }
+  if (!db) {
+    console.warn('[SnapNote] 새 DB로 시작합니다.')
+    db = new SQL.Database()
+  }
 
   db.run('PRAGMA foreign_keys = ON')
 
@@ -62,6 +82,42 @@ export async function initDatabase(): Promise<Database> {
   }
 
   return db
+}
+
+function tryLoadDatabase(
+  SQL: Awaited<ReturnType<typeof initSqlJs>>,
+  filePath: string
+): Database | null {
+  try {
+    if (!existsSync(filePath)) return null
+    const buf = readFileSync(filePath)
+    if (buf.length === 0) return null
+    const loaded = new SQL.Database(new Uint8Array(buf))
+    loaded.exec('SELECT count(*) FROM sqlite_master')
+    return loaded
+  } catch (err) {
+    console.error('[SnapNote] DB 로딩 실패:', err)
+    return null
+  }
+}
+
+function tryRestoreFromBackup(
+  SQL: Awaited<ReturnType<typeof initSqlJs>>,
+  filePath: string
+): Database | null {
+  const bakPath = filePath + '.bak'
+  try {
+    if (!existsSync(bakPath)) return null
+    const buf = readFileSync(bakPath)
+    if (buf.length === 0) return null
+    const loaded = new SQL.Database(new Uint8Array(buf))
+    loaded.exec('SELECT count(*) FROM sqlite_master')
+    console.info('[SnapNote] 백업 DB에서 복구했습니다:', bakPath)
+    return loaded
+  } catch (err) {
+    console.error('[SnapNote] 백업 DB도 손상:', err)
+    return null
+  }
 }
 
 export function getDatabase(): Database {

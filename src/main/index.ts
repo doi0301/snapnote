@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { app, BrowserWindow } from 'electron'
 import { setupApplicationMenu } from './applicationMenu'
@@ -32,6 +32,56 @@ if (process.platform === 'win32') {
     // 캐시 경로 설정 실패 시 기본값 사용
   }
 }
+
+/**
+ * 이전 시작이 비정상 종료(행/크래시)였으면 Chromium 캐시를 자동 정리.
+ * 마커 파일(.startup-ok)로 정상 시작 여부를 추적한다.
+ * DB(snapnote.db)·설정 파일은 삭제하지 않는다.
+ */
+function healCacheIfPreviousStartupFailed(): void {
+  if (isE2E) return
+  const userData = app.getPath('userData')
+  const marker = join(userData, '.startup-ok')
+
+  if (!existsSync(marker)) {
+    const cacheDirs = [
+      'GPUCache',
+      'Cache',
+      'Code Cache',
+      'DawnGraphiteCache',
+      'DawnWebGPUCache',
+      'blob_storage',
+      'electron-disk-cache'
+    ]
+    for (const dir of cacheDirs) {
+      try {
+        rmSync(join(userData, dir), { recursive: true, force: true })
+      } catch { /* ignore */ }
+    }
+    try {
+      rmSync(join(app.getPath('appData'), 'SnapNoteChromiumCache'), {
+        recursive: true,
+        force: true
+      })
+    } catch { /* ignore */ }
+    console.info('[SnapNote] 이전 시작이 비정상 종료 — Chromium 캐시를 자동 정리했습니다.')
+  }
+
+  try {
+    if (existsSync(marker)) unlinkSync(marker)
+  } catch { /* ignore */ }
+}
+
+/** 정상 부팅 완료 후 마커를 다시 생성 */
+function markStartupSuccess(): void {
+  if (isE2E) return
+  try {
+    const marker = join(app.getPath('userData'), '.startup-ok')
+    writeFileSync(marker, new Date().toISOString())
+  } catch { /* ignore */ }
+}
+
+healCacheIfPreviousStartupFailed()
 
 function resolveTrayIconPath(): string {
   const candidates = [
@@ -98,6 +148,8 @@ if (!hasMainInstanceLock) {
         quit: () => requestQuit()
       })
       tray.init(resolveTrayIconPath())
+
+      markStartupSuccess()
 
       /** E2E: OS 전역 단축키와 동일한 `toggleFoldedPanel` 경로를 메인에서 직접 호출 */
       if (isE2E) {
