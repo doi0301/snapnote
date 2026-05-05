@@ -35,7 +35,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
       onFocus,
       onCheckboxToggle
     } = props
-    const level = Math.min(3, Math.max(0, line.indentLevel))
+    const level = Math.min(6, Math.max(0, line.indentLevel))
     const marginW = level * INDENT_PX
 
     /**

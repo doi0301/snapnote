@@ -1,7 +1,7 @@
 import { normalizeHighlightColor } from '@shared/highlight'
 import type { EditorLine as EditorLineModel } from '@shared/types'
 
-const MAX_INDENT = 3
+const MAX_INDENT = 6
 
 function normalizeLineHighlights(line: EditorLineModel): EditorLineModel {
   const formatting = { ...(line.formatting ?? {}) }
@@ -17,7 +17,7 @@ function normalizeLineHighlights(line: EditorLineModel): EditorLineModel {
   return { ...line, formatting, spans }
 }
 
-/** S3-03: 빈 문서는 한 줄, indent 0~3 클램프 */
+/** S3-03: 빈 문서는 한 줄, indent 0~6 클램프 */
 export function normalizeEditorLines(content: EditorLineModel[]): EditorLineModel[] {
   if (!content.length) {
     return [{ id: crypto.randomUUID(), text: '', indentLevel: 0, formatting: {} }]

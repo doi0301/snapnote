@@ -9,7 +9,7 @@ describe('normalizeEditorLines', () => {
     expect(r[0].indentLevel).toBe(0)
   })
 
-  it('indentLevel 클램프 0~3', () => {
+  it('indentLevel 클램프 0~6', () => {
     const r = normalizeEditorLines([
       {
         id: 'a',
@@ -18,6 +18,6 @@ describe('normalizeEditorLines', () => {
         formatting: {}
       }
     ])
-    expect(r[0].indentLevel).toBe(3)
+    expect(r[0].indentLevel).toBe(6)
   })
 })

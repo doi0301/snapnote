@@ -70,6 +70,103 @@ interface LinkHoverHint {
   y: number
 }
 
+interface ToolbarToggleUiState {
+  boldActive: boolean
+  strikeActive: boolean
+  highlightActive: boolean
+  memoLinkActive: boolean
+  lineCheckboxActive: boolean
+  lineDividerActive: boolean
+}
+
+interface ToolbarLineSegmentEval {
+  boldAll: boolean
+  strikeAll: boolean
+  highlightAll: boolean
+  memoLinkAll: boolean
+}
+
+interface PerfBadgeState {
+  enabled: boolean
+  warnToolbar: number
+  warnResize: number
+  warnMemoUpdate: number
+  cacheLimit?: number
+}
+
+type SnapnotePerfConfigApi = {
+  enable: () => void
+  disable: () => void
+  status: () => {
+    enabled: boolean
+    warn: { toolbarToggleUi: number; resizeTextareas: number; memoUpdate: number }
+    toolbarSegmentCacheLimit?: number
+  }
+  setWarn: (name: keyof typeof PERF_WARN_MS, ms: number) => void
+  clearWarn: (name?: keyof typeof PERF_WARN_MS) => void
+  setToolbarSegmentCacheLimit: (limit: number) => void
+  clearToolbarSegmentCacheLimit: () => void
+}
+
+declare global {
+  interface Window {
+    snapnotePerfConfig?: SnapnotePerfConfigApi
+  }
+}
+
+const PERF_LOG_COOLDOWN_MS = 500
+const PERF_WARN_MS = {
+  toolbarToggleUi: 5,
+  resizeTextareas: 7,
+  memoUpdate: 20
+} as const
+
+function getToolbarSegmentCacheLimit(lineCount: number, override?: number): number {
+  if (typeof override === 'number' && Number.isFinite(override) && override > 0) {
+    return Math.max(100, Math.min(5000, Math.floor(override)))
+  }
+  if (lineCount <= 40) return 400
+  if (lineCount <= 120) return 800
+  return 1200
+}
+
+function parsePositiveNumber(value: string | null): number | undefined {
+  if (!value) return undefined
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return n
+}
+
+function spanSignatureHash(line: EditorLineModel): number {
+  const spans = line.spans
+  if (!spans || spans.length === 0) return 0
+  let hash = 2166136261
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i]!
+    hash ^= s.start & 0xffff
+    hash = Math.imul(hash, 16777619)
+    hash ^= s.end & 0xffff
+    hash = Math.imul(hash, 16777619)
+    hash ^= s.bold ? 1 : 0
+    hash = Math.imul(hash, 16777619)
+    hash ^= s.strikethrough ? 2 : 0
+    hash = Math.imul(hash, 16777619)
+    hash ^= s.highlight === 'yellow' ? 3 : s.highlight === 'green' ? 5 : s.highlight === 'pink' ? 7 : s.highlight === 'gray' ? 11 : 0
+    hash = Math.imul(hash, 16777619)
+    if (s.memoLinkId) {
+      const id = s.memoLinkId
+      for (let j = 0; j < id.length; j++) {
+        hash ^= id.charCodeAt(j)
+        hash = Math.imul(hash, 16777619)
+      }
+    } else {
+      hash ^= 13
+      hash = Math.imul(hash, 16777619)
+    }
+  }
+  return hash >>> 0
+}
+
 function multiLineSelectionEqual(a: MultiLineSelection | null, b: MultiLineSelection): boolean {
   if (!a) return false
   return (
@@ -110,6 +207,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   { memo, onMemoUpdated, onHeadLineChange, tagRaw, onTagRawChange, tagSuggestions },
   imperativeRef
 ) {
+  const isDev = import.meta.env.DEV
   const [lines, setLines] = useState<EditorLineModel[]>(() => normalizeEditorLines(memo.content))
   const linesRef = useRef(lines)
   linesRef.current = lines
@@ -126,6 +224,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const [compactToolbarActions, setCompactToolbarActions] = useState(false)
   const [copyToastVisible, setCopyToastVisible] = useState(false)
   const [linkHoverHint, setLinkHoverHint] = useState<LinkHoverHint | null>(null)
+  const linkHoverHintRef = useRef<LinkHoverHint | null>(null)
+  const lastLinkHoverEvalAtRef = useRef(0)
+  const linkHoverHintRafRef = useRef<number | null>(null)
+  const prevLineTextsForResizeRef = useRef<string[] | null>(null)
+  const perfEnabledRef = useRef(false)
+  const perfLastLogAtRef = useRef<Record<string, number>>({})
+  const perfWarnOverrideRef = useRef<Partial<Record<keyof typeof PERF_WARN_MS, number>>>({})
+  const perfToolbarCacheLimitOverrideRef = useRef<number | undefined>(undefined)
+  const [perfBadge, setPerfBadge] = useState<PerfBadgeState | null>(null)
+  const multiSelectionToolbarCacheRef = useRef<{ key: string; value: ToolbarToggleUiState } | null>(null)
+  const toolbarLineSegmentCacheRef = useRef<Map<string, ToolbarLineSegmentEval>>(new Map())
   const copyToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [multiLineSelection, setMultiLineSelection] = useState<MultiLineSelection | null>(null)
   const multiLineSelectionRef = useRef<MultiLineSelection | null>(null)
@@ -140,6 +249,101 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const redoStackRef = useRef<EditorSnapshot[]>([])
   /** undo/redo로 `setLines` 할 때 `beforeinput` 스냅 푸시 방지 */
   const isApplyingUndoRedoRef = useRef(false)
+
+  useEffect(() => {
+    perfEnabledRef.current =
+      window.location.search.includes('snapnotePerf=1') || window.localStorage.getItem('snapnote:perf') === '1'
+    perfWarnOverrideRef.current = {
+      toolbarToggleUi: parsePositiveNumber(window.localStorage.getItem('snapnote:perf:warn:toolbarToggleUi')),
+      resizeTextareas: parsePositiveNumber(window.localStorage.getItem('snapnote:perf:warn:resizeTextareas')),
+      memoUpdate: parsePositiveNumber(window.localStorage.getItem('snapnote:perf:warn:memoUpdate'))
+    }
+    perfToolbarCacheLimitOverrideRef.current = parsePositiveNumber(window.localStorage.getItem('snapnote:perf:toolbarSegmentCacheLimit'))
+  }, [])
+
+  const getPerfWarnMs = useCallback((name: keyof typeof PERF_WARN_MS): number => {
+    return perfWarnOverrideRef.current[name] ?? PERF_WARN_MS[name]
+  }, [])
+
+  useEffect(() => {
+    const api: SnapnotePerfConfigApi = {
+      enable: () => {
+        window.localStorage.setItem('snapnote:perf', '1')
+        perfEnabledRef.current = true
+      },
+      disable: () => {
+        window.localStorage.removeItem('snapnote:perf')
+        perfEnabledRef.current = false
+      },
+      status: () => ({
+        enabled: perfEnabledRef.current,
+        warn: {
+          toolbarToggleUi: getPerfWarnMs('toolbarToggleUi'),
+          resizeTextareas: getPerfWarnMs('resizeTextareas'),
+          memoUpdate: getPerfWarnMs('memoUpdate')
+        },
+        toolbarSegmentCacheLimit: perfToolbarCacheLimitOverrideRef.current
+      }),
+      setWarn: (name, ms) => {
+        if (!Number.isFinite(ms) || ms <= 0) return
+        const key = `snapnote:perf:warn:${name}`
+        const v = Math.max(1, Math.floor(ms))
+        window.localStorage.setItem(key, String(v))
+        perfWarnOverrideRef.current[name] = v
+      },
+      clearWarn: (name) => {
+        if (name) {
+          window.localStorage.removeItem(`snapnote:perf:warn:${name}`)
+          perfWarnOverrideRef.current[name] = undefined
+          return
+        }
+        ;(Object.keys(PERF_WARN_MS) as Array<keyof typeof PERF_WARN_MS>).forEach((k) => {
+          window.localStorage.removeItem(`snapnote:perf:warn:${k}`)
+          perfWarnOverrideRef.current[k] = undefined
+        })
+      },
+      setToolbarSegmentCacheLimit: (limit) => {
+        if (!Number.isFinite(limit) || limit <= 0) return
+        const v = Math.max(100, Math.min(5000, Math.floor(limit)))
+        window.localStorage.setItem('snapnote:perf:toolbarSegmentCacheLimit', String(v))
+        perfToolbarCacheLimitOverrideRef.current = v
+      },
+      clearToolbarSegmentCacheLimit: () => {
+        window.localStorage.removeItem('snapnote:perf:toolbarSegmentCacheLimit')
+        perfToolbarCacheLimitOverrideRef.current = undefined
+      }
+    }
+    window.snapnotePerfConfig = api
+    return () => {
+      if (window.snapnotePerfConfig === api) delete window.snapnotePerfConfig
+    }
+  }, [getPerfWarnMs])
+
+  useEffect(() => {
+    if (!isDev) return
+    const syncBadge = (): void => {
+      setPerfBadge({
+        enabled: perfEnabledRef.current,
+        warnToolbar: getPerfWarnMs('toolbarToggleUi'),
+        warnResize: getPerfWarnMs('resizeTextareas'),
+        warnMemoUpdate: getPerfWarnMs('memoUpdate'),
+        cacheLimit: perfToolbarCacheLimitOverrideRef.current
+      })
+    }
+    syncBadge()
+    const id = window.setInterval(syncBadge, 1000)
+    return () => window.clearInterval(id)
+  }, [isDev, getPerfWarnMs])
+
+  const logPerf = useCallback((name: string, durationMs: number, warnOverMs: number): void => {
+    if (!perfEnabledRef.current) return
+    if (durationMs < warnOverMs) return
+    const now = performance.now()
+    const last = perfLastLogAtRef.current[name] ?? 0
+    if (now - last < PERF_LOG_COOLDOWN_MS) return
+    perfLastLogAtRef.current[name] = now
+    console.debug(`[snapnote:perf] ${name}: ${durationMs.toFixed(1)}ms`)
+  }, [])
 
   const cloneLines = useCallback((src: EditorLineModel[]): EditorLineModel[] => {
     return src.map((line) => ({
@@ -190,6 +394,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [])
 
   useEffect(() => {
+    linkHoverHintRef.current = linkHoverHint
+  }, [linkHoverHint])
+
+  useEffect(() => {
+    return () => {
+      const raf = linkHoverHintRafRef.current
+      if (raf != null) cancelAnimationFrame(raf)
+      linkHoverHintRafRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
     let raf = 0
     const onSel = (): void => {
       /** 가상 다중 줄 드래그 중 setSelectionRange 동기화가 매 프레임 selectionchange 를 쏘아 툴바·전체 줄이 흔들린다 */
@@ -231,33 +447,58 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   useEffect(() => {
     setLines(normalizeEditorLines(memo.content))
+    toolbarLineSegmentCacheRef.current.clear()
+    multiSelectionToolbarCacheRef.current = null
   }, [memo.id])
 
+  const firstLineText = lines[0]?.text ?? ''
   useEffect(() => {
-    onHeadLineChange?.(lines[0]?.text ?? '')
-  }, [lines, onHeadLineChange])
+    onHeadLineChange?.(firstLineText)
+  }, [firstLineText, onHeadLineChange])
 
   const save = useCallback(async () => {
+    const t0 = perfEnabledRef.current ? performance.now() : 0
     const updated = await window.snapnote.memo.update({
       id: memo.id,
       patch: { content: lines }
     })
+    if (perfEnabledRef.current) logPerf('memo.update', performance.now() - t0, getPerfWarnMs('memoUpdate'))
     onMemoUpdated(updated)
-  }, [memo.id, lines, onMemoUpdated])
+  }, [memo.id, lines, onMemoUpdated, logPerf, getPerfWarnMs])
 
   useAutoSave(save, [lines, memo.id])
 
-  const resizeTextareas = useCallback(() => {
-    textareaRefs.current.forEach((el) => {
+  useLayoutEffect(() => {
+    const t0 = perfEnabledRef.current ? performance.now() : 0
+    const resizeOne = (el: HTMLTextAreaElement | null): void => {
       if (!el) return
       el.style.height = 'auto'
       el.style.height = `${Math.max(28, el.scrollHeight)}px`
-    })
-  }, [])
-
-  useLayoutEffect(() => {
-    resizeTextareas()
-  }, [lines, resizeTextareas])
+    }
+    const prevTexts = prevLineTextsForResizeRef.current
+    const lineCount = lines.length
+    const nextTexts = new Array<string>(lineCount)
+    let resizedCount = 0
+    if (!prevTexts || prevTexts.length !== lineCount) {
+      textareaRefs.current.forEach((el) => {
+        resizeOne(el)
+        if (el) resizedCount++
+      })
+      for (let i = 0; i < lineCount; i++) nextTexts[i] = lines[i]?.text ?? ''
+      prevLineTextsForResizeRef.current = nextTexts
+      if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
+      return
+    }
+    for (let i = 0; i < lineCount; i++) {
+      const text = lines[i]?.text ?? ''
+      nextTexts[i] = text
+      if (prevTexts[i] === text) continue
+      resizeOne(textareaRefs.current[i] ?? null)
+      resizedCount++
+    }
+    prevLineTextsForResizeRef.current = nextTexts
+    if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
+  }, [lines, logPerf, getPerfWarnMs])
 
   useLayoutEffect(() => {
     const p = pendingFocusRef.current
@@ -292,6 +533,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [])
 
   const toolbarToggleUi = useMemo(() => {
+    const t0 = perfEnabledRef.current ? performance.now() : 0
+    const finish = <T,>(value: T): T => {
+      if (perfEnabledRef.current) logPerf('toolbarToggleUi', performance.now() - t0, getPerfWarnMs('toolbarToggleUi'))
+      return value
+    }
     const idx = Math.min(focusLineIndex, Math.max(0, lines.length - 1))
     const line = lines[idx]
     const ta = textareaRefs.current[idx]
@@ -301,23 +547,31 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
     if (multiLineSelection && isVirtualRangeSelection(multiLineSelection)) {
       const norm = normalizeSelection(multiLineSelection)
+      const cacheSegments: string[] = [String(norm.startLine), String(norm.startOffset), String(norm.endLine), String(norm.endOffset)]
+      for (let i = norm.startLine; i <= norm.endLine; i++) {
+        const ln = lines[i]
+        if (!ln) continue
+        cacheSegments.push(
+          ln.id,
+          String(ln.text.length),
+          String(ln.spans?.length ?? 0),
+          String(spanSignatureHash(ln)),
+          ln.formatting?.hasCheckbox ? '1' : '0',
+          ln.formatting?.hasDivider ? '1' : '0'
+        )
+      }
+      cacheSegments.push(pendingBold ? '1' : '0')
+      const cacheKey = cacheSegments.join('|')
+      const cached = multiSelectionToolbarCacheRef.current
+      if (cached && cached.key === cacheKey) {
+        return finish(cached.value)
+      }
+
       let hasAnySegment = false
       let boldAll = true
       let strikeAll = true
       let hlAll = true
       let memoLinkAll = true
-      for (let i = norm.startLine; i <= norm.endLine; i++) {
-        const ln = lines[i]
-        if (!ln) continue
-        const seg = getSegmentForNormalizedLine(norm, i, ln.text)
-        if (!seg || seg.s === seg.e) continue
-        hasAnySegment = true
-        const sp = ln.spans ?? []
-        boldAll = boldAll && rangeFullyHasProp(sp, seg.s, seg.e, 'bold')
-        strikeAll = strikeAll && rangeFullyHasProp(sp, seg.s, seg.e, 'strikethrough')
-        hlAll = hlAll && rangeFullyHasAnyHighlight(sp, seg.s, seg.e)
-        memoLinkAll = memoLinkAll && rangeFullyHasAnyMemoLink(sp, seg.s, seg.e)
-      }
       let allCb = true
       let allDiv = true
       for (let i = norm.startLine; i <= norm.endLine; i++) {
@@ -325,9 +579,39 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         if (!ln) continue
         allCb = allCb && Boolean(ln.formatting?.hasCheckbox)
         allDiv = allDiv && Boolean(ln.formatting?.hasDivider)
+        const seg = getSegmentForNormalizedLine(norm, i, ln.text)
+        if (!seg || seg.s === seg.e) continue
+        hasAnySegment = true
+        const lineSig = spanSignatureHash(ln)
+        const segmentKey = `${ln.id}:${ln.text.length}:${lineSig}:${seg.s}:${seg.e}`
+        const cachedSeg = toolbarLineSegmentCacheRef.current.get(segmentKey)
+        let segEval: ToolbarLineSegmentEval
+        if (cachedSeg) {
+          segEval = cachedSeg
+        } else {
+          const sp = ln.spans ?? []
+          segEval = {
+            boldAll: rangeFullyHasProp(sp, seg.s, seg.e, 'bold'),
+            strikeAll: rangeFullyHasProp(sp, seg.s, seg.e, 'strikethrough'),
+            highlightAll: rangeFullyHasAnyHighlight(sp, seg.s, seg.e),
+            memoLinkAll: rangeFullyHasAnyMemoLink(sp, seg.s, seg.e)
+          }
+          const cache = toolbarLineSegmentCacheRef.current
+          cache.set(segmentKey, segEval)
+          const cacheLimit = getToolbarSegmentCacheLimit(lines.length, perfToolbarCacheLimitOverrideRef.current)
+          if (cache.size > cacheLimit) {
+            const first = cache.keys().next().value
+            if (first) cache.delete(first)
+          }
+        }
+        boldAll = boldAll && segEval.boldAll
+        strikeAll = strikeAll && segEval.strikeAll
+        hlAll = hlAll && segEval.highlightAll
+        memoLinkAll = memoLinkAll && segEval.memoLinkAll
+        if (!boldAll && !strikeAll && !hlAll && !memoLinkAll && !allCb && !allDiv) break
       }
       if (hasAnySegment) {
-        return {
+        const value = {
           boldActive: pendingBold || boldAll,
           strikeActive: strikeAll,
           highlightActive: hlAll,
@@ -335,18 +619,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           lineCheckboxActive: allCb,
           lineDividerActive: allDiv
         }
+        multiSelectionToolbarCacheRef.current = { key: cacheKey, value }
+        return finish(value)
       }
     }
 
+    multiSelectionToolbarCacheRef.current = null
+
     if (!line || !ta) {
-      return {
+      return finish({
         boldActive: pendingBold,
         strikeActive: false,
         highlightActive: false,
         memoLinkActive: false,
         lineCheckboxActive,
         lineDividerActive
-      }
+      })
     }
 
     const s = ta.selectionStart
@@ -361,25 +649,25 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const hlAtCaret = ref === null ? false : rangeFullyHasAnyHighlight(sp, ref, ref + 1)
       const memoLinkAtCaret =
         ref === null ? false : rangeFullyHasAnyMemoLink(sp, ref, ref + 1)
-      return {
+      return finish({
         boldActive: pendingBold || boldAtCaret,
         strikeActive: strikeAtCaret,
         highlightActive: hlAtCaret,
         memoLinkActive: memoLinkAtCaret,
         lineCheckboxActive,
         lineDividerActive
-      }
+      })
     }
 
-    return {
+    return finish({
       boldActive: pendingBold || rangeFullyHasProp(sp, s, e, 'bold'),
       strikeActive: rangeFullyHasProp(sp, s, e, 'strikethrough'),
       highlightActive: rangeFullyHasAnyHighlight(sp, s, e),
       memoLinkActive: rangeFullyHasAnyMemoLink(sp, s, e),
       lineCheckboxActive,
       lineDividerActive
-    }
-  }, [lines, focusLineIndex, selectionTick, toolbarTick, multiLineSelection, normalizeSelection])
+    })
+  }, [lines, focusLineIndex, selectionTick, toolbarTick, multiLineSelection, normalizeSelection, logPerf, getPerfWarnMs])
 
   const bumpToolbar = useCallback(() => {
     setToolbarTick((t) => t + 1)
@@ -1112,6 +1400,28 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
 
       if (
+        e.key === ' ' &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        start === end &&
+        start === 1 &&
+        line.text === '-'
+      ) {
+        e.preventDefault()
+        pendingFocusRef.current = { index, cursor: 2 }
+        setLines((prev) => {
+          const cur = prev[index]
+          if (!cur) return prev
+          const oldT = cur.text
+          const newT = '• '
+          const spans = remapSpansAfterEdit(oldT, newT, cur.spans)
+          return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
+        })
+        return
+      }
+
+      if (
         e.key === '>' &&
         !e.altKey &&
         !e.metaKey &&
@@ -1410,19 +1720,33 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const onLinePointerMove = useCallback(
     (index: number, e: React.PointerEvent<HTMLTextAreaElement>) => {
       if (draggingSelectionRef.current) return
+      const now = performance.now()
+      if (now - lastLinkHoverEvalAtRef.current < 42) return
+      lastLinkHoverEvalAtRef.current = now
       const line = linesRef.current[index]
       if (!line) {
-        setLinkHoverHint(null)
+        if (linkHoverHintRef.current) setLinkHoverHint(null)
+        return
+      }
+      if (!(line.spans?.some((s) => Boolean(s.memoLinkId)))) {
+        if (linkHoverHintRef.current) setLinkHoverHint(null)
         return
       }
       const ta = e.currentTarget
       const off = getCaretOffsetFromPointInTextarea(ta, e.clientX, e.clientY)
       const linkId = memoLinkIdAtIndex(line.spans, off, line.text.length)
       if (!linkId) {
-        setLinkHoverHint(null)
+        if (linkHoverHintRef.current) setLinkHoverHint(null)
         return
       }
-      setLinkHoverHint({ x: e.clientX, y: e.clientY })
+      const next = { x: e.clientX, y: e.clientY }
+      const prev = linkHoverHintRef.current
+      if (prev && Math.abs(prev.x - next.x) < 4 && Math.abs(prev.y - next.y) < 4) return
+      if (linkHoverHintRafRef.current != null) cancelAnimationFrame(linkHoverHintRafRef.current)
+      linkHoverHintRafRef.current = requestAnimationFrame(() => {
+        setLinkHoverHint(next)
+        linkHoverHintRafRef.current = null
+      })
     },
     []
   )
@@ -1579,6 +1903,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           style={{ left: linkHoverHint.x + 12, top: linkHoverHint.y + 14 }}
         >
           ctrl+클릭 메모로 이동
+        </div>
+      ) : null}
+      {isDev && perfBadge ? (
+        <div className="editor-perf-badge" aria-live="off">
+          <span className="editor-perf-badge__row">
+            perf {perfBadge.enabled ? 'on' : 'off'}
+          </span>
+          <span className="editor-perf-badge__row">
+            warn t:{perfBadge.warnToolbar} r:{perfBadge.warnResize} m:{perfBadge.warnMemoUpdate}
+          </span>
+          <span className="editor-perf-badge__row">
+            cache {perfBadge.cacheLimit ?? 'auto'}
+          </span>
         </div>
       ) : null}
     </div>

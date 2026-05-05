@@ -59,8 +59,31 @@ export function remapSpansAfterEdit(
 
 export type InlineFormatProp = 'bold' | 'strikethrough'
 
-function hasPropAt(spans: TextSpan[], i: number, prop: InlineFormatProp): boolean {
-  return spans.some((s) => i >= s.start && i < s.end && s[prop])
+function rangeCoveredBy(
+  spans: TextSpan[],
+  a: number,
+  b: number,
+  include: (s: TextSpan) => boolean
+): boolean {
+  if (a >= b) return true
+  const segs: Array<{ start: number; end: number }> = []
+  for (const s of spans) {
+    if (!include(s)) continue
+    const start = Math.max(a, s.start)
+    const end = Math.min(b, s.end)
+    if (start < end) segs.push({ start, end })
+  }
+  if (!segs.length) return false
+  segs.sort((x, y) => x.start - y.start || x.end - y.end)
+  let coverStart = segs[0]!.start
+  let coverEnd = segs[0]!.end
+  if (coverStart > a) return false
+  for (let i = 1; i < segs.length && coverEnd < b; i++) {
+    const cur = segs[i]!
+    if (cur.start > coverEnd) return false
+    if (cur.end > coverEnd) coverEnd = cur.end
+  }
+  return coverEnd >= b
 }
 
 export function rangeFullyHasProp(
@@ -69,11 +92,7 @@ export function rangeFullyHasProp(
   b: number,
   prop: InlineFormatProp
 ): boolean {
-  if (a >= b) return true
-  for (let i = a; i < b; i++) {
-    if (!hasPropAt(spans, i, prop)) return false
-  }
-  return true
+  return rangeCoveredBy(spans, a, b, (s) => Boolean(s[prop]))
 }
 
 function removePropFromSpan(s: TextSpan, prop: InlineFormatProp, a: number, b: number): TextSpan[] {
@@ -213,21 +232,13 @@ export function addBoldOnRange(spans: TextSpan[] | undefined, a: number, b: numb
   return addPropertyToRange(list, 'bold', a, b)
 }
 
-function hasHighlightAt(spans: TextSpan[], i: number, color: HighlightColor): boolean {
-  return spans.some((s) => s.highlight === color && i >= s.start && i < s.end)
-}
-
 export function rangeFullyHasHighlight(
   spans: TextSpan[],
   a: number,
   b: number,
   color: HighlightColor
 ): boolean {
-  if (a >= b) return true
-  for (let i = a; i < b; i++) {
-    if (!hasHighlightAt(spans, i, color)) return false
-  }
-  return true
+  return rangeCoveredBy(spans, a, b, (s) => s.highlight === color)
 }
 
 /** 캐럿(접힌 선택) 기준으로 볼드/취소선 등 한 글자 스타일을 볼 때 사용 */
@@ -245,10 +256,7 @@ export function rangeFullyHasAnyHighlight(
 ): boolean {
   const list = spans ?? []
   if (a >= b) return false
-  for (let i = a; i < b; i++) {
-    if (!list.some((s) => s.highlight != null && i >= s.start && i < s.end)) return false
-  }
-  return true
+  return rangeCoveredBy(list, a, b, (s) => s.highlight != null)
 }
 
 /** 구간 [a,b) 안의 어떤 형태의 하이라이트도 제거 (다른 속성은 유지) */
@@ -372,12 +380,8 @@ export function memoLinkIdAtIndex(spans: TextSpan[] | undefined, i: number, text
   return undefined
 }
 
-function rangeFullyHasMemoLink(spans: TextSpan[], a: number, b: number, memoId: MemoId, textLen: number): boolean {
-  if (a >= b) return true
-  for (let i = a; i < b; i++) {
-    if (memoLinkIdAtIndex(spans, i, textLen) !== memoId) return false
-  }
-  return true
+function rangeFullyHasMemoLink(spans: TextSpan[], a: number, b: number, memoId: MemoId): boolean {
+  return rangeCoveredBy(spans, a, b, (s) => s.memoLinkId === memoId)
 }
 
 /** [a,b) 구간 안의 메모 링크만 제거 (볼드·하이라이트 등은 최대한 유지) */
@@ -438,7 +442,7 @@ export function toggleMemoLinkOnRange(
   const bb = clamp(b, 0, textLength)
   if (aa >= bb) return (spans ?? []).map((x) => ({ ...x }))
   const list = spans ?? []
-  if (rangeFullyHasMemoLink(list, aa, bb, memoId, textLength)) {
+  if (rangeFullyHasMemoLink(list, aa, bb, memoId)) {
     return stripMemoLinksFromInterval(list, aa, bb)
   }
   const cleared = stripMemoLinksFromInterval(list, aa, bb)
@@ -458,8 +462,5 @@ export function clearMemoLinksOnRange(spans: TextSpan[] | undefined, a: number, 
 export function rangeFullyHasAnyMemoLink(spans: TextSpan[] | undefined, a: number, b: number): boolean {
   const list = spans ?? []
   if (a >= b) return false
-  for (let i = a; i < b; i++) {
-    if (!list.some((s) => s.memoLinkId != null && i >= s.start && i < s.end)) return false
-  }
-  return true
+  return rangeCoveredBy(list, a, b, (s) => s.memoLinkId != null)
 }
