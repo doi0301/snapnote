@@ -18,7 +18,7 @@ test.beforeAll(() => {
 })
 
 test.describe('TASK-S5-06 핵심 플로우', () => {
-  test('앱 실행 → 첫 메모 생성 → 접기 → 폴디드 스택 확인', async () => {
+  test('앱 실행 → 첫 메모 생성 → 접기(최소화) → 폴디드에 메모 확인', async () => {
     const app = await launchSnapNote()
     try {
       const folded = await waitForPage(app, 'folded.html')
@@ -30,10 +30,13 @@ test.describe('TASK-S5-06 핵심 플로우', () => {
       await ta.fill('e2e-fold-9')
       await edit.getByTestId('edit-fold-btn').click()
       await folded.bringToFront()
+      /** 새 메모 생성 시 스택 선두로 이미 들어가 있으며, 접기는 창 최소화만 한다 */
       await expect(folded.getByTestId('folded-memo-slot').first()).toBeVisible({
         timeout: 20_000
       })
       await expect(folded.getByText('e2e-fold-9')).toBeVisible()
+      await edit.bringToFront()
+      await expect(edit.locator('.editor-line-textarea').first()).toHaveValue(/e2e-fold-9/)
     } finally {
       await app.close()
     }

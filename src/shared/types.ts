@@ -4,6 +4,8 @@
 
 export type MemoId = string
 
+export type HighlightColor = 'yellow' | 'green' | 'pink' | 'gray'
+
 /** 인라인 서식 구간 */
 export interface TextSpan {
   start: number
@@ -11,9 +13,9 @@ export interface TextSpan {
   bold?: boolean
   strikethrough?: boolean
   highlight?: HighlightColor
+  /** 연결된 메모 UUID — 클릭 시 해당 편집 창 열기 */
+  memoLinkId?: MemoId
 }
-
-export type HighlightColor = 'yellow' | 'green' | 'pink'
 
 export interface LineFormatting {
   bold?: boolean

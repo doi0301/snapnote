@@ -16,6 +16,8 @@ import type {
 
 export type ExportMemosAsFilePayload = { ids: MemoId[] }
 export type ExportMemosAsFileResult = { ok: boolean; reason?: string }
+export type MemoLinkPickerResult = { action: 'link'; memoId: MemoId } | { action: 'clear' } | null
+export type MemoLinkPickerPayload = { currentMemoId: MemoId; anchor?: { x: number; y: number } }
 
 /** `app.checkForUpdates()` 응답 */
 export type UpdateCheckResult =
@@ -35,6 +37,10 @@ export interface SnapnotePreloadAPI {
     deletePermanent: (id: MemoId) => Promise<void>
     get: (id: MemoId) => Promise<Memo>
     openEdit: (id: MemoId) => Promise<void>
+    closeEditWindow: (id: MemoId) => Promise<void>
+    /** 링크 선택 메뉴(OS 네이티브) 표시 */
+    pickLinkTarget: (payload: MemoLinkPickerPayload) => Promise<MemoLinkPickerResult>
+    /** 상단 접기: 편집 창을 작업표시줄로 최소화 */
     fold: (id: MemoId) => Promise<void>
     closeFromStack: (id: MemoId) => Promise<void>
     openPreview: (payload: MemoOpenPreviewPayload) => Promise<void>

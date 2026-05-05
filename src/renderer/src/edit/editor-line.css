@@ -74,6 +74,25 @@
   border-radius: 2px;
 }
 
+.inline-hl-gray {
+  background-color: rgba(226, 232, 240, 0.92);
+  border-radius: 2px;
+}
+
+.inline-memo-link {
+  color: #1d4ed8;
+  background-color: rgba(147, 197, 253, 0.2);
+  border-bottom: 2px solid #2563eb;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: inherit;
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .inline-selected {
   background-color: #3b82f6;
   color: #ffffff;

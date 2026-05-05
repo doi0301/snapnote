@@ -18,6 +18,7 @@ export function FoldedPanel(): React.JSX.Element {
   const [memos, setMemos] = useState<Memo[]>([])
   const [slotColors, setSlotColors] = useState<SlotColorMap | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const previewEnterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useFoldedPanelContentHeight(rootRef, [stack.length, memos.length])
 
@@ -70,20 +71,32 @@ export function FoldedPanel(): React.JSX.Element {
 
   const onPreviewEnter = useCallback(
     (id: MemoId, slotEl: HTMLElement) => {
-      const r = slotEl.getBoundingClientRect()
-      void window.snapnote.memo.openPreview({
-        id,
-        anchor: { left: r.left, top: r.top, width: r.width, height: r.height }
-      })
+      if (previewEnterTimerRef.current) clearTimeout(previewEnterTimerRef.current)
+      previewEnterTimerRef.current = setTimeout(() => {
+        const r = slotEl.getBoundingClientRect()
+        void window.snapnote.memo.openPreview({
+          id,
+          anchor: { left: r.left, top: r.top, width: r.width, height: r.height }
+        })
+        previewEnterTimerRef.current = null
+      }, 140)
     },
     []
   )
 
   const onPreviewLeave = useCallback(() => {
+    if (previewEnterTimerRef.current) {
+      clearTimeout(previewEnterTimerRef.current)
+      previewEnterTimerRef.current = null
+    }
     void window.snapnote.memo.closePreview()
   }, [])
 
   const onRootPointerLeave = useCallback(() => {
+    if (previewEnterTimerRef.current) {
+      clearTimeout(previewEnterTimerRef.current)
+      previewEnterTimerRef.current = null
+    }
     void window.snapnote.memo.closePreview()
   }, [])
 
@@ -104,6 +117,7 @@ export function FoldedPanel(): React.JSX.Element {
 
   useEffect(
     () => () => {
+      if (previewEnterTimerRef.current) clearTimeout(previewEnterTimerRef.current)
       void window.snapnote.memo.closePreview()
     },
     []

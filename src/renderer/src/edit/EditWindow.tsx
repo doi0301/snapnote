@@ -90,8 +90,12 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
     await window.snapnote.memo.fold(memoId)
   }, [memoId])
 
-  const saveAndCloseFromStack = useCallback(async () => {
-    await window.snapnote.memo.closeFromStack(memoId)
+  const closeWindowOnly = useCallback(async () => {
+    try {
+      await window.snapnote.memo.closeEditWindow(memoId)
+    } finally {
+      window.close()
+    }
   }, [memoId])
 
   if (!memo) {
@@ -121,7 +125,7 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
         isPinned={pinned}
         onPinToggle={onPinToggle}
         onFold={saveAndFold}
-        onCloseFromStack={saveAndCloseFromStack}
+        onCloseWindow={closeWindowOnly}
       />
       <div className="edit-body">
         <Editor

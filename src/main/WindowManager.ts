@@ -110,6 +110,8 @@ export class WindowManager {
   private readonly previewWindows = new Set<BrowserWindow>()
   private historyWindow: BrowserWindow | null = null
   private settingsWindow: BrowserWindow | null = null
+  /** minimize 직후 hover-preview 경합으로 edit 창이 즉시 복원되는 현상 방지 */
+  private readonly suppressPreviewUntilByMemo = new Map<MemoId, number>()
 
   /**
    * 클립보드 삽입 대상 — 해당 메모의 편집 창 (`pasteClipboardToEdit`에서 사용, TASK-S5-04).
@@ -554,7 +556,7 @@ export class WindowManager {
         !input.shift
       ) {
         event.preventDefault()
-        void this.foldEditWindow(ctx.memoId)
+        void this.minimizeEditWindow(ctx.memoId)
       }
     })
   }
@@ -658,6 +660,21 @@ export class WindowManager {
     this.editWindows.delete(memoId)
   }
 
+  /** 상단 ━ 접기: 작업표시줄로 최소화 (폴디드 스택으로 옮기지 않음). */
+  async minimizeEditWindow(memoId: MemoId): Promise<void> {
+    await this.flushEditMemoDraftFromDom(memoId)
+    const win = this.editWindows.get(memoId)
+    if (!win || win.isDestroyed()) return
+    this.suppressPreviewUntilByMemo.set(memoId, Date.now() + 900)
+    win.minimize()
+  }
+
+  /** 상단 닫기: 목록 스택은 유지하고 해당 편집 창만 닫음 */
+  async closeEditWindow(memoId: MemoId): Promise<void> {
+    await this.flushEditMemoDraftFromDom(memoId)
+    this.closeEditWindowOnly(memoId)
+  }
+
   /** ━ fold: 편집 닫기 + 스택 선두(본문이 전혀 없으면 DB·스택에서 제거) */
   async foldEditWindow(memoId: MemoId): Promise<void> {
     await this.flushEditMemoDraftFromDom(memoId)
@@ -698,10 +715,14 @@ export class WindowManager {
   }
 
   openPreview(memoId: MemoId, anchor?: FoldedPreviewAnchor): void {
+    const suppressUntil = this.suppressPreviewUntilByMemo.get(memoId)
+    if (suppressUntil && Date.now() < suppressUntil) return
+    if (suppressUntil && Date.now() >= suppressUntil) {
+      this.suppressPreviewUntilByMemo.delete(memoId)
+    }
     const edit = this.editWindows.get(memoId)
     if (edit && !edit.isDestroyed()) {
-      edit.show()
-      edit.focus()
+      // edit 창이 존재할 때는 preview로 인해 창이 재노출되지 않게 함
       return
     }
 

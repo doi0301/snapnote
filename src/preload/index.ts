@@ -28,6 +28,9 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
     deletePermanent: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_DELETE_PERMANENT, id),
     get: (id: MemoId): Promise<Memo> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_GET, id),
     openEdit: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_OPEN_EDIT, id),
+    closeEditWindow: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_CLOSE_EDIT_WINDOW, id),
+    pickLinkTarget: (payload: { currentMemoId: MemoId; anchor?: { x: number; y: number } }): Promise<{ action: 'link'; memoId: MemoId } | { action: 'clear' } | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.MEMO_PICK_LINK_TARGET, payload),
     fold: (id: MemoId): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.MEMO_FOLD, id),
     closeFromStack: (id: MemoId): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.MEMO_CLOSE_FROM_STACK, id),

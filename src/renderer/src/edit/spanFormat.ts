@@ -1,4 +1,4 @@
-import type { HighlightColor, TextSpan } from '@shared/types'
+import type { HighlightColor, MemoId, TextSpan } from '@shared/types'
 
 export function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
@@ -51,6 +51,7 @@ export function remapSpansAfterEdit(
     if (s.bold) copy.bold = true
     if (s.strikethrough) copy.strikethrough = true
     if (s.highlight) copy.highlight = s.highlight
+    if (s.memoLinkId) copy.memoLinkId = s.memoLinkId
     next.push(copy)
   }
   return next.sort((a, b) => a.start - b.start || a.end - b.end)
@@ -88,6 +89,7 @@ function removePropFromSpan(s: TextSpan, prop: InlineFormatProp, a: number, b: n
     if (s.bold) left.bold = true
     if (s.strikethrough) left.strikethrough = true
     if (s.highlight) left.highlight = s.highlight
+    if (s.memoLinkId) left.memoLinkId = s.memoLinkId
     out.push(left)
   }
   if (hi < se) {
@@ -95,6 +97,7 @@ function removePropFromSpan(s: TextSpan, prop: InlineFormatProp, a: number, b: n
     if (s.bold) right.bold = true
     if (s.strikethrough) right.strikethrough = true
     if (s.highlight) right.highlight = s.highlight
+    if (s.memoLinkId) right.memoLinkId = s.memoLinkId
     out.push(right)
   }
   if (lo < hi) {
@@ -102,7 +105,8 @@ function removePropFromSpan(s: TextSpan, prop: InlineFormatProp, a: number, b: n
     if (prop !== 'bold' && s.bold) mid.bold = true
     if (prop !== 'strikethrough' && s.strikethrough) mid.strikethrough = true
     if (s.highlight) mid.highlight = s.highlight
-    if (mid.bold || mid.strikethrough || mid.highlight) out.push(mid)
+    if (s.memoLinkId) mid.memoLinkId = s.memoLinkId
+    if (mid.bold || mid.strikethrough || mid.highlight || mid.memoLinkId) out.push(mid)
   }
   return out
 }
@@ -269,18 +273,21 @@ export function removeHighlightFromRange(spans: TextSpan[] | undefined, a: numbe
       const L: TextSpan = { start: ss, end: lo, highlight: col }
       if (s.bold) L.bold = true
       if (s.strikethrough) L.strikethrough = true
+      if (s.memoLinkId) L.memoLinkId = s.memoLinkId
       out.push(L)
     }
     if (lo < hi) {
       const M: TextSpan = { start: lo, end: hi }
       if (s.bold) M.bold = true
       if (s.strikethrough) M.strikethrough = true
-      if (M.bold || M.strikethrough) out.push(M)
+      if (s.memoLinkId) M.memoLinkId = s.memoLinkId
+      if (M.bold || M.strikethrough || M.memoLinkId) out.push(M)
     }
     if (hi < se) {
       const R: TextSpan = { start: hi, end: se, highlight: col }
       if (s.bold) R.bold = true
       if (s.strikethrough) R.strikethrough = true
+      if (s.memoLinkId) R.memoLinkId = s.memoLinkId
       out.push(R)
     }
   }
@@ -313,18 +320,21 @@ export function removeHighlightColorFromRange(
       const L: TextSpan = { start: ss, end: lo, highlight: color }
       if (s.bold) L.bold = true
       if (s.strikethrough) L.strikethrough = true
+      if (s.memoLinkId) L.memoLinkId = s.memoLinkId
       out.push(L)
     }
     if (lo < hi) {
       const M: TextSpan = { start: lo, end: hi }
       if (s.bold) M.bold = true
       if (s.strikethrough) M.strikethrough = true
-      if (M.bold || M.strikethrough) out.push(M)
+      if (s.memoLinkId) M.memoLinkId = s.memoLinkId
+      if (M.bold || M.strikethrough || M.memoLinkId) out.push(M)
     }
     if (hi < se) {
       const R: TextSpan = { start: hi, end: se, highlight: color }
       if (s.bold) R.bold = true
       if (s.strikethrough) R.strikethrough = true
+      if (s.memoLinkId) R.memoLinkId = s.memoLinkId
       out.push(R)
     }
   }
@@ -349,4 +359,107 @@ export function toggleHighlightColor(
   const next = removeHighlightFromRange(list, aa, bb)
   next.push({ start: aa, end: bb, highlight: color })
   return next.sort((x, y) => x.start - y.start || x.end - y.end)
+}
+
+/** 캐럿 문자 인덱스 i 에 적용된 메모 링크 대상 UUID (없으면 undefined) */
+export function memoLinkIdAtIndex(spans: TextSpan[] | undefined, i: number, textLen: number): MemoId | undefined {
+  const list = spans ?? []
+  if (textLen <= 0) return undefined
+  const pos = Math.min(Math.max(0, i), textLen - 1)
+  for (const s of list) {
+    if (s.memoLinkId && pos >= s.start && pos < s.end) return s.memoLinkId
+  }
+  return undefined
+}
+
+function rangeFullyHasMemoLink(spans: TextSpan[], a: number, b: number, memoId: MemoId, textLen: number): boolean {
+  if (a >= b) return true
+  for (let i = a; i < b; i++) {
+    if (memoLinkIdAtIndex(spans, i, textLen) !== memoId) return false
+  }
+  return true
+}
+
+/** [a,b) 구간 안의 메모 링크만 제거 (볼드·하이라이트 등은 최대한 유지) */
+export function stripMemoLinksFromInterval(spans: TextSpan[] | undefined, a: number, b: number): TextSpan[] {
+  const list = spans ?? []
+  const out: TextSpan[] = []
+  for (const s of list) {
+    if (!s.memoLinkId) {
+      out.push({ ...s })
+      continue
+    }
+    const lid = s.memoLinkId
+    const ss = s.start
+    const se = s.end
+    const lo = Math.max(ss, a)
+    const hi = Math.min(se, b)
+    if (lo >= hi) {
+      out.push({ ...s })
+      continue
+    }
+    if (ss < lo) {
+      const L: TextSpan = { start: ss, end: lo, memoLinkId: lid }
+      if (s.bold) L.bold = true
+      if (s.strikethrough) L.strikethrough = true
+      if (s.highlight) L.highlight = s.highlight
+      out.push(L)
+    }
+    if (lo < hi) {
+      const M: TextSpan = { start: lo, end: hi }
+      if (s.bold) M.bold = true
+      if (s.strikethrough) M.strikethrough = true
+      if (s.highlight) M.highlight = s.highlight
+      if (M.bold || M.strikethrough || M.highlight) out.push(M)
+    }
+    if (hi < se) {
+      const R: TextSpan = { start: hi, end: se, memoLinkId: lid }
+      if (s.bold) R.bold = true
+      if (s.strikethrough) R.strikethrough = true
+      if (s.highlight) R.highlight = s.highlight
+      out.push(R)
+    }
+  }
+  return out.sort((x, y) => x.start - y.start || x.end - y.end)
+}
+
+/**
+ * 선택 구간이 모두 `memoId` 링크이면 해당 구간 링크 제거.
+ * 그렇지 않으면 구간 내 기존 링크 제거 후 `memoId` 링크로 덮어씀.
+ */
+export function toggleMemoLinkOnRange(
+  spans: TextSpan[] | undefined,
+  a: number,
+  b: number,
+  memoId: MemoId,
+  textLength: number
+): TextSpan[] {
+  const aa = clamp(a, 0, textLength)
+  const bb = clamp(b, 0, textLength)
+  if (aa >= bb) return (spans ?? []).map((x) => ({ ...x }))
+  const list = spans ?? []
+  if (rangeFullyHasMemoLink(list, aa, bb, memoId, textLength)) {
+    return stripMemoLinksFromInterval(list, aa, bb)
+  }
+  const cleared = stripMemoLinksFromInterval(list, aa, bb)
+  cleared.push({ start: aa, end: bb, memoLinkId: memoId })
+  return cleared.sort((x, y) => x.start - y.start || x.end - y.end)
+}
+
+/** 선택 구간의 모든 메모 링크 해제 */
+export function clearMemoLinksOnRange(spans: TextSpan[] | undefined, a: number, b: number, textLength: number): TextSpan[] {
+  const aa = clamp(a, 0, textLength)
+  const bb = clamp(b, 0, textLength)
+  if (aa >= bb) return (spans ?? []).map((x) => ({ ...x }))
+  return stripMemoLinksFromInterval(spans, aa, bb)
+}
+
+/** [a,b) 구간의 모든 문자가 어떤 메모 링크로든 덮였는지 — 형광펜 `rangeFullyHasAnyHighlight` 와 대응 */
+export function rangeFullyHasAnyMemoLink(spans: TextSpan[] | undefined, a: number, b: number): boolean {
+  const list = spans ?? []
+  if (a >= b) return false
+  for (let i = a; i < b; i++) {
+    if (!list.some((s) => s.memoLinkId != null && i >= s.start && i < s.end)) return false
+  }
+  return true
 }

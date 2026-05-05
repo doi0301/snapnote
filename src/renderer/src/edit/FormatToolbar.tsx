@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { HighlightColor } from '@shared/types'
+import type { HighlightColor, Memo, MemoId } from '@shared/types'
 import { EmojiPalette } from './EmojiPalette'
 import {
   IconToolbarBold,
@@ -8,17 +8,19 @@ import {
   IconToolbarEmoji,
   IconToolbarFormat,
   IconToolbarHighlight,
+  IconToolbarMemoLink,
   IconToolbarStrikethrough
 } from './toolbarIcons'
 import './format-toolbar.css'
 
-/** 노랑·초록·분홍 — 대비·구분이 가장 잘 나는 고전 3색 */
-const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink']
+/** 노랑·초록·분홍·회색 */
+const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'gray']
 
 const HL_LABEL: Record<HighlightColor, string> = {
   yellow: '노랑',
   green: '초록',
-  pink: '분홍'
+  pink: '분홍',
+  gray: '회색'
 }
 
 const LONG_PRESS_MS = 500
@@ -36,6 +38,10 @@ export interface FormatToolbarProps {
   onPickHighlightColor: (color: HighlightColor) => void
   onToggleLineCheckbox: () => void
   onToggleLineDivider: () => void
+  memoLinkActive: boolean
+  currentMemoId: MemoId
+  onApplyMemoLink: (targetMemoId: MemoId) => void
+  onClearMemoLinks: () => void
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
@@ -56,6 +62,10 @@ export function FormatToolbar({
   onPickHighlightColor,
   onToggleLineCheckbox,
   onToggleLineDivider,
+  memoLinkActive,
+  currentMemoId,
+  onApplyMemoLink,
+  onClearMemoLinks,
   compactActions = false,
   symbolPaletteOpen,
   onToggleSymbolPalette,
@@ -65,6 +75,8 @@ export function FormatToolbar({
   const symbolBtnRef = useRef<HTMLButtonElement>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [actionModalOpen, setActionModalOpen] = useState(false)
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false)
+  const [linkPickList, setLinkPickList] = useState<Memo[]>([])
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressHlPrimaryClickRef = useRef(false)
 
@@ -102,6 +114,15 @@ export function FormatToolbar({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [actionModalOpen])
+
+  useEffect(() => {
+    if (!linkPickerOpen) return
+    void window.snapnote.memo.getAll().then((list) => {
+      const others = list.filter((m) => m.id !== currentMemoId)
+      others.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+      setLinkPickList(others)
+    })
+  }, [linkPickerOpen, currentMemoId])
 
   const openPalette = useCallback(() => {
     setPaletteOpen(true)
@@ -226,7 +247,75 @@ export function FormatToolbar({
       >
         <IconToolbarDivider size={18} />
       </button>
+      <button
+        type="button"
+        className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--memo-link${memoLinkActive ? ' format-toolbar-btn--active' : ''}`}
+        title="메모로 연결 (Ctrl+클릭 이동)"
+        aria-label="메모 링크"
+        aria-haspopup="menu"
+        aria-pressed={memoLinkActive}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          setPaletteOpen(false)
+          setActionModalOpen(false)
+          setLinkPickerOpen(true)
+        }}
+      >
+        <IconToolbarMemoLink size={18} />
+      </button>
     </>
+  )
+
+  const linkPickerModal = (
+    <div
+      className="format-toolbar-modal-backdrop"
+      onMouseDown={() => setLinkPickerOpen(false)}
+      role="dialog"
+      aria-label="연결할 메모"
+    >
+      <div className="format-toolbar-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <p className="format-toolbar-modal-title">연결할 메모</p>
+        <div className="format-memo-link-popover-actions">
+          <button
+            type="button"
+            className="format-memo-link-clear-all"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              onClearMemoLinks()
+              setLinkPickerOpen(false)
+            }}
+          >
+            선택 영역 링크 해제
+          </button>
+        </div>
+        <div className="format-memo-link-list" role="presentation">
+          {linkPickList.length === 0 ? (
+            <p className="format-memo-link-empty">연결할 다른 메모가 없습니다.</p>
+          ) : (
+            linkPickList.map((m) => {
+              const title = (m.content[0]?.text ?? '').trim() || '(제목 없음)'
+              const trimmed = title.length > 56 ? `${title.slice(0, 56)}…` : title
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="option"
+                  className="format-memo-link-row"
+                  title={title}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onApplyMemoLink(m.id)
+                    setLinkPickerOpen(false)
+                  }}
+                >
+                  <span className="format-memo-link-row-title">{trimmed}</span>
+                </button>
+              )
+            })
+          )}
+        </div>
+      </div>
+    </div>
   )
 
   return (
@@ -291,6 +380,31 @@ export function FormatToolbar({
                 ))}
               </div>
             </div>
+            <div className="format-toolbar-modal-memo-link" role="group" aria-label="메모 연결">
+              <p className="format-toolbar-modal-hl-label">메모 링크</p>
+              <button
+                type="button"
+                className="format-toolbar-modal-open-memo-links"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setLinkPickerOpen(true)
+                  setActionModalOpen(false)
+                }}
+              >
+                다른 메모로 연결…
+              </button>
+              <button
+                type="button"
+                className="format-toolbar-modal-clear-memo-link"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onClearMemoLinks()
+                  setActionModalOpen(false)
+                }}
+              >
+                선택 구간 링크 해제
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -320,6 +434,7 @@ export function FormatToolbar({
           ))}
         </div>
       ) : null}
+      {linkPickerOpen ? linkPickerModal : null}
     </div>
   )
 }

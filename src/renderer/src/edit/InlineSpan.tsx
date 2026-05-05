@@ -5,7 +5,8 @@ import { clamp } from './spanFormat'
 const HL_CLASS: Record<HighlightColor, string> = {
   yellow: 'inline-hl-yellow',
   green: 'inline-hl-green',
-  pink: 'inline-hl-pink'
+  pink: 'inline-hl-pink',
+  gray: 'inline-hl-gray'
 }
 
 function collectBreakpoints(
@@ -60,6 +61,7 @@ function classForSlice(
         const c = col ? HL_CLASS[col] : undefined
         if (c) parts.push(c)
       }
+      if (s.memoLinkId) parts.push('inline-memo-link')
     }
   }
   return parts.join(' ')

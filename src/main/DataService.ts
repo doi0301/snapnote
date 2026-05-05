@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join, isAbsolute, relative } from 'path'
-import { BrowserWindow, app, clipboard, dialog, ipcMain, nativeImage } from 'electron'
+import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import { ClipboardService } from './ClipboardService'
 import { IPC_CHANNELS } from '@shared/ipc-channels'
 import type {
@@ -350,12 +350,78 @@ export class DataService {
     ipcMain.handle(IPC_CHANNELS.MEMO_OPEN_EDIT, (_e, id: MemoId) => {
       this.windowManager.openEditWindow(id)
     })
+    ipcMain.handle(IPC_CHANNELS.MEMO_CLOSE_EDIT_WINDOW, async (_e, id: MemoId) => {
+      await this.windowManager.closeEditWindow(id)
+    })
+    ipcMain.handle(
+      IPC_CHANNELS.MEMO_PICK_LINK_TARGET,
+      async (
+        e,
+        payload: { currentMemoId: MemoId; anchor?: { x?: number; y?: number } }
+      ) => {
+      const currentMemoId = payload?.currentMemoId
+      if (!currentMemoId) return null
+      const srcWin = BrowserWindow.fromWebContents(e.sender)
+      const list = this.memos
+        .getAllMemos()
+        .filter((m) => m.id !== currentMemoId)
+        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+
+      const titleFor = (m: Memo): string => {
+        const t = (m.content[0]?.text ?? '').trim()
+        if (!t.length) return '(제목 없음)'
+        return t.length > 48 ? `${t.slice(0, 48)}…` : t
+      }
+
+      return await new Promise<{ action: 'link'; memoId: MemoId } | { action: 'clear' } | null>((resolve) => {
+        let picked = false
+        const items: MenuItemConstructorOptions[] = [
+          {
+            label: '선택 영역 링크 해제',
+            click: () => {
+              picked = true
+              resolve({ action: 'clear' })
+            }
+          },
+          { type: 'separator' }
+        ]
+        for (const m of list) {
+          items.push({
+            label: titleFor(m),
+            click: () => {
+              picked = true
+              resolve({ action: 'link', memoId: m.id })
+            }
+          })
+        }
+        if (!list.length) {
+          items.push({ label: '연결할 다른 메모가 없습니다', enabled: false })
+        }
+
+        const menu = Menu.buildFromTemplate(items)
+        const popupOpts: Parameters<typeof menu.popup>[0] = {
+          window: srcWin ?? undefined,
+          callback: () => {
+            if (!picked) resolve(null)
+          }
+        }
+        const ax = payload?.anchor?.x
+        const ay = payload?.anchor?.y
+        if (typeof ax === 'number' && Number.isFinite(ax) && typeof ay === 'number' && Number.isFinite(ay)) {
+          popupOpts.x = Math.round(ax)
+          popupOpts.y = Math.round(ay)
+        }
+        menu.popup({
+          ...popupOpts
+        })
+      })
+    })
 
     ipcMain.handle(IPC_CHANNELS.MEMO_SET_PINNED, (_e, payload: { id: MemoId; pinned: boolean }) => {
       this.windowManager.setEditWindowPinned(payload.id, payload.pinned)
     })
     ipcMain.handle(IPC_CHANNELS.MEMO_FOLD, async (_e, id: MemoId) => {
-      await this.windowManager.foldEditWindow(id)
+      await this.windowManager.minimizeEditWindow(id)
     })
     ipcMain.handle(IPC_CHANNELS.MEMO_CLOSE_FROM_STACK, async (_e, id: MemoId) => {
       await this.windowManager.closeFromStack(id)

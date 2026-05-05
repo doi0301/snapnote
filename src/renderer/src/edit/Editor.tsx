@@ -8,7 +8,7 @@ import {
   useState,
   forwardRef
 } from 'react'
-import type { EditorLine as EditorLineModel, HighlightColor, Memo } from '@shared/types'
+import type { EditorLine as EditorLineModel, HighlightColor, Memo, MemoId } from '@shared/types'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
 import { EditorLineView } from './EditorLine'
 import { ClipboardHistoryControl } from './ClipboardPanel'
@@ -18,13 +18,17 @@ import { MAX_INDENT, normalizeEditorLines } from './editorLines'
 import {
   addBoldOnRange,
   caretReferenceCharIndex,
+  clearMemoLinksOnRange,
   insertionIndexIfSingleChar,
+  memoLinkIdAtIndex,
   rangeFullyHasAnyHighlight,
+  rangeFullyHasAnyMemoLink,
   rangeFullyHasProp,
   remapSpansAfterEdit,
   shiftSpans,
   splitSpansAt,
   toggleHighlightColor,
+  toggleMemoLinkOnRange,
   toggleSpanProperty
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
@@ -59,6 +63,11 @@ interface EditorSnapshot {
   lines: EditorLineModel[]
   focusIndex: number
   cursor: number
+}
+
+interface LinkHoverHint {
+  x: number
+  y: number
 }
 
 function multiLineSelectionEqual(a: MultiLineSelection | null, b: MultiLineSelection): boolean {
@@ -116,6 +125,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const [selectionTick, setSelectionTick] = useState(0)
   const [compactToolbarActions, setCompactToolbarActions] = useState(false)
   const [copyToastVisible, setCopyToastVisible] = useState(false)
+  const [linkHoverHint, setLinkHoverHint] = useState<LinkHoverHint | null>(null)
   const copyToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [multiLineSelection, setMultiLineSelection] = useState<MultiLineSelection | null>(null)
   const multiLineSelectionRef = useRef<MultiLineSelection | null>(null)
@@ -295,6 +305,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       let boldAll = true
       let strikeAll = true
       let hlAll = true
+      let memoLinkAll = true
       for (let i = norm.startLine; i <= norm.endLine; i++) {
         const ln = lines[i]
         if (!ln) continue
@@ -305,6 +316,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         boldAll = boldAll && rangeFullyHasProp(sp, seg.s, seg.e, 'bold')
         strikeAll = strikeAll && rangeFullyHasProp(sp, seg.s, seg.e, 'strikethrough')
         hlAll = hlAll && rangeFullyHasAnyHighlight(sp, seg.s, seg.e)
+        memoLinkAll = memoLinkAll && rangeFullyHasAnyMemoLink(sp, seg.s, seg.e)
       }
       let allCb = true
       let allDiv = true
@@ -319,6 +331,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           boldActive: pendingBold || boldAll,
           strikeActive: strikeAll,
           highlightActive: hlAll,
+          memoLinkActive: memoLinkAll,
           lineCheckboxActive: allCb,
           lineDividerActive: allDiv
         }
@@ -330,6 +343,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         boldActive: pendingBold,
         strikeActive: false,
         highlightActive: false,
+        memoLinkActive: false,
         lineCheckboxActive,
         lineDividerActive
       }
@@ -345,10 +359,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const boldAtCaret = ref === null ? false : rangeFullyHasProp(sp, ref, ref + 1, 'bold')
       const strikeAtCaret = ref === null ? false : rangeFullyHasProp(sp, ref, ref + 1, 'strikethrough')
       const hlAtCaret = ref === null ? false : rangeFullyHasAnyHighlight(sp, ref, ref + 1)
+      const memoLinkAtCaret =
+        ref === null ? false : rangeFullyHasAnyMemoLink(sp, ref, ref + 1)
       return {
         boldActive: pendingBold || boldAtCaret,
         strikeActive: strikeAtCaret,
         highlightActive: hlAtCaret,
+        memoLinkActive: memoLinkAtCaret,
         lineCheckboxActive,
         lineDividerActive
       }
@@ -358,6 +375,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       boldActive: pendingBold || rangeFullyHasProp(sp, s, e, 'bold'),
       strikeActive: rangeFullyHasProp(sp, s, e, 'strikethrough'),
       highlightActive: rangeFullyHasAnyHighlight(sp, s, e),
+      memoLinkActive: rangeFullyHasAnyMemoLink(sp, s, e),
       lineCheckboxActive,
       lineDividerActive
     }
@@ -670,6 +688,117 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     },
     [applyHighlightToSelection]
   )
+
+  const applyMemoLinkToSelection = useCallback(
+    async (targetMemoId: MemoId) => {
+      if (targetMemoId === memo.id) return
+      const virtual = multiLineSelectionRef.current
+      if (virtual && isVirtualRangeSelection(virtual)) {
+        const norm = normalizeSelection(virtual)
+        let any = false
+        for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
+          const ln = lines[lineIdx]
+          if (!ln) continue
+          const seg = getSegmentForNormalizedLine(norm, lineIdx, ln.text)
+          if (seg && seg.s !== seg.e) {
+            any = true
+            break
+          }
+        }
+        if (!any) return
+        pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+        setLines((prev) =>
+          prev.map((line, lineIdx) => {
+            if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
+            const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+            if (!seg || seg.s === seg.e) return line
+            const nextSpans = toggleMemoLinkOnRange(
+              line.spans,
+              seg.s,
+              seg.e,
+              targetMemoId,
+              line.text.length
+            )
+            return { ...line, spans: nextSpans }
+          })
+        )
+        return
+      }
+
+      const i = lastFocusIndex.current
+      const ta = textareaRefs.current[i]
+      if (!ta) return
+      const s = ta.selectionStart
+      const ed = ta.selectionEnd
+      if (s === ed) {
+        const target = await window.snapnote.memo.get(targetMemoId).catch(() => null)
+        if (!target) return
+        const title = (target.content[0]?.text ?? '').trim() || '(제목 없음)'
+        pushUndoSnapshot(linesRef.current, i, s)
+        pendingFocusRef.current = { index: i, cursor: s + title.length }
+        setLines((prev) => {
+          const line = prev[i]
+          if (!line) return prev
+          const newText = `${line.text.slice(0, s)}${title}${line.text.slice(s)}`
+          const remapped = remapSpansAfterEdit(line.text, newText, line.spans)
+          const nextSpans = toggleMemoLinkOnRange(remapped, s, s + title.length, targetMemoId, newText.length)
+          return prev.map((l, j) => (j === i ? { ...l, text: newText, spans: nextSpans } : l))
+        })
+        return
+      }
+      pushUndoSnapshot(lines, i, s)
+      setLines((prev) => {
+        const line = prev[i]
+        if (!line) return prev
+        const nextSpans = toggleMemoLinkOnRange(line.spans, s, ed, targetMemoId, line.text.length)
+        return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
+      })
+    },
+    [lines, memo.id, normalizeSelection, pushUndoSnapshot]
+  )
+
+  const clearMemoLinksFromSelection = useCallback(() => {
+    const virtual = multiLineSelectionRef.current
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      const norm = normalizeSelection(virtual)
+      let any = false
+      for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
+        const ln = lines[lineIdx]
+        if (!ln) continue
+        const seg = getSegmentForNormalizedLine(norm, lineIdx, ln.text)
+        if (seg && seg.s !== seg.e) {
+          any = true
+          break
+        }
+      }
+      if (!any) return
+      pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
+      setLines((prev) =>
+        prev.map((line, lineIdx) => {
+          if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
+          const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+          if (!seg || seg.s === seg.e) return line
+          const nextSpans = clearMemoLinksOnRange(line.spans, seg.s, seg.e, line.text.length)
+          return { ...line, spans: nextSpans }
+        })
+      )
+      return
+    }
+
+    const i = lastFocusIndex.current
+    const ta = textareaRefs.current[i]
+    if (!ta) return
+    const s = ta.selectionStart
+    const ed = ta.selectionEnd
+    if (s === ed) return
+    pushUndoSnapshot(lines, i, s)
+    setLines((prev) => {
+      const line = prev[i]
+      if (!line) return prev
+      const nextSpans = clearMemoLinksOnRange(line.spans, s, ed, line.text.length)
+      return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
+    })
+  }, [lines, normalizeSelection, pushUndoSnapshot])
 
   const toggleLineHasCheckbox = useCallback(() => {
     const virtual = multiLineSelectionRef.current
@@ -1141,7 +1270,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const onLinePointerDown = useCallback((index: number, e: React.PointerEvent<HTMLTextAreaElement>) => {
     if (e.button !== 0) return
+    setLinkHoverHint(null)
     const ta = e.currentTarget
+    const ln = linesRef.current[index]
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && ln) {
+      const off = getCaretOffsetFromPointInTextarea(ta, e.clientX, e.clientY)
+      const linkId = memoLinkIdAtIndex(ln.spans, off, ln.text.length)
+      if (linkId) {
+        e.preventDefault()
+        if (linkId !== memo.id) {
+          void window.snapnote.memo.openEdit(linkId)
+        }
+        return
+      }
+    }
     endSelectionDragRef.current?.()
     endSelectionDragRef.current = null
 
@@ -1263,6 +1405,30 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     document.addEventListener('pointermove', move)
     document.addEventListener('pointerup', endDrag)
     document.addEventListener('pointercancel', endDrag)
+  }, [memo.id])
+
+  const onLinePointerMove = useCallback(
+    (index: number, e: React.PointerEvent<HTMLTextAreaElement>) => {
+      if (draggingSelectionRef.current) return
+      const line = linesRef.current[index]
+      if (!line) {
+        setLinkHoverHint(null)
+        return
+      }
+      const ta = e.currentTarget
+      const off = getCaretOffsetFromPointInTextarea(ta, e.clientX, e.clientY)
+      const linkId = memoLinkIdAtIndex(line.spans, off, line.text.length)
+      if (!linkId) {
+        setLinkHoverHint(null)
+        return
+      }
+      setLinkHoverHint({ x: e.clientX, y: e.clientY })
+    },
+    []
+  )
+
+  const onLinePointerLeave = useCallback(() => {
+    setLinkHoverHint(null)
   }, [])
 
   const onEditorScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -1316,6 +1482,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
               onBeforeInput={(e) => handleBeforeLineInput(index, e)}
               onKeyDown={(e) => handleKeyDown(index, e)}
               onPointerDown={(e) => onLinePointerDown(index, e)}
+              onPointerMove={(e) => onLinePointerMove(index, e)}
+              onPointerLeave={onLinePointerLeave}
               onFocus={() => {
                 lastFocusIndex.current = index
                 setFocusLineIndex(index)
@@ -1375,6 +1543,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             onPickHighlightColor={onPickHighlightColor}
             onToggleLineCheckbox={toggleLineHasCheckbox}
             onToggleLineDivider={toggleLineDivider}
+            memoLinkActive={toolbarToggleUi.memoLinkActive}
+            currentMemoId={memo.id}
+            onApplyMemoLink={applyMemoLinkToSelection}
+            onClearMemoLinks={clearMemoLinksFromSelection}
             compactActions={compactToolbarActions}
             symbolPaletteOpen={emojiPaletteOpen}
             onToggleSymbolPalette={toggleEmojiPalette}
@@ -1397,6 +1569,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       {copyToastVisible ? (
         <div className="editor-copy-toast" role="status" aria-live="polite">
           클립보드에 복사했습니다
+        </div>
+      ) : null}
+      {linkHoverHint ? (
+        <div
+          className="editor-link-hover-hint"
+          role="status"
+          aria-live="polite"
+          style={{ left: linkHoverHint.x + 12, top: linkHoverHint.y + 14 }}
+        >
+          ctrl+클릭 메모로 이동
         </div>
       ) : null}
     </div>

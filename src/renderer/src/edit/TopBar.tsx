@@ -1,16 +1,15 @@
 import { useCallback, useRef, useState, type JSX } from 'react'
-import { TrashIcon } from '@renderer/components/TrashIcon'
 import { IconTopBarMinimize, IconTopBarPin } from './toolbarIcons'
 
 interface TopBarProps {
   isPinned: boolean
   onPinToggle: () => void
   onFold: () => void
-  onCloseFromStack: () => void
+  onCloseWindow: () => void
 }
 
 export function TopBar(props: TopBarProps): JSX.Element {
-  const { isPinned, onPinToggle, onFold, onCloseFromStack } = props
+  const { isPinned, onPinToggle, onFold, onCloseWindow } = props
   const lastScreenRef = useRef<{ x: number; y: number } | null>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -69,7 +68,7 @@ export function TopBar(props: TopBarProps): JSX.Element {
         <button
           type="button"
           className="edit-icon-btn edit-icon-btn--line"
-          title="접기"
+          title="작업표시줄로 최소화"
           data-testid="edit-fold-btn"
           onClick={() => void onFold()}
         >
@@ -77,12 +76,12 @@ export function TopBar(props: TopBarProps): JSX.Element {
         </button>
         <button
           type="button"
-          className="edit-icon-btn edit-icon-btn--trash edit-icon-btn--line"
-          title="스택에서 제거"
-          aria-label="스택에서 제거"
-          onClick={() => void onCloseFromStack()}
+          className="edit-icon-btn edit-icon-btn--line"
+          title="창 닫기"
+          aria-label="창 닫기"
+          onClick={() => void onCloseWindow()}
         >
-          <TrashIcon size={17} />
+          <span aria-hidden>{'\u2715'}</span>
         </button>
       </div>
     </header>

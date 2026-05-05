@@ -24,6 +24,8 @@ export const IPC_CHANNELS = {
   MEMO_GET_ALL: 'memo:get-all',
   MEMO_GET: 'memo:get',
   MEMO_OPEN_EDIT: 'memo:open-edit',
+  MEMO_CLOSE_EDIT_WINDOW: 'memo:close-edit-window',
+  MEMO_PICK_LINK_TARGET: 'memo:pick-link-target',
   MEMO_FOLD: 'memo:fold',
   MEMO_CLOSE_FROM_STACK: 'memo:close-from-stack',
   /** 호버 프리뷰 (WindowManager, S2) */

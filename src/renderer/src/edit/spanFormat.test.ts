@@ -9,6 +9,7 @@ import {
   singleReplacementRange,
   splitSpansAt,
   toggleHighlightColor,
+  toggleMemoLinkOnRange,
   toggleSpanProperty
 } from './spanFormat'
 
@@ -84,5 +85,20 @@ describe('toggleHighlightColor', () => {
     expect(rangeFullyHasHighlight(s, 0, 3, 'yellow')).toBe(true)
     s = toggleHighlightColor(s, 0, 3, 'yellow', 5)
     expect(s.filter((x) => x.highlight === 'yellow').length).toBe(0)
+  })
+
+  it('applies gray highlight', () => {
+    const s = toggleHighlightColor([], 1, 4, 'gray', 8)
+    expect(rangeFullyHasHighlight(s, 1, 4, 'gray')).toBe(true)
+  })
+})
+
+describe('toggleMemoLinkOnRange', () => {
+  it('applies memo link id then toggles off', () => {
+    const uuid = '11111111-1111-1111-1111-111111111111'
+    let s = toggleMemoLinkOnRange([], 0, 3, uuid, 5)
+    expect(s.some((x) => x.memoLinkId === uuid && x.start === 0 && x.end === 3)).toBe(true)
+    s = toggleMemoLinkOnRange(s, 0, 3, uuid, 5)
+    expect(s.filter((x) => x.memoLinkId).length).toBe(0)
   })
 })

@@ -71,6 +71,22 @@ export function IconToolbarStrikethrough(props: { size?: number; className?: str
   )
 }
 
+/** 메모 간 링크 (체인 두 고리) */
+export function IconToolbarMemoLink(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path
+        d="M9 12a5 5 0 017.07-4.95M15 12a5 5 0 01-7.07 4.95"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+      <path d="M7 17h-.5a3.5 3.5 0 010-7H8M17 7h.5a3.5 3.5 0 010 7H16" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function IconToolbarHighlight(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (

@@ -14,6 +14,8 @@ export interface EditorLineViewProps {
   onBeforeInput?: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onPointerDown?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
+  onPointerMove?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
+  onPointerLeave?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onFocus?: () => void
   onCheckboxToggle?: () => void
 }
@@ -28,6 +30,8 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
       onBeforeInput,
       onKeyDown,
       onPointerDown,
+      onPointerMove,
+      onPointerLeave,
       onFocus,
       onCheckboxToggle
     } = props
@@ -70,6 +74,8 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
             onBeforeInput={onBeforeInput}
             onKeyDown={onKeyDown}
             onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerLeave={onPointerLeave}
             onFocus={onFocus}
             rows={1}
             spellCheck={false}

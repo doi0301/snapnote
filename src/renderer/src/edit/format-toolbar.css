@@ -103,6 +103,10 @@
   border-color: #db2777;
 }
 
+.format-toolbar-btn--hl-gray {
+  border-color: #64748b;
+}
+
 .format-toolbar-btn--text-tools {
   min-width: 32px;
 }
@@ -204,4 +208,119 @@
 
 .format-hl-swatch--pink {
   background: rgba(251, 207, 232, 0.95);
+}
+
+.format-hl-swatch--gray {
+  background: rgba(226, 232, 240, 0.95);
+}
+
+.format-toolbar-modal-memo-link {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e4e7;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.format-toolbar-modal-open-memo-links,
+.format-toolbar-modal-clear-memo-link {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #171717;
+  background: #fff;
+  color: #171717;
+  cursor: pointer;
+  text-align: left;
+}
+
+.format-toolbar-modal-clear-memo-link {
+  font-weight: 500;
+  border-color: #d4d4d8;
+  color: #52525b;
+}
+
+.format-toolbar-modal-open-memo-links:hover,
+.format-toolbar-modal-clear-memo-link:hover {
+  background: #fafafa;
+}
+
+.format-memo-link-popover {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(320px, 48vh);
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #171717;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 140;
+  pointer-events: auto;
+}
+
+.format-memo-link-popover-actions {
+  margin-bottom: 6px;
+}
+
+.format-memo-link-clear-all {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #d4d4d8;
+  background: #fafafa;
+  color: #3f3f46;
+  cursor: pointer;
+}
+
+.format-memo-link-clear-all:hover {
+  background: #f4f4f5;
+}
+
+.format-memo-link-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.format-memo-link-empty {
+  margin: 0;
+  padding: 8px 4px;
+  font-size: 11px;
+  color: #71717a;
+}
+
+.format-memo-link-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: #fff;
+  color: #18181b;
+  cursor: pointer;
+}
+
+.format-memo-link-row:hover {
+  background: #fafafa;
+  border-color: #e4e4e7;
+}
+
+.format-memo-link-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
