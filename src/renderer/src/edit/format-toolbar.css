@@ -118,6 +118,8 @@
   display: grid;
   place-items: center;
   z-index: 130;
+  /* #edit-popover-root 가 pointer-events:none 이라 상속 없이 포털 모달이 클릭을 받도록 */
+  pointer-events: auto;
 }
 
 .format-toolbar-modal {
