@@ -561,35 +561,45 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     el.style.height = `${Math.max(28, el.scrollHeight)}px`
   }, [])
 
+  /** textarea 높이를 auto로 풀었다가 다시 잡으면 스크롤 컨테이너 scrollTop이 0으로 떨어지는 경우가 있어 복원 */
   const resizeAllLineTextareaHeights = useCallback((): void => {
+    const scrollEl = editorScrollRef.current
+    const prevTop = scrollEl?.scrollTop ?? 0
     textareaRefs.current.forEach((el) => resizeOneLineTextarea(el))
+    if (scrollEl) scrollEl.scrollTop = prevTop
   }, [resizeOneLineTextarea])
 
   useLayoutEffect(() => {
-    const t0 = perfEnabledRef.current ? performance.now() : 0
-    const prevTexts = prevLineTextsForResizeRef.current
-    const lineCount = lines.length
-    const nextTexts = new Array<string>(lineCount)
-    let resizedCount = 0
-    if (!prevTexts || prevTexts.length !== lineCount) {
-      textareaRefs.current.forEach((el) => {
-        resizeOneLineTextarea(el)
-        if (el) resizedCount++
-      })
-      for (let i = 0; i < lineCount; i++) nextTexts[i] = lines[i]?.text ?? ''
+    const scrollEl = editorScrollRef.current
+    const prevScrollTop = scrollEl?.scrollTop ?? 0
+    try {
+      const t0 = perfEnabledRef.current ? performance.now() : 0
+      const prevTexts = prevLineTextsForResizeRef.current
+      const lineCount = lines.length
+      const nextTexts = new Array<string>(lineCount)
+      let resizedCount = 0
+      if (!prevTexts || prevTexts.length !== lineCount) {
+        textareaRefs.current.forEach((el) => {
+          resizeOneLineTextarea(el)
+          if (el) resizedCount++
+        })
+        for (let i = 0; i < lineCount; i++) nextTexts[i] = lines[i]?.text ?? ''
+        prevLineTextsForResizeRef.current = nextTexts
+        if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
+        return
+      }
+      for (let i = 0; i < lineCount; i++) {
+        const text = lines[i]?.text ?? ''
+        nextTexts[i] = text
+        if (prevTexts[i] === text) continue
+        resizeOneLineTextarea(textareaRefs.current[i] ?? null)
+        resizedCount++
+      }
       prevLineTextsForResizeRef.current = nextTexts
       if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
-      return
+    } finally {
+      if (scrollEl) scrollEl.scrollTop = prevScrollTop
     }
-    for (let i = 0; i < lineCount; i++) {
-      const text = lines[i]?.text ?? ''
-      nextTexts[i] = text
-      if (prevTexts[i] === text) continue
-      resizeOneLineTextarea(textareaRefs.current[i] ?? null)
-      resizedCount++
-    }
-    prevLineTextsForResizeRef.current = nextTexts
-    if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
   }, [lines, logPerf, getPerfWarnMs, resizeOneLineTextarea])
 
   /** 창·패널 너비만 바뀌어도 줄바꿈이 늘어나므로 전 줄 textarea 높이를 다시 맞춤 (lines 변경 없이도 scrollHeight 갱신) */
