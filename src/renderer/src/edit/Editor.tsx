@@ -845,7 +845,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const oldT = lines[index]?.text ?? ''
         if (newT.startsWith('[] ') && !oldT.startsWith('[] ')) {
           const rest = newT.slice(3)
-          pendingFocusRef.current = { index, cursor: rest.length }
+          pendingFocusRef.current = { index, cursor: 0 }
           setLines((prev) => {
             const cur = prev[index]
             if (!cur) return prev

@@ -74,8 +74,21 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
-  border-bottom: 2px solid #e4e4e7;
+  background: #1a1a1a;
+  border-bottom: 2px solid #333;
+}
+
+.editor-line--sticky-title .editor-line-mirror,
+.editor-line--sticky-title textarea {
+  color: #ffffff;
+}
+
+.editor-line--sticky-title textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.editor-line--sticky-title textarea {
+  caret-color: #ffffff;
 }
 
 .editor-copy-toast {
