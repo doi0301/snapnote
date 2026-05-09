@@ -111,6 +111,10 @@
   min-width: 32px;
 }
 
+.format-toolbar-btn--more-tools {
+  min-width: 32px;
+}
+
 .format-toolbar-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -211,7 +215,8 @@
 }
 
 .format-hl-swatch--gray {
-  background: rgba(226, 232, 240, 0.95);
+  background: rgba(241, 245, 254, 0.98);
+  border-color: rgba(71, 85, 105, 0.5);
 }
 
 .format-toolbar-modal-memo-link {

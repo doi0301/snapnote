@@ -6,6 +6,7 @@ import {
   rangeFullyHasAnyHighlight,
   rangeFullyHasHighlight,
   remapSpansAfterEdit,
+  remapSpansForHeadingMarkerChange,
   singleReplacementRange,
   splitSpansAt,
   toggleHighlightColor,
@@ -32,6 +33,24 @@ describe('remapSpansAfterEdit', () => {
     const spans = [{ start: 1, end: 3, bold: true }]
     const next = remapSpansAfterEdit('hello', 'heXllo', spans)
     expect(next.some((s) => s.bold && s.start <= 1 && s.end >= 4)).toBe(true)
+  })
+})
+
+describe('remapSpansForHeadingMarkerChange', () => {
+  it('shifts highlight when wrapping plain text with H1 markers', () => {
+    const spans = [{ start: 0, end: 5, highlight: 'yellow' as const }]
+    const next = remapSpansForHeadingMarkerChange('hello', 'hello', '[hello]', spans)
+    expect(next).toEqual([{ start: 1, end: 6, highlight: 'yellow' }])
+  })
+  it('keeps positions when swapping bracket style with same inner', () => {
+    const spans = [{ start: 1, end: 4, bold: true }]
+    const next = remapSpansForHeadingMarkerChange('[abc]', 'abc', '<abc>', spans)
+    expect(next).toEqual([{ start: 1, end: 4, bold: true }])
+  })
+  it('unwraps markers and pulls span to stripped text', () => {
+    const spans = [{ start: 1, end: 4, underline: true }]
+    const next = remapSpansForHeadingMarkerChange('[abc]', 'abc', 'abc', spans)
+    expect(next).toEqual([{ start: 0, end: 3, underline: true }])
   })
 })
 

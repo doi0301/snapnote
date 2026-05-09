@@ -6,8 +6,8 @@ import {
   IconToolbarCheckbox,
   IconToolbarDivider,
   IconToolbarEmoji,
-  IconToolbarFormat,
   IconToolbarMemoLink,
+  IconToolbarMore,
   IconToolbarStrikethrough,
   IconToolbarUnderline
 } from './toolbarIcons'
@@ -23,6 +23,15 @@ const HL_LABEL: Record<HighlightColor, string> = {
   gray: '회색'
 }
 
+/** 본문에 붙는 실제 마커 — Editor.tsx 의 HEADING_MARKERS 와 동일 */
+const HEADING_MARKER_TOOLTIP: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: '[ ]',
+  2: '< >',
+  3: '( )',
+  4: '\u25B8\u00A0',
+  5: '-\u00A0'
+}
+
 export interface FormatToolbarProps {
   boldActive: boolean
   strikeActive: boolean
@@ -32,7 +41,8 @@ export interface FormatToolbarProps {
   onBold: () => void
   onStrikethrough: () => void
   onUnderline: () => void
-  lastHighlightColor: HighlightColor
+  /** 선택 구간 전체에 해당 색 형광이 있을 때만 true — 스와치 테두리 */
+  highlightFullByColor: Record<HighlightColor, boolean>
   onPickHighlightColor: (color: HighlightColor) => void
   onToggleLineCheckbox: () => void
   onToggleLineDivider: () => void
@@ -58,7 +68,7 @@ export function FormatToolbar({
   onBold,
   onStrikethrough,
   onUnderline,
-  lastHighlightColor,
+  highlightFullByColor,
   onPickHighlightColor,
   onToggleLineCheckbox,
   onToggleLineDivider,
@@ -121,6 +131,25 @@ export function FormatToolbar({
       setLinkPickList(others)
     })
   }, [linkPickerOpen, currentMemoId])
+
+  const openTextToolsModal = (): void => {
+    setPaletteOpen(false)
+    setActionModalOpen(true)
+  }
+
+  const moreToolsButton = (
+    <button
+      type="button"
+      className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--more-tools${actionModalOpen ? ' format-toolbar-btn--active' : ''}`}
+      title="더보기: 형광펜, 메모 링크, 제목"
+      aria-label="텍스트 서식 더보기"
+      aria-expanded={actionModalOpen}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={openTextToolsModal}
+    >
+      <IconToolbarMore size={18} />
+    </button>
+  )
 
   const symbolButton = (
     <button
@@ -255,27 +284,16 @@ export function FormatToolbar({
       {compactActions ? (
         <div className="format-toolbar format-toolbar--compact-row" role="toolbar" aria-label="텍스트 서식 (축약)">
           {symbolButton}
-          <button
-            type="button"
-            className="format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--text-tools"
-            title="텍스트 서식"
-            aria-label="텍스트 서식"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              setPaletteOpen(false)
-              setActionModalOpen(true)
-            }}
-          >
-            <IconToolbarFormat size={18} />
-          </button>
+          {moreToolsButton}
         </div>
       ) : (
         <div className="format-toolbar" role="toolbar" aria-label="텍스트 서식">
           {symbolButton}
           {formattingButtons}
+          {moreToolsButton}
         </div>
       )}
-      {compactActions && actionModalOpen ? (
+      {actionModalOpen ? (
         <div
           className="format-toolbar-modal-backdrop"
           onMouseDown={() => setActionModalOpen(false)}
@@ -294,7 +312,7 @@ export function FormatToolbar({
                   <button
                     key={c}
                     type="button"
-                    className={`format-hl-swatch format-hl-swatch--${c}${c === lastHighlightColor ? ' format-hl-swatch--current' : ''}`}
+                    className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
                     title={HL_LABEL[c]}
                     aria-label={HL_LABEL[c]}
                     onMouseDown={(e) => e.preventDefault()}
@@ -327,7 +345,7 @@ export function FormatToolbar({
                     key={lv}
                     type="button"
                     className={`format-toolbar-btn format-toolbar-btn--heading${headingLevel === lv ? ' format-toolbar-btn--active' : ''}`}
-                    title={`Ctrl+${lv}`}
+                    title={`Ctrl+${lv} / ${HEADING_MARKER_TOOLTIP[lv]}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       onHeading(lv)
@@ -354,7 +372,7 @@ export function FormatToolbar({
               key={c}
               type="button"
               role="menuitem"
-              className={`format-hl-swatch format-hl-swatch--${c}${c === lastHighlightColor ? ' format-hl-swatch--current' : ''}`}
+              className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
               title={HL_LABEL[c]}
               onMouseDown={(e) => {
                 e.preventDefault()

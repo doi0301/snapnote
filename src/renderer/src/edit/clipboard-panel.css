@@ -134,29 +134,19 @@ button.clipboard-panel-preview--expandable:focus-visible {
   position: relative;
 }
 
-.clipboard-panel-image-label {
+.clipboard-panel-image-cell {
   flex: 1;
   min-width: 0;
-  padding-right: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
   padding: 2px 4px 2px 0;
 }
 
-.clipboard-panel-image-badge {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.clipboard-panel-image-name {
-  font-size: 13px;
-  line-height: 1.35;
-  color: #27272a;
-  word-break: break-word;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.clipboard-panel-image-icon {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  line-height: 0;
 }
 
 .clipboard-panel-image-hover {
@@ -182,29 +172,53 @@ button.clipboard-panel-preview--expandable:focus-visible {
 .clipboard-panel-actions {
   display: flex;
   flex-shrink: 0;
-  min-width: 68px;
-  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: 52%;
   position: relative;
   z-index: 2;
 }
 
-.clipboard-panel-icon-btn {
-  min-width: 32px;
+.clipboard-panel-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 28px;
-  padding: 0 6px;
-  font-size: 14px;
-  line-height: 1;
+  padding: 0 8px;
   border: 1px solid #d4d4d8;
   border-radius: 6px;
   background: #fafafa;
   cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: #3f3f46;
+  letter-spacing: -0.02em;
+  -webkit-app-region: no-drag;
 }
 
-.clipboard-panel-icon-btn:hover:not(:disabled) {
+.clipboard-panel-action-btn:hover:not(:disabled) {
   background: #f4f4f5;
 }
 
-.clipboard-panel-icon-btn:disabled {
+.clipboard-panel-action-btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
+}
+
+.clipboard-panel-action-btn:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 1px;
+}
+
+.clipboard-panel-action-svg {
+  flex-shrink: 0;
+  color: #52525b;
+}
+
+.clipboard-panel-action-label {
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
 }

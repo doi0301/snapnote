@@ -471,7 +471,7 @@ body {
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 0 16px 8px;
   flex-shrink: 0;
 }
@@ -482,25 +482,24 @@ body {
   flex-shrink: 0;
 }
 
-.history-sort-btn {
+.history-sort-select {
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid #e4e4e7;
   background: #fafafa;
   color: #52525b;
   cursor: pointer;
+  outline: none;
 }
 
-.history-sort-btn:hover {
+.history-sort-select:hover {
   background: #f4f4f5;
 }
 
-.history-sort-btn--active {
-  background: #eef2ff;
+.history-sort-select:focus {
   border-color: #818cf8;
-  color: #4f46e5;
 }
 
 /* ──────────────────────────────

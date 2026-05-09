@@ -258,23 +258,18 @@ export function HistoryModal(): React.JSX.Element {
 
       <TagFilterBar allTags={allTags} selectedTags={selectedTags} onChange={setSelectedTags} />
 
-      {/* 정렬 바 */}
+      {/* 정렬 드롭다운 */}
       <div className="history-sort-bar">
-        <span className="history-sort-label">정렬:</span>
-        <button
-          type="button"
-          className={`history-sort-btn${sortBy === 'created' ? ' history-sort-btn--active' : ''}`}
-          onClick={() => setSortBy('created')}
+        <label className="history-sort-label" htmlFor="history-sort-select">정렬:</label>
+        <select
+          id="history-sort-select"
+          className="history-sort-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortKey)}
         >
-          등록일순
-        </button>
-        <button
-          type="button"
-          className={`history-sort-btn${sortBy === 'updated' ? ' history-sort-btn--active' : ''}`}
-          onClick={() => setSortBy('updated')}
-        >
-          수정일순
-        </button>
+          <option value="created">등록일순</option>
+          <option value="updated">수정일순</option>
+        </select>
       </div>
 
       <p className="history-modal-count" role="status">

@@ -50,11 +50,49 @@ export function remapSpansAfterEdit(
     const copy: TextSpan = { start: nsl, end: nel }
     if (s.bold) copy.bold = true
     if (s.strikethrough) copy.strikethrough = true
+    if (s.underline) copy.underline = true
     if (s.highlight) copy.highlight = s.highlight
     if (s.memoLinkId) copy.memoLinkId = s.memoLinkId
     next.push(copy)
   }
   return next.sort((a, b) => a.start - b.start || a.end - b.end)
+}
+
+/**
+ * 제목 마커만 앞뒤로 바뀔 때: 본문은 `stripped` 와 동일한 연속 구간으로 보고,
+ * 그 구간과 겹치는 span 만 새 문자열 인덱스로 옮긴다 (형광펜·볼드 등 유지).
+ */
+export function remapSpansForHeadingMarkerChange(
+  oldText: string,
+  stripped: string,
+  newText: string,
+  spans: TextSpan[] | undefined
+): TextSpan[] | undefined {
+  if (!spans?.length) return spans
+  if (!stripped) return undefined
+  const iOld = oldText.indexOf(stripped)
+  const iNew = newText.indexOf(stripped)
+  if (iOld === -1 || iNew === -1) return undefined
+  const delta = iNew - iOld
+  const innerEndOld = iOld + stripped.length
+  const max = newText.length
+  const next: TextSpan[] = []
+  for (const s of spans) {
+    const lo = Math.max(s.start, iOld)
+    const hi = Math.min(s.end, innerEndOld)
+    if (lo >= hi) continue
+    const nsl = clamp(lo + delta, 0, max)
+    const nel = clamp(hi + delta, 0, max)
+    if (nsl >= nel) continue
+    const copy: TextSpan = { start: nsl, end: nel }
+    if (s.bold) copy.bold = true
+    if (s.strikethrough) copy.strikethrough = true
+    if (s.underline) copy.underline = true
+    if (s.highlight) copy.highlight = s.highlight
+    if (s.memoLinkId) copy.memoLinkId = s.memoLinkId
+    next.push(copy)
+  }
+  return next.length ? next.sort((a, b) => a.start - b.start || a.end - b.end) : undefined
 }
 
 export type InlineFormatProp = 'bold' | 'strikethrough' | 'underline'

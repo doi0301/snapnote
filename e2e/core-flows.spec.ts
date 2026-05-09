@@ -146,7 +146,7 @@ test.describe('TASK-S5-06 핵심 플로우', () => {
       await expect(edit.getByText(unique)).toBeVisible({ timeout: 15_000 })
       /** `#edit-popover-root` 가 `aria-hidden` 이라 role 기반 탐색이 막힐 수 있음 */
       await edit
-        .locator('.clipboard-panel button[aria-label="삽입"]')
+        .locator('.clipboard-panel button[aria-label="편집창에 입력"]')
         .first()
         .click({ force: true })
       await expect(ta).toHaveValue(new RegExp(unique.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))

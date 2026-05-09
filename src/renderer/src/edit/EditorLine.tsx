@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 import type { EditorLine as EditorLineModel } from '@shared/types'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
@@ -46,11 +46,30 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
     const marginW = level * INDENT_PX
     const headingLevel = line.formatting?.headingLevel
     const headingClass = headingLevel ? ` editor-line--heading-${headingLevel}` : ''
+
+    const sentinelRef = useRef<HTMLDivElement>(null)
+    const [isStuck, setIsStuck] = useState(false)
+
+    useEffect(() => {
+      if (!isStickyTitle) return
+      const sentinel = sentinelRef.current
+      if (!sentinel) return
+      const observer = new IntersectionObserver(
+        ([entry]) => setIsStuck(!entry.isIntersecting),
+        { threshold: 0 }
+      )
+      observer.observe(sentinel)
+      return () => observer.disconnect()
+    }, [isStickyTitle])
+
     const stickyClass = isStickyTitle ? ' editor-line--sticky-title' : ''
+    const stuckClass = isStuck ? ' editor-line--stuck' : ''
 
     return (
+      <>
+        {isStickyTitle && <div ref={sentinelRef} className="editor-sticky-sentinel" />}
       <div
-        className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}`}
+        className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}${stuckClass}`}
         style={{ '--indent-level': level } as React.CSSProperties}
       >
         <div
@@ -93,6 +112,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
         </div>
         {line.formatting?.hasDivider ? <div className="editor-line-divider" aria-hidden /> : null}
       </div>
+      </>
     )
   }
 )

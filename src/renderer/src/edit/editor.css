@@ -70,24 +70,35 @@
   min-height: 120px;
 }
 
+.editor-sticky-sentinel {
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .editor-line--sticky-title {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: #1a1a1a;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.editor-line--sticky-title.editor-line--stuck {
+  background: rgba(26, 26, 26, var(--window-bg-alpha, 1));
   border-bottom: 2px solid #333;
 }
 
-.editor-line--sticky-title .editor-line-mirror,
-.editor-line--sticky-title textarea {
+.editor-line--sticky-title.editor-line--stuck .editor-line-mirror,
+.editor-line--sticky-title.editor-line--stuck textarea {
   color: #ffffff;
 }
 
-.editor-line--sticky-title textarea::placeholder {
+.editor-line--sticky-title.editor-line--stuck textarea::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
 
-.editor-line--sticky-title textarea {
+.editor-line--sticky-title.editor-line--stuck textarea {
   caret-color: #ffffff;
 }
 
@@ -126,60 +137,107 @@
 }
 
 .editor-search-bar {
+  flex-shrink: 0;
+  padding: 8px 10px 9px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8e8ed;
+  -webkit-app-region: no-drag;
+}
+
+.editor-search-bar-inner {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e4e4e7;
-  flex-shrink: 0;
+  gap: 8px;
+  min-width: 0;
 }
 
-.editor-search-bar input {
+.editor-search-bar-field {
   flex: 1;
   min-width: 0;
-  padding: 4px 8px;
-  border: 1px solid #d4d4d8;
-  border-radius: 4px;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border: 1px solid #0d6efd;
+  border-radius: 6px;
   font-size: 13px;
-  background: #fff;
+  line-height: 1.35;
+  font-family: inherit;
+  color: #1a1a1a;
+  background: #ffffff;
   outline: none;
+  box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.editor-search-bar input:focus {
-  border-color: #3b82f6;
+.editor-search-bar-field::placeholder {
+  color: #9ca3af;
+}
+
+.editor-search-bar-field:hover {
+  border-color: #0b5ed7;
+}
+
+.editor-search-bar-field:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
 }
 
 .editor-search-bar-count {
+  flex-shrink: 0;
   font-size: 11px;
-  color: #888;
+  font-weight: 600;
+  color: #6b7280;
+  letter-spacing: 0.02em;
   white-space: nowrap;
+  min-width: 2.5em;
+  text-align: right;
 }
 
-.editor-search-bar button {
-  padding: 2px 8px;
+.editor-search-bar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.editor-search-bar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
   border: none;
+  border-radius: 6px;
   background: transparent;
+  color: #6b7280;
   cursor: pointer;
-  font-size: 14px;
-  color: #555;
-  border-radius: 3px;
+  -webkit-app-region: no-drag;
 }
 
-.editor-search-bar button:hover {
-  background: #e4e4e7;
+.editor-search-bar-icon-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.editor-search-bar-icon-btn:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 1px;
+}
+
+.editor-search-bar-icon-btn svg {
+  display: block;
 }
 
 .editor-search-highlight {
-  background-color: rgba(251, 146, 60, 0.45);
+  background-color: rgba(255, 209, 220, 0.88);
   border-radius: 2px;
 }
 
 .editor-search-highlight--current {
-  background-color: rgba(234, 88, 12, 0.6);
+  background-color: rgba(255, 182, 193, 0.95);
   border-radius: 2px;
 }
-
 .editor-perf-badge {
   position: fixed;
   right: 10px;

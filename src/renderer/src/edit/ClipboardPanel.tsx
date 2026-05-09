@@ -2,7 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import type { ClipboardItem } from '@shared/types'
 import { getEditPopoverRoot } from './editPopoverRoot'
-import { IconClipboard } from './toolbarIcons'
+import {
+  IconClipboard,
+  IconClipboardInsertToEditor,
+  IconCopyAll,
+  IconImageGeneric
+} from './toolbarIcons'
 import './clipboard-panel.css'
 
 /** 말줄임만 쓸 때와 비교용 — 실제 표시는 CSS line-clamp */
@@ -280,11 +285,11 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
       className="clipboard-panel"
       style={fixedStyle}
       role="dialog"
-      aria-label="클립보드"
+      aria-label="클립보드 기록"
       tabIndex={-1}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <p className="clipboard-panel-title">클립보드</p>
+      <p className="clipboard-panel-title">클립보드 기록</p>
       <ul className="clipboard-panel-list">
         {items.length === 0 ? (
           <li className="clipboard-panel-empty">복사한 텍스트·이미지가 여기에 쌓입니다</li>
@@ -317,13 +322,9 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                 }
               >
                 {isImage ? (
-                  <div className="clipboard-panel-image-label" title="이미지 미리보기">
-                    <span className="clipboard-panel-image-badge" aria-hidden>
-                      🖼
-                    </span>
-                    <span className="clipboard-panel-image-name">{item.text}</span>
-                    <span className="clipboard-panel-preview-hint clipboard-panel-preview-hint--inline">
-                      호버 시 미리보기
+                  <div className="clipboard-panel-image-cell" title="이미지 — 호버 시 미리보기">
+                    <span className="clipboard-panel-image-icon" aria-hidden>
+                      <IconImageGeneric size={24} />
                     </span>
                   </div>
                 ) : isLong ? (
@@ -365,28 +366,29 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                 <span className="clipboard-panel-actions">
                   <button
                     type="button"
-                    className="clipboard-panel-icon-btn"
+                    className="clipboard-panel-action-btn clipboard-panel-action-btn--insert"
                     disabled={!canInsert || isImage}
                     title={
                       isImage
                         ? '이미지는 삽입 불가'
                         : canInsert
-                          ? '편집창에 삽입'
+                          ? '편집창에 입력'
                           : '편집창을 먼저 선택'
                     }
-                    aria-label="삽입"
+                    aria-label="편집창에 입력"
                     onMouseDown={(e) => {
                       e.preventDefault()
                       e.stopPropagation()
                     }}
                     onClick={() => void onInsert(item.text)}
                   >
-                    📥
+                    <IconClipboardInsertToEditor size={15} className="clipboard-panel-action-svg" />
+                    <span className="clipboard-panel-action-label">편집창에 입력</span>
                   </button>
                   <button
                     type="button"
-                    className="clipboard-panel-icon-btn"
-                    title="클립보드에 복사"
+                    className="clipboard-panel-action-btn clipboard-panel-action-btn--copy"
+                    title="복사"
                     aria-label="복사"
                     onMouseDown={(e) => {
                       e.preventDefault()
@@ -394,7 +396,8 @@ export function ClipboardPanel({ open, anchorRef, onClose }: ClipboardPanelProps
                     }}
                     onClick={() => void (isImage ? onCopyImage(item.id) : onCopyText(item.text))}
                   >
-                    📋
+                    <IconCopyAll size={15} className="clipboard-panel-action-svg" />
+                    <span className="clipboard-panel-action-label">복사</span>
                   </button>
                 </span>
               </li>

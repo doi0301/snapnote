@@ -32,12 +32,25 @@ export function IconToolbarFormat(props: { size?: number; className?: string }):
   )
 }
 
+/** 더보기 — 가로 점 세 개 (형광펜·메모 링크 등) */
+export function IconToolbarMore(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <circle cx="5" cy="12" r="2" fill="currentColor" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+      <circle cx="19" cy="12" r="2" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function IconToolbarBold(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      {/* 모던한 평면 대문자 B: 왼쪽 세로 + 위·아래 사각 보울 */}
       <path
-        d="M7 5v14M7 5h6a3 3 0 010 4H7M7 11h6a3 3 0 010 4H7"
+        d="M8 5.5v13M8 5.5h5.35v4.55H8M8 10.05h5.85v8.4H8"
         stroke="currentColor"
         strokeWidth={stroke}
         strokeLinecap="round"
@@ -51,13 +64,15 @@ export function IconToolbarStrikethrough(props: { size?: number; className?: str
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path d="M5 12h14" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      {/* 대문자 A + 가운데 취소선 */}
       <path
-        d="M8 8h8M8 16h8"
+        d="M9.5 18L12 9.5L14.5 18M10.75 14h2.5"
         stroke="currentColor"
         strokeWidth={stroke}
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
+      <path d="M6.5 12.5h11" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
     </svg>
   )
 }
@@ -117,8 +132,18 @@ export function IconToolbarDivider(props: { size?: number; className?: string })
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path d="M5 12h14" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
-      <path d="M8 7h8M8 17h8" stroke="currentColor" strokeWidth={1.25} strokeLinecap="round" opacity={0.45} />
+      {/* 얇은 테두리 네모 + 위쪽 얇은 한 줄 + 아래 굵은 구분선 */}
+      <rect
+        x="4.5"
+        y="4"
+        width="15"
+        height="16"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth={1.15}
+      />
+      <path d="M7.5 9h9" stroke="currentColor" strokeWidth={1.05} strokeLinecap="round" opacity={0.55} />
+      <path d="M6 17.25h12" stroke="currentColor" strokeWidth={2.35} strokeLinecap="round" />
     </svg>
   )
 }
@@ -197,6 +222,67 @@ export function IconToolbarClock(props: { size?: number; className?: string }): 
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
       <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth={stroke} />
       <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** 메모 검색바 — 이전/다음 일치 (삼각, currentColor) */
+export function IconSearchBarUp(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 16
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" className={props.className} aria-hidden>
+      <path d="M12 6.5L6 16.5h12L12 6.5z" />
+    </svg>
+  )
+}
+
+export function IconSearchBarDown(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 16
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" className={props.className} aria-hidden>
+      <path d="M12 17.5L6 7.5h12l-6 10z" />
+    </svg>
+  )
+}
+
+export function IconSearchBarClose(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 16
+  const sw = 1.65
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** 클립보드 이미지 행 — 범용 컬러 썸네일(풍경) */
+export function IconImageGeneric(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 22
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" className={props.className} aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" fill="#e0f2fe" stroke="#7dd3fc" strokeWidth="1.1" />
+      <circle cx="7.5" cy="9" r="2.3" fill="#fde047" />
+      <path d="M3 17.5L7.5 12l3.2 3 3.8-4.5L21 17.5V20H3z" fill="#4ade80" />
+      <path d="M3 17.5l5.2-3.8 2.6 2L14 12l7 5.8v2.2H3z" fill="#22c55e" opacity={0.35} />
+    </svg>
+  )
+}
+
+/** 편집창에 넣기 — 가로 줄 3 + 우상단에서 비스듬히 들어오는 곡선 화살표 (currentColor) */
+export function IconClipboardInsertToEditor(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  const sw = 1.65
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path d="M4.5 8h9.5M4.5 12h11M4.5 16h8" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+      <path
+        d="M19.5 5.5C18.5 12 14.5 15.5 9 16.5"
+        stroke="currentColor"
+        strokeWidth={sw}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path d="M7 15.5l2.2 1.2.3-2.5" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
