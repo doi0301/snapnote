@@ -27,6 +27,9 @@ export interface MemoListItemProps {
   onOpen: (memo: Memo) => void
   onDelete: (memo: Memo) => void
   onToggleDone: (memo: Memo) => void
+  onToggleFavorite?: (memo: Memo) => void
+  menuOpen?: boolean
+  onMenuToggle?: (id: MemoId, open: boolean) => void
 }
 
 export function MemoListItem({
@@ -35,15 +38,17 @@ export function MemoListItem({
   onToggleSelect,
   onOpen,
   onDelete,
-  onToggleDone
+  onToggleDone,
+  onToggleFavorite,
+  menuOpen,
+  onMenuToggle
 }: MemoListItemProps): JSX.Element {
   const titlePreview = firstLinePreview(memo.content, 80)
   const preview = preview30(memo.content)
 
   const exportMemo = useCallback(
-    async (closeDetails?: HTMLDetailsElement | null) => {
+    async () => {
       await window.snapnote.app.exportMemosAsFile({ ids: [memo.id] })
-      closeDetails?.removeAttribute('open')
     },
     [memo.id]
   )
@@ -89,28 +94,50 @@ export function MemoListItem({
           <div className="history-memo-meta">{formatYmd(memo.updatedAt)}</div>
         </div>
       </button>
-      <details
+      {onToggleFavorite && (
+        <button
+          type="button"
+          className={`history-memo-fav${memo.isFavorite ? ' history-memo-fav--active' : ''}`}
+          title={memo.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
+          aria-label={memo.isFavorite ? '즐겨찾기 해제' : '즐겨찾기'}
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(memo) }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={memo.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3c.4 0 .8.3 1 .7l2.5 5 5.5.8c.5.1.7.7.4 1.1l-4 3.9 1 5.4c.1.5-.4.9-.9.6L12 17.8l-4.5 2.7c-.5.3-1-.1-.9-.6l1-5.4-4-3.9c-.3-.4-.1-1 .4-1.1l5.5-.8 2.5-5c.2-.4.6-.7 1-.7z" />
+          </svg>
+        </button>
+      )}
+      <div
         className="history-memo-more"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <summary className="history-memo-more-btn" title="md다운로드" aria-label="메뉴">
+        <button
+          type="button"
+          className="history-memo-more-btn"
+          title="메뉴"
+          aria-label="메뉴"
+          aria-expanded={menuOpen}
+          onClick={() => onMenuToggle?.(memo.id, !menuOpen)}
+        >
           ···
-        </summary>
-        <div className="history-memo-more-menu" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            className="history-memo-more-item"
-            onClick={(e) => {
-              const d = (e.currentTarget.closest('details') as HTMLDetailsElement | null) ?? null
-              void exportMemo(d)
-            }}
-          >
-            md다운로드
-          </button>
-        </div>
-      </details>
+        </button>
+        {menuOpen && (
+          <div className="history-memo-more-menu" role="menu">
+            <button
+              type="button"
+              role="menuitem"
+              className="history-memo-more-item"
+              onClick={() => {
+                onMenuToggle?.(memo.id, false)
+                void exportMemo()
+              }}
+            >
+              md다운로드
+            </button>
+          </div>
+        )}
+      </div>
       <button
         type="button"
         className="history-memo-trash"

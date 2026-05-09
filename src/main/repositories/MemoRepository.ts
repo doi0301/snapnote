@@ -25,6 +25,7 @@ function rowToMemo(row: SqlRow): Memo {
     windowWidth: Number(row.window_width),
     windowHeight: Number(row.window_height),
     isDone: Number(row.is_done ?? 0) === 1,
+    isFavorite: Number(row.is_favorite ?? 0) === 1,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     deletedAt: da === null || da === undefined ? null : String(da)
@@ -77,10 +78,10 @@ export class MemoRepository {
       `INSERT INTO memos (
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
-        is_done,
+        is_done, is_favorite,
         created_at, updated_at,
         deleted_at
-      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, ?, ?, NULL)`,
+      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, 0, ?, ?, NULL)`,
       [id, JSON.stringify(emptyContent), JSON.stringify([]), color, ww, wh, now, now]
     )
     this.persist()
@@ -173,6 +174,7 @@ export class MemoRepository {
       windowWidth: patch.windowWidth ?? existing.windowWidth,
       windowHeight: patch.windowHeight ?? existing.windowHeight,
       isDone: patch.isDone ?? existing.isDone,
+      isFavorite: patch.isFavorite ?? existing.isFavorite,
       updatedAt: new Date().toISOString()
     }
     run(
@@ -180,7 +182,7 @@ export class MemoRepository {
       `UPDATE memos SET
         content = ?, tags = ?, color = ?, is_pinned = ?, pinned_at = ?,
         window_x = ?, window_y = ?, window_width = ?, window_height = ?,
-        is_done = ?,
+        is_done = ?, is_favorite = ?,
         updated_at = ?
       WHERE id = ?`,
       [
@@ -194,6 +196,7 @@ export class MemoRepository {
         next.windowWidth,
         next.windowHeight,
         next.isDone ? 1 : 0,
+        next.isFavorite ? 1 : 0,
         next.updatedAt,
         id
       ]
@@ -248,10 +251,10 @@ export class MemoRepository {
       `INSERT INTO memos (
         id, content, tags, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
-        is_done,
+        is_done, is_favorite,
         created_at, updated_at,
         deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         m.id,
         JSON.stringify(m.content),
@@ -264,6 +267,7 @@ export class MemoRepository {
         m.windowWidth,
         m.windowHeight,
         m.isDone ? 1 : 0,
+        m.isFavorite ? 1 : 0,
         m.createdAt,
         m.updatedAt,
         m.deletedAt ?? null

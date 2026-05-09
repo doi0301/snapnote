@@ -39,10 +39,16 @@ export function TagInput({ value, onChange, suggestions, variant = 'default' }: 
   const filtered = useMemo(() => {
     if (!ctx) return []
     const q = ctx.query.toLowerCase()
-    return suggestions.filter((t) => {
+    if (!q) return suggestions.slice(0, 12)
+    const prefix: string[] = []
+    const contains: string[] = []
+    for (const t of suggestions) {
       const tl = t.toLowerCase()
-      return tl.startsWith(q) && tl !== q
-    })
+      if (tl === q) continue
+      if (tl.startsWith(q)) prefix.push(t)
+      else if (tl.includes(q)) contains.push(t)
+    }
+    return [...prefix, ...contains].slice(0, 12)
   }, [ctx, suggestions])
 
   const applySuggestion = useCallback(

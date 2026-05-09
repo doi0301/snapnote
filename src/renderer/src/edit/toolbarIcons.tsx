@@ -20,23 +20,14 @@ export function IconToolbarEmoji(props: { size?: number; className?: string }): 
   )
 }
 
+/** 텍스트 편집 — A + 밑줄 */
 export function IconToolbarFormat(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path
-        d="M6 5h8M10 5v14M7 19h6"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 8h5M15 12h4M15 16h5"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-      />
+      <path d="M7 17L12 5l5 12" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 13h6" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M5 20h14" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" />
     </svg>
   )
 }
@@ -67,6 +58,16 @@ export function IconToolbarStrikethrough(props: { size?: number; className?: str
         strokeWidth={stroke}
         strokeLinecap="round"
       />
+    </svg>
+  )
+}
+
+export function IconToolbarUnderline(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path d="M8 4v7a4 4 0 008 0V4" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M6 20h12" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
     </svg>
   )
 }
@@ -122,49 +123,37 @@ export function IconToolbarDivider(props: { size?: number; className?: string })
   )
 }
 
+/** 클립보드 히스토리 — 클립보드+시계 */
 export function IconClipboard(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path
-        d="M9 4h6l1 2h3a1 1 0 011 1v12a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h3l1-2z"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinejoin="round"
-      />
-      <path d="M9 11h6M9 15h4" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M9.5 2h5a.5.5 0 01.5.5V4h-6V2.5a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />
+      <path d="M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" stroke="currentColor" strokeWidth={stroke} strokeLinejoin="round" />
+      <circle cx="17" cy="17" r="4.5" fill="white" stroke="currentColor" strokeWidth={1.6} />
+      <path d="M17 15v2.5l1.5 1" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
-/** 메모 전체 텍스트 복사 (히스토리 제외) */
+/** 전체 복사 — 겹친 문서 (범용 복사 아이콘) */
 export function IconCopyAll(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <path
-        d="M8 3h11a1 1 0 011 1v11"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinejoin="round"
-      />
-      <path
-        d="M5 6h8a1 1 0 011 1v11a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1z"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinejoin="round"
-      />
-      <path d="M7 10h6M7 13h6M7 16h4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+      <rect x="8" y="8" width="11" height="13" rx="2" stroke="currentColor" strokeWidth={stroke} />
+      <path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2h2" stroke="currentColor" strokeWidth={stroke} />
     </svg>
   )
 }
 
+/** 메모 히스토리 — 리스트 형태 */
 export function IconToolbarHistory(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth={stroke} />
-      <path d="M12 7v6l4 2" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth={stroke} />
+      <path d="M8 9h8M8 12h6M8 15h7" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
     </svg>
   )
 }

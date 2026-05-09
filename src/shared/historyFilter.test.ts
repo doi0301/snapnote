@@ -19,6 +19,7 @@ function stubMemo(partial: Partial<Memo> & Pick<Memo, 'id'>): Memo {
     windowWidth: partial.windowWidth ?? 400,
     windowHeight: partial.windowHeight ?? 500,
     isDone: partial.isDone ?? false,
+    isFavorite: partial.isFavorite ?? false,
     createdAt: partial.createdAt ?? now,
     updatedAt: partial.updatedAt ?? now,
     deletedAt: partial.deletedAt ?? null

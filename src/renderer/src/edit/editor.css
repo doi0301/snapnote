@@ -70,6 +70,14 @@
   min-height: 120px;
 }
 
+.editor-line--sticky-title {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
+  border-bottom: 2px solid #e4e4e7;
+}
+
 .editor-copy-toast {
   position: fixed;
   left: 50%;
@@ -102,6 +110,61 @@
   pointer-events: none;
   white-space: nowrap;
   max-width: calc(100vw - 16px);
+}
+
+.editor-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e4e4e7;
+  flex-shrink: 0;
+}
+
+.editor-search-bar input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+}
+
+.editor-search-bar input:focus {
+  border-color: #3b82f6;
+}
+
+.editor-search-bar-count {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+}
+
+.editor-search-bar button {
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #555;
+  border-radius: 3px;
+}
+
+.editor-search-bar button:hover {
+  background: #e4e4e7;
+}
+
+.editor-search-highlight {
+  background-color: rgba(251, 146, 60, 0.45);
+  border-radius: 2px;
+}
+
+.editor-search-highlight--current {
+  background-color: rgba(234, 88, 12, 0.6);
+  border-radius: 2px;
 }
 
 .editor-perf-badge {

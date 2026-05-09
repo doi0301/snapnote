@@ -56,6 +56,7 @@ function classForSlice(
     if (mid >= s.start && mid < s.end) {
       if (s.bold) parts.push('inline-bold')
       if (s.strikethrough) parts.push('inline-strike')
+      if (s.underline) parts.push('inline-underline')
       if (s.highlight) {
         const col = normalizeHighlightColor(String(s.highlight))
         const c = col ? HL_CLASS[col] : undefined
@@ -67,22 +68,27 @@ function classForSlice(
   return parts.join(' ')
 }
 
+export interface SearchHighlight {
+  start: number
+  end: number
+}
+
 export interface SpannedLineMirrorProps {
   text: string
   spans?: TextSpan[] | undefined
-  /** 체크 완료 줄: 전체 취소선 (줄 단위) */
   lineFormatting?: LineFormatting
   selectionStart?: number
   selectionEnd?: number
+  searchHighlights?: SearchHighlight[]
 }
 
-/** 읽기 전용 미러 레이어 — textarea 위에 동일 타이포로 볼드/취소선/하이라이트 표시 */
 export function SpannedLineMirror({
   text,
   spans,
   lineFormatting,
   selectionStart,
-  selectionEnd
+  selectionEnd,
+  searchHighlights
 }: SpannedLineMirrorProps): React.JSX.Element {
   const s = spans ?? []
   const lineStrike = Boolean(
@@ -92,14 +98,26 @@ export function SpannedLineMirror({
     return <span className="editor-line-mirror-empty" />
   }
   const bp = collectBreakpoints(text, s, selectionStart, selectionEnd)
+  if (searchHighlights?.length) {
+    for (const h of searchHighlights) {
+      bp.push(clamp(h.start, 0, text.length))
+      bp.push(clamp(h.end, 0, text.length))
+    }
+    bp.sort((a, b) => a - b)
+  }
+  const uniq = [...new Set(bp)]
   const parts: React.JSX.Element[] = []
-  for (let k = 0; k < bp.length - 1; k++) {
-    const a = bp[k]!
-    const b = bp[k + 1]!
+  for (let k = 0; k < uniq.length - 1; k++) {
+    const a = uniq[k]!
+    const b = uniq[k + 1]!
     if (a === b) continue
     const slice = text.slice(a, b)
     const mid = Math.min(a + Math.floor((b - a - 1) / 2), text.length - 1)
-    const cls = classForSlice(a, b, mid >= a ? mid : a, s, lineStrike, selectionStart, selectionEnd)
+    let cls = classForSlice(a, b, mid >= a ? mid : a, s, lineStrike, selectionStart, selectionEnd)
+    if (searchHighlights?.length) {
+      const inSearch = searchHighlights.some((h) => a >= h.start && b <= h.end)
+      if (inSearch) cls = cls ? cls + ' editor-search-highlight' : 'editor-search-highlight'
+    }
     parts.push(
       <span key={`${a}:${b}`} className={cls}>
         {slice}

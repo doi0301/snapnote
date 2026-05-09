@@ -57,7 +57,7 @@ export function remapSpansAfterEdit(
   return next.sort((a, b) => a.start - b.start || a.end - b.end)
 }
 
-export type InlineFormatProp = 'bold' | 'strikethrough'
+export type InlineFormatProp = 'bold' | 'strikethrough' | 'underline'
 
 function rangeCoveredBy(
   spans: TextSpan[],
@@ -152,7 +152,8 @@ function addPropertyToRange(
   const next = spans.map((s) => ({ ...s }))
   const add: TextSpan = { start: a, end: b }
   if (prop === 'bold') add.bold = true
-  else add.strikethrough = true
+  else if (prop === 'strikethrough') add.strikethrough = true
+  else if (prop === 'underline') add.underline = true
   next.push(add)
   return next.sort((x, y) => x.start - y.start)
 }

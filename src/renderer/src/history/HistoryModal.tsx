@@ -37,6 +37,7 @@ export function HistoryModal(): React.JSX.Element {
     | { kind: 'one'; memo: Memo }
     | { kind: 'bulk'; ids: MemoId[] }
     | { kind: 'permanent'; memo: Memo }
+    | { kind: 'emptyTrash' }
     | null
   >(null)
 
@@ -87,7 +88,12 @@ export function HistoryModal(): React.JSX.Element {
 
   const sorted = useMemo(() => {
     const key = sortBy === 'created' ? 'createdAt' : 'updatedAt'
-    return [...filtered].sort((a, b) => b[key].localeCompare(a[key]))
+    return [...filtered].sort((a, b) => {
+      const fa = a.isFavorite ? 1 : 0
+      const fb = b.isFavorite ? 1 : 0
+      if (fa !== fb) return fb - fa
+      return b[key].localeCompare(a[key])
+    })
   }, [filtered, sortBy])
 
   const displayList = useMemo(() => sorted.slice(0, LIST_CAP), [sorted])
@@ -143,6 +149,10 @@ export function HistoryModal(): React.JSX.Element {
       setSelectedIds(new Set())
     } else if (c.kind === 'permanent') {
       await window.snapnote.memo.deletePermanent(c.memo.id)
+    } else if (c.kind === 'emptyTrash') {
+      for (const m of trashMemos) {
+        await window.snapnote.memo.deletePermanent(m.id)
+      }
     }
     setConfirmDelete(null)
   }, [confirmDelete])
@@ -155,6 +165,10 @@ export function HistoryModal(): React.JSX.Element {
 
   const onToggleDone = useCallback(async (m: Memo): Promise<void> => {
     await window.snapnote.memo.update({ id: m.id, patch: { isDone: !m.isDone } })
+  }, [])
+
+  const onToggleFavorite = useCallback(async (m: Memo): Promise<void> => {
+    await window.snapnote.memo.update({ id: m.id, patch: { isFavorite: !m.isFavorite } })
   }, [])
 
   const exportSelected = useCallback(async (): Promise<void> => {
@@ -177,10 +191,12 @@ export function HistoryModal(): React.JSX.Element {
         ? `선택한 ${confirmDelete.ids.length}개 메모를 휴지통으로 이동할까요? 7일 후 자동으로 영구 삭제됩니다.`
         : confirmDelete?.kind === 'permanent'
           ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n영구 삭제할까요? 복원할 수 없습니다.`
-          : ''
+          : confirmDelete?.kind === 'emptyTrash'
+            ? `휴지통의 ${trashMemos.length}개 메모를 모두 영구 삭제할까요? 복원할 수 없습니다.`
+            : ''
 
   const confirmLabel =
-    confirmDelete?.kind === 'permanent' ? '영구 삭제' : '휴지통으로 이동'
+    confirmDelete?.kind === 'permanent' || confirmDelete?.kind === 'emptyTrash' ? '영구 삭제' : '휴지통으로 이동'
 
   return (
     <div
@@ -191,7 +207,7 @@ export function HistoryModal(): React.JSX.Element {
     >
       <ConfirmDialog
         open={confirmDelete !== null}
-        title={confirmDelete?.kind === 'permanent' ? '영구 삭제' : '메모 삭제'}
+        title={confirmDelete?.kind === 'permanent' || confirmDelete?.kind === 'emptyTrash' ? '영구 삭제' : '메모 삭제'}
         message={confirmMessage}
         confirmLabel={confirmLabel}
         cancelLabel="취소"
@@ -285,6 +301,7 @@ export function HistoryModal(): React.JSX.Element {
             onOpen={(m) => void onOpenMemo(m)}
             onDelete={onDeleteMemo}
             onToggleDone={(m) => void onToggleDone(m)}
+            onToggleFavorite={(m) => void onToggleFavorite(m)}
           />
         )}
       </div>
@@ -296,9 +313,20 @@ export function HistoryModal(): React.JSX.Element {
           <span>휴지통 {trashMemos.length > 0 ? `(${trashMemos.length})` : ''}</span>
           <span className="history-trash-chevron">{'▼'}</span>
         </summary>
-        <p className="history-trash-notice">
-          삭제된 메모는 <strong>7일간</strong> 보관된 뒤 자동으로 영구 삭제됩니다.
-        </p>
+        <div className="history-trash-notice-row">
+          <p className="history-trash-notice">
+            삭제된 메모는 <strong>7일간</strong> 보관된 뒤 자동으로 영구 삭제됩니다.
+          </p>
+          {trashMemos.length > 0 && (
+            <button
+              type="button"
+              className="history-btn history-btn--danger history-btn--small"
+              onClick={() => setConfirmDelete({ kind: 'emptyTrash' })}
+            >
+              모두 영구 삭제
+            </button>
+          )}
+        </div>
         {trashMemos.length === 0 ? (
           <p className="history-trash-empty">휴지통이 비어 있습니다.</p>
         ) : (

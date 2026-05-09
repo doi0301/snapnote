@@ -12,6 +12,7 @@ export interface TextSpan {
   end: number
   bold?: boolean
   strikethrough?: boolean
+  underline?: boolean
   highlight?: HighlightColor
   /** 연결된 메모 UUID — 클릭 시 해당 편집 창 열기 */
   memoLinkId?: MemoId
@@ -24,6 +25,8 @@ export interface LineFormatting {
   hasCheckbox?: boolean
   checkboxChecked?: boolean
   hasDivider?: boolean
+  /** Ctrl+1~5 위계 레벨 (1=가장 큰 제목, 5=소제목) */
+  headingLevel?: 1 | 2 | 3 | 4 | 5
 }
 
 /** 에디터 한 줄 */
@@ -52,6 +55,8 @@ export interface Memo {
   windowHeight: number
   /** 히스토리에서 완료 처리 시 시각적 강조 완화 */
   isDone: boolean
+  /** 히스토리 목록에서 상단 고정 */
+  isFavorite: boolean
   createdAt: string
   updatedAt: string
   /** null = 활성, ISO 문자열 = 휴지통 이동 시각 */
@@ -72,6 +77,7 @@ export type MemoUpdatePatch = Partial<
     | 'windowWidth'
     | 'windowHeight'
     | 'isDone'
+    | 'isFavorite'
   >
 >
 

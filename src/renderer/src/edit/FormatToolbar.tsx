@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { HighlightColor, Memo, MemoId } from '@shared/types'
 import { EmojiPalette } from './EmojiPalette'
 import {
@@ -7,9 +7,9 @@ import {
   IconToolbarDivider,
   IconToolbarEmoji,
   IconToolbarFormat,
-  IconToolbarHighlight,
   IconToolbarMemoLink,
-  IconToolbarStrikethrough
+  IconToolbarStrikethrough,
+  IconToolbarUnderline
 } from './toolbarIcons'
 import './format-toolbar.css'
 
@@ -23,25 +23,25 @@ const HL_LABEL: Record<HighlightColor, string> = {
   gray: '회색'
 }
 
-const LONG_PRESS_MS = 500
-
 export interface FormatToolbarProps {
   boldActive: boolean
   strikeActive: boolean
-  highlightActive: boolean
+  underlineActive: boolean
   lineCheckboxActive: boolean
   lineDividerActive: boolean
   onBold: () => void
   onStrikethrough: () => void
+  onUnderline: () => void
   lastHighlightColor: HighlightColor
-  onHighlightPrimaryClick: () => void
   onPickHighlightColor: (color: HighlightColor) => void
   onToggleLineCheckbox: () => void
   onToggleLineDivider: () => void
-  memoLinkActive: boolean
   currentMemoId: MemoId
   onApplyMemoLink: (targetMemoId: MemoId) => void
   onClearMemoLinks: () => void
+  openLinkPicker?: boolean
+  headingLevel?: 1 | 2 | 3 | 4 | 5
+  onHeading: (level: 1 | 2 | 3 | 4 | 5) => void
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
@@ -52,20 +52,22 @@ export interface FormatToolbarProps {
 export function FormatToolbar({
   boldActive,
   strikeActive,
-  highlightActive,
+  underlineActive,
   lineCheckboxActive,
   lineDividerActive,
   onBold,
   onStrikethrough,
+  onUnderline,
   lastHighlightColor,
-  onHighlightPrimaryClick,
   onPickHighlightColor,
   onToggleLineCheckbox,
   onToggleLineDivider,
-  memoLinkActive,
   currentMemoId,
   onApplyMemoLink,
   onClearMemoLinks,
+  openLinkPicker,
+  headingLevel,
+  onHeading,
   compactActions = false,
   symbolPaletteOpen,
   onToggleSymbolPalette,
@@ -76,17 +78,13 @@ export function FormatToolbar({
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [actionModalOpen, setActionModalOpen] = useState(false)
   const [linkPickerOpen, setLinkPickerOpen] = useState(false)
-  const [linkPickList, setLinkPickList] = useState<Memo[]>([])
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const suppressHlPrimaryClickRef = useRef(false)
 
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current !== null) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
+  useEffect(() => {
+    if (openLinkPicker && !linkPickerOpen) {
+      setLinkPickerOpen(true)
     }
-  }, [])
-
+  }, [openLinkPicker])
+  const [linkPickList, setLinkPickList] = useState<Memo[]>([])
   useEffect(() => {
     if (!paletteOpen) return
     const onDocDown = (ev: MouseEvent): void => {
@@ -123,36 +121,6 @@ export function FormatToolbar({
       setLinkPickList(others)
     })
   }, [linkPickerOpen, currentMemoId])
-
-  const openPalette = useCallback(() => {
-    setPaletteOpen(true)
-  }, [])
-
-  const onHlPointerDown = useCallback(() => {
-    if (compactActions) return
-    clearLongPress()
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTimerRef.current = null
-      suppressHlPrimaryClickRef.current = true
-      openPalette()
-    }, LONG_PRESS_MS)
-  }, [clearLongPress, openPalette, compactActions])
-
-  const onHlPointerUp = useCallback(() => {
-    clearLongPress()
-  }, [clearLongPress])
-
-  const onHlContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (compactActions) return
-      e.preventDefault()
-      clearLongPress()
-      openPalette()
-    },
-    [clearLongPress, openPalette, compactActions]
-  )
-
-  const hlBtnClass = `format-toolbar-btn--highlight format-toolbar-btn--hl-${lastHighlightColor}${highlightActive ? ' format-toolbar-btn--active' : ''}`
 
   const symbolButton = (
     <button
@@ -194,38 +162,12 @@ export function FormatToolbar({
       </button>
       <button
         type="button"
-        className={`format-toolbar-btn format-toolbar-btn--icon ${hlBtnClass}`}
-        title={
-          compactActions
-            ? '하이라이트 (아래 색상 또는 마지막 색 적용)'
-            : '하이라이트 (클릭: 색 팔레트 · Ctrl+클릭: 마지막 색 적용)'
-        }
-        onPointerDown={(e) => {
-          e.preventDefault()
-          onHlPointerDown()
-        }}
-        onPointerUp={onHlPointerUp}
-        onPointerCancel={onHlPointerUp}
-        onPointerLeave={onHlPointerUp}
-        onClick={(e) => {
-          if (suppressHlPrimaryClickRef.current) {
-            suppressHlPrimaryClickRef.current = false
-            return
-          }
-          if (compactActions) {
-            onHighlightPrimaryClick()
-            return
-          }
-          if (e.ctrlKey || e.metaKey) {
-            onHighlightPrimaryClick()
-            return
-          }
-          setPaletteOpen((o) => !o)
-        }}
-        onContextMenu={onHlContextMenu}
-        aria-pressed={highlightActive}
+        className={`format-toolbar-btn format-toolbar-btn--icon${underlineActive ? ' format-toolbar-btn--active' : ''}`}
+        title="밑줄 (Ctrl+U)"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onUnderline}
       >
-        <IconToolbarHighlight size={18} />
+        <IconToolbarUnderline size={18} />
       </button>
       <button
         type="button"
@@ -246,22 +188,6 @@ export function FormatToolbar({
         onClick={onToggleLineDivider}
       >
         <IconToolbarDivider size={18} />
-      </button>
-      <button
-        type="button"
-        className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--memo-link${memoLinkActive ? ' format-toolbar-btn--active' : ''}`}
-        title="메모로 연결 (Ctrl+클릭 이동)"
-        aria-label="메모 링크"
-        aria-haspopup="menu"
-        aria-pressed={memoLinkActive}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          setPaletteOpen(false)
-          setActionModalOpen(false)
-          setLinkPickerOpen(true)
-        }}
-      >
-        <IconToolbarMemoLink size={18} />
       </button>
     </>
   )
@@ -381,7 +307,6 @@ export function FormatToolbar({
               </div>
             </div>
             <div className="format-toolbar-modal-memo-link" role="group" aria-label="메모 연결">
-              <p className="format-toolbar-modal-hl-label">메모 링크</p>
               <button
                 type="button"
                 className="format-toolbar-modal-open-memo-links"
@@ -391,19 +316,28 @@ export function FormatToolbar({
                   setActionModalOpen(false)
                 }}
               >
-                다른 메모로 연결…
+                <IconToolbarMemoLink size={14} /> 다른 메모로 연결
               </button>
-              <button
-                type="button"
-                className="format-toolbar-modal-clear-memo-link"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onClearMemoLinks()
-                  setActionModalOpen(false)
-                }}
-              >
-                선택 구간 링크 해제
-              </button>
+            </div>
+            <div className="format-toolbar-modal-heading" role="group" aria-label="제목 위계">
+              <p className="format-toolbar-modal-hl-label">제목 위계</p>
+              <div className="format-toolbar-modal-heading-row">
+                {([1, 2, 3, 4, 5] as const).map((lv) => (
+                  <button
+                    key={lv}
+                    type="button"
+                    className={`format-toolbar-btn format-toolbar-btn--heading${headingLevel === lv ? ' format-toolbar-btn--active' : ''}`}
+                    title={`Ctrl+${lv}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onHeading(lv)
+                      setActionModalOpen(false)
+                    }}
+                  >
+                    H{lv}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

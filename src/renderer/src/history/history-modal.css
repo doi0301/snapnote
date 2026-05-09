@@ -386,14 +386,6 @@ body {
   margin-right: 2px;
 }
 
-.history-memo-more > summary {
-  list-style: none;
-}
-
-.history-memo-more > summary::-webkit-details-marker {
-  display: none;
-}
-
 .history-memo-more-btn {
   width: 34px;
   min-height: 34px;
@@ -403,6 +395,8 @@ body {
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
+  border: none;
+  background: transparent;
   color: #71717a;
   cursor: pointer;
   border-radius: 8px;
@@ -414,7 +408,7 @@ body {
   color: #18181b;
 }
 
-.history-memo-more[open] .history-memo-more-btn {
+.history-memo-more-btn[aria-expanded="true"] {
   background: #eef2ff;
   color: #4f46e5;
 }
@@ -631,4 +625,43 @@ details.history-trash-section[open] .history-trash-chevron {
   font-size: 12px;
   color: #a1a1aa;
   text-align: center;
+}
+
+.history-trash-notice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+.history-trash-notice-row .history-trash-notice {
+  padding: 0;
+  margin: 0;
+}
+
+.history-btn--small {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.history-memo-fav {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d4d4d8;
+  padding: 2px 4px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-memo-fav--active {
+  color: #f59e0b;
+}
+
+.history-memo-fav:hover {
+  color: #f59e0b;
 }

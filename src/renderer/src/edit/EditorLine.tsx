@@ -1,15 +1,20 @@
 import { forwardRef } from 'react'
 import type { EditorLine as EditorLineModel } from '@shared/types'
 import { Checkbox } from './Checkbox'
+import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
 import './editor-line.css'
 
 export const INDENT_PX = 20
 
+const INDENT_ALPHA = [0.02, 0.06, 0.09, 0.11, 0.13, 0.14, 0.15]
+
 export interface EditorLineViewProps {
   line: EditorLineModel
   mirrorSelectionRange?: { start: number; end: number }
   placeholder?: string
+  isStickyTitle?: boolean
+  searchHighlights?: SearchHighlight[]
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   onBeforeInput?: (e: React.FormEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
@@ -33,20 +38,24 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
       onPointerMove,
       onPointerLeave,
       onFocus,
-      onCheckboxToggle
+      onCheckboxToggle,
+      isStickyTitle,
+      searchHighlights
     } = props
     const level = Math.min(6, Math.max(0, line.indentLevel))
     const marginW = level * INDENT_PX
+    const headingLevel = line.formatting?.headingLevel
+    const headingClass = headingLevel ? ` editor-line--heading-${headingLevel}` : ''
+    const stickyClass = isStickyTitle ? ' editor-line--sticky-title' : ''
 
-    /**
-     * 빈 줄도 mirror+투명 textarea 한 벌만 쓴다. 예전에는 글자 유무로 plain/mirror를 갈아타며
-     * `<textarea>`가 리마운트되어 Enter 직후·첫 입력 시 포커스가 풀리는 문제가 있었다.
-     */
     return (
-      <div className={`editor-line editor-line--level-${level}`}>
+      <div
+        className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}`}
+        style={{ '--indent-level': level } as React.CSSProperties}
+      >
         <div
           className="editor-line-gutter"
-          style={{ width: marginW, minWidth: marginW }}
+          style={{ width: marginW, minWidth: marginW, '--indent-alpha': INDENT_ALPHA[level] ?? 0.02 } as React.CSSProperties}
           aria-hidden
         />
         {line.formatting?.hasCheckbox && onCheckboxToggle ? (
@@ -63,6 +72,7 @@ export const EditorLineView = forwardRef<HTMLTextAreaElement, EditorLineViewProp
               lineFormatting={line.formatting}
               selectionStart={mirrorSelectionRange?.start}
               selectionEnd={mirrorSelectionRange?.end}
+              searchHighlights={searchHighlights}
             />
           </div>
           <textarea

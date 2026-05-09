@@ -72,7 +72,7 @@
 }
 
 .format-toolbar-btn--active {
-  background: #f4f4f5;
+  background: #d4d4d8;
   border-color: #171717;
   box-shadow: inset 0 0 0 1px rgba(23, 23, 23, 0.15);
   color: #0a0a0a;
@@ -221,6 +221,23 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.format-toolbar-modal-heading {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e4e7;
+}
+
+.format-toolbar-modal-heading-row {
+  display: flex;
+  gap: 6px;
+}
+
+.format-toolbar-btn--heading {
+  min-width: 36px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .format-toolbar-modal-open-memo-links,

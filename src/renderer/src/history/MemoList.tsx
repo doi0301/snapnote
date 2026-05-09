@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react'
 import type { JSX } from 'react'
 import type { Memo, MemoId } from '@shared/types'
 import { MemoListItem } from './MemoListItem'
@@ -9,6 +10,7 @@ export interface MemoListProps {
   onOpen: (memo: Memo) => void
   onDelete: (memo: Memo) => void
   onToggleDone: (memo: Memo) => void
+  onToggleFavorite?: (memo: Memo) => void
 }
 
 export function MemoList({
@@ -17,8 +19,15 @@ export function MemoList({
   onToggleSelect,
   onOpen,
   onDelete,
-  onToggleDone
+  onToggleDone,
+  onToggleFavorite
 }: MemoListProps): JSX.Element {
+  const [openMenuId, setOpenMenuId] = useState<MemoId | null>(null)
+
+  const handleMenuToggle = useCallback((id: MemoId, open: boolean) => {
+    setOpenMenuId(open ? id : null)
+  }, [])
+
   if (memos.length === 0) {
     return <></>
   }
@@ -34,6 +43,9 @@ export function MemoList({
           onOpen={onOpen}
           onDelete={onDelete}
           onToggleDone={onToggleDone}
+          onToggleFavorite={onToggleFavorite}
+          menuOpen={openMenuId === m.id}
+          onMenuToggle={handleMenuToggle}
         />
       ))}
     </ul>
