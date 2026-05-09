@@ -34,6 +34,16 @@ describe('remapSpansAfterEdit', () => {
     const next = remapSpansAfterEdit('hello', 'heXllo', spans)
     expect(next.some((s) => s.bold && s.start <= 1 && s.end >= 4)).toBe(true)
   })
+  it('does not extend highlight when typing after highlighted run', () => {
+    const spans = [{ start: 0, end: 3, highlight: 'yellow' as const }]
+    const next = remapSpansAfterEdit('abc', 'abcX', spans)
+    expect(next).toEqual([{ start: 0, end: 3, highlight: 'yellow' }])
+  })
+  it('still extends highlight when typing inside highlighted run', () => {
+    const spans = [{ start: 0, end: 3, highlight: 'green' as const }]
+    const next = remapSpansAfterEdit('abc', 'abXc', spans)
+    expect(next).toEqual([{ start: 0, end: 4, highlight: 'green' }])
+  })
 })
 
 describe('remapSpansForHeadingMarkerChange', () => {

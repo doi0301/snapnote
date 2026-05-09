@@ -38,11 +38,22 @@ export function remapSpansAfterEdit(
   const r = singleReplacementRange(oldText, newText)
   if (!r) return list.map((s) => ({ ...s }))
   const { start, oldEnd, newEnd } = r
+  const ins = insertionIndexIfSingleChar(oldText, newText)
   const next: TextSpan[] = []
   const max = newText.length
   for (const s of list) {
     const ns = mapEndpoint(s.start, start, oldEnd, newEnd)
-    const ne = mapEndpoint(s.end, start, oldEnd, newEnd)
+    let ne = mapEndpoint(s.end, start, oldEnd, newEnd)
+    /** 한 글자 삽입이 span 직후(배타적 end)일 때는 형광이 새 글자로 이어지지 않게 end 확장 취소 */
+    if (
+      s.highlight &&
+      ins != null &&
+      ins === s.end &&
+      oldEnd === start &&
+      start === ins
+    ) {
+      ne = s.end
+    }
     if (ns >= ne) continue
     const nsl = clamp(ns, 0, max)
     const nel = clamp(ne, 0, max)

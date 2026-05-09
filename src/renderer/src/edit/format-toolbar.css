@@ -103,10 +103,6 @@
   border-color: #db2777;
 }
 
-.format-toolbar-btn--hl-gray {
-  border-color: #64748b;
-}
-
 .format-toolbar-btn--text-tools {
   min-width: 32px;
 }
@@ -215,8 +211,8 @@
 }
 
 .format-hl-swatch--gray {
-  background: rgba(241, 245, 254, 0.98);
-  border-color: rgba(71, 85, 105, 0.5);
+  /* 테두리 없이 배경만 — 흰 UI와 대비 */
+  background: #aeb8c6;
 }
 
 .format-toolbar-modal-memo-link {

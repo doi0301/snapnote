@@ -47,32 +47,30 @@ export function IconToolbarMore(props: { size?: number; className?: string }): R
 export function IconToolbarBold(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      {/* 모던한 평면 대문자 B: 왼쪽 세로 + 위·아래 사각 보울 */}
-      <path
-        d="M8 5.5v13M8 5.5h5.35v4.55H8M8 10.05h5.85v8.4H8"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width={s} height={s} viewBox="0 0 24 24" className={props.className} aria-hidden>
+      <text
+        x="12"
+        y="12"
+        dominantBaseline="central"
+        textAnchor="middle"
+        fill="currentColor"
+        fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        fontSize="14"
+        fontWeight="700"
+      >
+        B
+      </text>
     </svg>
   )
 }
 
+/** 취소선 — 밑줄(U)과 동일한 U자 + 가로 취소선 */
 export function IconToolbarStrikethrough(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      {/* 대문자 A + 가운데 취소선 */}
-      <path
-        d="M9.5 18L12 9.5L14.5 18M10.75 14h2.5"
-        stroke="currentColor"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M6.5 12.5h11" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M8 4v7a4 4 0 008 0V4" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <path d="M6 9.25h12" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
     </svg>
   )
 }
@@ -132,18 +130,8 @@ export function IconToolbarDivider(props: { size?: number; className?: string })
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      {/* 얇은 테두리 네모 + 위쪽 얇은 한 줄 + 아래 굵은 구분선 */}
-      <rect
-        x="4.5"
-        y="4"
-        width="15"
-        height="16"
-        rx="1.5"
-        stroke="currentColor"
-        strokeWidth={1.15}
-      />
-      <path d="M7.5 9h9" stroke="currentColor" strokeWidth={1.05} strokeLinecap="round" opacity={0.55} />
-      <path d="M6 17.25h12" stroke="currentColor" strokeWidth={2.35} strokeLinecap="round" />
+      <rect x="5" y="4" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth={1.15} />
+      <path d="M4.5 17.75h15" stroke="currentColor" strokeWidth={2.55} strokeLinecap="round" />
     </svg>
   )
 }

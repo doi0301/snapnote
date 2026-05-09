@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { HighlightColor, Memo, MemoId } from '@shared/types'
 import { EmojiPalette } from './EmojiPalette'
+import { getEditPopoverRoot } from './editPopoverRoot'
 import {
   IconToolbarBold,
   IconToolbarCheckbox,
@@ -273,120 +275,124 @@ export function FormatToolbar({
     </div>
   )
 
-  return (
-    <div className="format-toolbar-wrap">
-      <EmojiPalette
-        open={symbolPaletteOpen}
-        anchorRef={symbolBtnRef}
-        onClose={onCloseSymbolPalette}
-        onSelectSymbol={onSymbolSelect}
-      />
-      {compactActions ? (
-        <div className="format-toolbar format-toolbar--compact-row" role="toolbar" aria-label="텍스트 서식 (축약)">
-          {symbolButton}
-          {moreToolsButton}
-        </div>
-      ) : (
-        <div className="format-toolbar" role="toolbar" aria-label="텍스트 서식">
-          {symbolButton}
+  const actionToolsModal = (
+    <div
+      className="format-toolbar-modal-backdrop"
+      onMouseDown={() => setActionModalOpen(false)}
+      role="dialog"
+      aria-label="서식 도구"
+    >
+      <div className="format-toolbar-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <p className="format-toolbar-modal-title">텍스트 서식</p>
+        <div className="format-toolbar format-toolbar--modal" role="toolbar" aria-label="텍스트 서식 모달">
           {formattingButtons}
-          {moreToolsButton}
         </div>
-      )}
-      {actionModalOpen ? (
-        <div
-          className="format-toolbar-modal-backdrop"
-          onMouseDown={() => setActionModalOpen(false)}
-          role="dialog"
-          aria-label="서식 도구"
-        >
-          <div className="format-toolbar-modal" onMouseDown={(e) => e.stopPropagation()}>
-            <p className="format-toolbar-modal-title">텍스트 서식</p>
-            <div className="format-toolbar format-toolbar--modal" role="toolbar" aria-label="텍스트 서식 모달">
-              {formattingButtons}
-            </div>
-            <div className="format-toolbar-modal-hl" role="group" aria-label="형광펜 색상">
-              <p className="format-toolbar-modal-hl-label">형광펜 색</p>
-              <div className="format-toolbar-modal-hl-swatches">
-                {HL_SWATCHES.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
-                    title={HL_LABEL[c]}
-                    aria-label={HL_LABEL[c]}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      onPickHighlightColor(c)
-                      setPaletteOpen(false)
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="format-toolbar-modal-memo-link" role="group" aria-label="메모 연결">
+        <div className="format-toolbar-modal-hl" role="group" aria-label="형광펜 색상">
+          <p className="format-toolbar-modal-hl-label">형광펜 색</p>
+          <div className="format-toolbar-modal-hl-swatches">
+            {HL_SWATCHES.map((c) => (
               <button
+                key={c}
                 type="button"
-                className="format-toolbar-modal-open-memo-links"
+                className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
+                title={HL_LABEL[c]}
+                aria-label={HL_LABEL[c]}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  setLinkPickerOpen(true)
+                  onPickHighlightColor(c)
+                  setPaletteOpen(false)
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="format-toolbar-modal-memo-link" role="group" aria-label="메모 연결">
+          <button
+            type="button"
+            className="format-toolbar-modal-open-memo-links"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setLinkPickerOpen(true)
+              setActionModalOpen(false)
+            }}
+          >
+            <IconToolbarMemoLink size={14} /> 다른 메모로 연결
+          </button>
+        </div>
+        <div className="format-toolbar-modal-heading" role="group" aria-label="제목 위계">
+          <p className="format-toolbar-modal-hl-label">제목 위계</p>
+          <div className="format-toolbar-modal-heading-row">
+            {([1, 2, 3, 4, 5] as const).map((lv) => (
+              <button
+                key={lv}
+                type="button"
+                className={`format-toolbar-btn format-toolbar-btn--heading${headingLevel === lv ? ' format-toolbar-btn--active' : ''}`}
+                title={`Ctrl+${lv} / ${HEADING_MARKER_TOOLTIP[lv]}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onHeading(lv)
                   setActionModalOpen(false)
                 }}
               >
-                <IconToolbarMemoLink size={14} /> 다른 메모로 연결
+                H{lv}
               </button>
-            </div>
-            <div className="format-toolbar-modal-heading" role="group" aria-label="제목 위계">
-              <p className="format-toolbar-modal-hl-label">제목 위계</p>
-              <div className="format-toolbar-modal-heading-row">
-                {([1, 2, 3, 4, 5] as const).map((lv) => (
-                  <button
-                    key={lv}
-                    type="button"
-                    className={`format-toolbar-btn format-toolbar-btn--heading${headingLevel === lv ? ' format-toolbar-btn--active' : ''}`}
-                    title={`Ctrl+${lv} / ${HEADING_MARKER_TOOLTIP[lv]}`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      onHeading(lv)
-                      setActionModalOpen(false)
-                    }}
-                  >
-                    H{lv}
-                  </button>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
-      ) : null}
-      {paletteOpen && !compactActions ? (
-        <div
-          className="format-highlight-popover"
-          role="menu"
-          aria-label="하이라이트 색"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {HL_SWATCHES.map((c) => (
-            <button
-              key={c}
-              type="button"
-              role="menuitem"
-              className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
-              title={HL_LABEL[c]}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-              }}
-              onClick={() => {
-                onPickHighlightColor(c)
-                setPaletteOpen(false)
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
-      {linkPickerOpen ? linkPickerModal : null}
+      </div>
     </div>
+  )
+
+  return (
+    <>
+      <div className="format-toolbar-wrap">
+        <EmojiPalette
+          open={symbolPaletteOpen}
+          anchorRef={symbolBtnRef}
+          onClose={onCloseSymbolPalette}
+          onSelectSymbol={onSymbolSelect}
+        />
+        {compactActions ? (
+          <div className="format-toolbar format-toolbar--compact-row" role="toolbar" aria-label="텍스트 서식 (축약)">
+            {symbolButton}
+            {moreToolsButton}
+          </div>
+        ) : (
+          <div className="format-toolbar" role="toolbar" aria-label="텍스트 서식">
+            {symbolButton}
+            {formattingButtons}
+            {moreToolsButton}
+          </div>
+        )}
+        {paletteOpen && !compactActions ? (
+          <div
+            className="format-highlight-popover"
+            role="menu"
+            aria-label="하이라이트 색"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {HL_SWATCHES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                role="menuitem"
+                className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
+                title={HL_LABEL[c]}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onClick={() => {
+                  onPickHighlightColor(c)
+                  setPaletteOpen(false)
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {actionModalOpen ? createPortal(actionToolsModal, getEditPopoverRoot()) : null}
+      {linkPickerOpen ? createPortal(linkPickerModal, getEditPopoverRoot()) : null}
+    </>
   )
 }
