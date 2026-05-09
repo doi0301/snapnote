@@ -841,31 +841,37 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       setMultiLineSelection(null)
       const newT = e.target.value
 
-      if (newT === '[] ') {
-        pendingFocusRef.current = { index, cursor: 0 }
-        setLines((prev) => {
-          const cur = prev[index]
-          if (!cur) return prev
-          const f = cur.formatting ?? {}
-          return prev.map((l, i) =>
-            i === index
-              ? { ...l, text: '', formatting: { ...f, hasCheckbox: true, checkboxChecked: false } }
-              : l
-          )
-        })
-        return
-      }
+      {
+        const oldT = lines[index]?.text ?? ''
+        if (newT.startsWith('[] ') && !oldT.startsWith('[] ')) {
+          const rest = newT.slice(3)
+          pendingFocusRef.current = { index, cursor: rest.length }
+          setLines((prev) => {
+            const cur = prev[index]
+            if (!cur) return prev
+            const f = cur.formatting ?? {}
+            const spans = rest ? remapSpansAfterEdit(cur.text, rest, cur.spans) : undefined
+            return prev.map((l, i) =>
+              i === index
+                ? { ...l, text: rest, spans, formatting: { ...f, hasCheckbox: true, checkboxChecked: false } }
+                : l
+            )
+          })
+          return
+        }
 
-      if (newT === '- ' || newT === '+ ') {
-        pendingFocusRef.current = { index, cursor: 2 }
-        setLines((prev) => {
-          const cur = prev[index]
-          if (!cur) return prev
-          const oldT = cur.text
-          const spans = remapSpansAfterEdit(oldT, '• ', cur.spans)
-          return prev.map((l, i) => (i === index ? { ...l, text: '• ', spans } : l))
-        })
-        return
+        if ((newT.startsWith('- ') || newT.startsWith('+ ')) && !oldT.startsWith('- ') && !oldT.startsWith('+ ') && !oldT.startsWith('• ')) {
+          const rest = newT.slice(2)
+          const replaced = '• ' + rest
+          pendingFocusRef.current = { index, cursor: replaced.length }
+          setLines((prev) => {
+            const cur = prev[index]
+            if (!cur) return prev
+            const spans = remapSpansAfterEdit(cur.text, replaced, cur.spans)
+            return prev.map((l, i) => (i === index ? { ...l, text: replaced, spans } : l))
+          })
+          return
+        }
       }
 
       setLines((prev) => {
@@ -880,7 +886,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
       })
     },
-    []
+    [lines]
   )
 
   const mergeWithPrevious = useCallback(
