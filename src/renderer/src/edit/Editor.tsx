@@ -840,6 +840,34 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       /** 클릭으로만 잡힌 multiLineSelection 이 남으면 lines 변경 시 selection sync effect 가 오래된 offset 으로 커서를 되돌려 앞쪽 삽입 버그가 난다 */
       setMultiLineSelection(null)
       const newT = e.target.value
+
+      if (newT === '[] ') {
+        pendingFocusRef.current = { index, cursor: 0 }
+        setLines((prev) => {
+          const cur = prev[index]
+          if (!cur) return prev
+          const f = cur.formatting ?? {}
+          return prev.map((l, i) =>
+            i === index
+              ? { ...l, text: '', formatting: { ...f, hasCheckbox: true, checkboxChecked: false } }
+              : l
+          )
+        })
+        return
+      }
+
+      if (newT === '- ' || newT === '+ ') {
+        pendingFocusRef.current = { index, cursor: 2 }
+        setLines((prev) => {
+          const cur = prev[index]
+          if (!cur) return prev
+          const oldT = cur.text
+          const spans = remapSpansAfterEdit(oldT, '• ', cur.spans)
+          return prev.map((l, i) => (i === index ? { ...l, text: '• ', spans } : l))
+        })
+        return
+      }
+
       setLines((prev) => {
         const line = prev[index]
         if (!line) return prev
