@@ -15,27 +15,33 @@ import {
 } from './toolbarIcons'
 import './format-toolbar.css'
 
-/** 노랑·초록·분홍·회색 */
-const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'gray']
+/** 노랑·초록·분홍·회색·파랑·주황·보라 */
+const HL_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'gray', 'blue', 'orange', 'purple']
 
 const HL_LABEL: Record<HighlightColor, string> = {
   yellow: '노랑',
   green: '초록',
   pink: '분홍',
-  gray: '회색'
+  gray: '회색',
+  blue: '파랑',
+  orange: '주황',
+  purple: '보라'
 }
 
 /** 본문에 붙는 실제 마커 — Editor.tsx 의 HEADING_MARKERS 와 동일 */
-const HEADING_MARKER_TOOLTIP: Record<1 | 2 | 3 | 4 | 5, string> = {
+const HEADING_MARKER_TOOLTIP: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
   1: '[ ]',
   2: '< >',
   3: '( )',
-  4: '\u25B8\u00A0',
-  5: '-\u00A0'
+  4: '-\u00A0',
+  5: '\u25B8\u00A0',
+  6: '\u25AB\u00A0'
 }
 
 export interface FormatToolbarProps {
   boldActive: boolean
+  /** H3 ( ) 위계 등 — 볼드 비활성 */
+  boldDisabled?: boolean
   strikeActive: boolean
   underlineActive: boolean
   lineCheckboxActive: boolean
@@ -52,8 +58,8 @@ export interface FormatToolbarProps {
   onApplyMemoLink: (targetMemoId: MemoId) => void
   onClearMemoLinks: () => void
   openLinkPicker?: boolean
-  headingLevel?: 1 | 2 | 3 | 4 | 5
-  onHeading: (level: 1 | 2 | 3 | 4 | 5) => void
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  onHeading: (level: 1 | 2 | 3 | 4 | 5 | 6) => void
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
@@ -63,6 +69,7 @@ export interface FormatToolbarProps {
 
 export function FormatToolbar({
   boldActive,
+  boldDisabled = false,
   strikeActive,
   underlineActive,
   lineCheckboxActive,
@@ -173,9 +180,10 @@ export function FormatToolbar({
     <>
       <button
         type="button"
-        className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--bold${boldActive ? ' format-toolbar-btn--active' : ''}`}
+        className={`format-toolbar-btn format-toolbar-btn--icon format-toolbar-btn--bold${boldActive ? ' format-toolbar-btn--active' : ''}${boldDisabled ? ' format-toolbar-btn--disabled' : ''}`}
         aria-pressed={boldActive}
-        title="굵게 (Ctrl+B)"
+        disabled={boldDisabled}
+        title={boldDisabled ? '굵게 — ( ) 위계에는 사용할 수 없음' : '굵게 (Ctrl+B)'}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onBold}
       >
@@ -322,7 +330,7 @@ export function FormatToolbar({
         <div className="format-toolbar-modal-heading" role="group" aria-label="제목 위계">
           <p className="format-toolbar-modal-hl-label">제목 위계</p>
           <div className="format-toolbar-modal-heading-row">
-            {([1, 2, 3, 4, 5] as const).map((lv) => (
+            {([1, 2, 3, 4, 5, 6] as const).map((lv) => (
               <button
                 key={lv}
                 type="button"

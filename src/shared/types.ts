@@ -4,7 +4,10 @@
 
 export type MemoId = string
 
-export type HighlightColor = 'yellow' | 'green' | 'pink' | 'gray'
+export type HighlightColor = 'yellow' | 'green' | 'pink' | 'gray' | 'blue' | 'orange' | 'purple'
+
+/** 거터 단축키 강조 바 (자동 계층 없음) */
+export type AccentBarKind = 'blue' | 'teal' | 'orange'
 
 /** 인라인 서식 구간 */
 export interface TextSpan {
@@ -25,8 +28,16 @@ export interface LineFormatting {
   hasCheckbox?: boolean
   checkboxChecked?: boolean
   hasDivider?: boolean
-  /** Ctrl+1~5 위계 레벨 (1=가장 큰 제목, 5=소제목) */
-  headingLevel?: 1 | 2 | 3 | 4 | 5
+  /** Ctrl+1~6 위계 (H4 `- ` · H5 `▸ ` · H6 `▫ `) */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  /** 단축키로 줄마다 설정하는 왼쪽 강조 바 */
+  accentBar?: AccentBarKind | null
+  /** 이 줄 전체가 표 셀 편집 모드일 때 */
+  isTable?: boolean
+  /** 행 × 열 (열 최대 5, 빈 문자열 허용) */
+  tableRows?: string[][]
+  /** 표시·편집할 열 수 (2~5, 내용보다 우선) */
+  tableCols?: number
 }
 
 /** 에디터 한 줄 */

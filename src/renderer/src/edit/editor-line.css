@@ -58,6 +58,12 @@
   text-shadow: 0.35px 0 currentColor, -0.35px 0 currentColor;
 }
 
+.editor-line--heading-1 .inline-bold,
+.editor-line--heading-2 .inline-bold {
+  font-weight: 700;
+  text-shadow: 0.35px 0 currentColor, -0.35px 0 currentColor;
+}
+
 .inline-strike {
   text-decoration: line-through;
 }
@@ -87,6 +93,21 @@
   border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+.inline-hl-blue {
+  background-color: rgba(191, 219, 254, 0.88);
+  border-radius: 2px;
+}
+
+.inline-hl-orange {
+  background-color: rgba(254, 215, 170, 0.88);
+  border-radius: 2px;
+}
+
+.inline-hl-purple {
+  background-color: rgba(233, 213, 255, 0.88);
+  border-radius: 2px;
 }
 
 .inline-memo-link {
@@ -127,6 +148,7 @@
 .editor-line-gutter {
   flex-shrink: 0;
   box-sizing: border-box;
+  position: relative;
   border-right: 1px solid #e0e0e0;
   background-color: rgba(0, 0, 0, var(--indent-alpha, 0.02));
   background-image: repeating-linear-gradient(
@@ -137,6 +159,28 @@
     #ccc var(--indent-step, 20px)
   );
   background-size: var(--indent-step, 20px) 100%;
+}
+
+.editor-line-accent-bar {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px 0 0 2px;
+  pointer-events: none;
+}
+
+.editor-line-gutter--accent-blue .editor-line-accent-bar {
+  background: #2563eb;
+}
+
+.editor-line-gutter--accent-teal .editor-line-accent-bar {
+  background: #0d9488;
+}
+
+.editor-line-gutter--accent-orange .editor-line-accent-bar {
+  background: #ea580c;
 }
 
 .editor-line-textarea {
@@ -166,17 +210,20 @@
   outline: none;
 }
 
-/* Ctrl+1~5 위계 스타일 */
+/* Ctrl+1~6 위계 스타일 */
 .editor-line--heading-1 .editor-line-textarea,
 .editor-line--heading-1 .editor-line-mirror { font-size: 15px; font-weight: 700; }
 .editor-line--heading-2 .editor-line-textarea,
 .editor-line--heading-2 .editor-line-mirror { font-weight: 700; }
+/* H3 ( ) — 본문과 동일 굵기, 볼드 미적용 */
 .editor-line--heading-3 .editor-line-textarea,
-.editor-line--heading-3 .editor-line-mirror { font-weight: 700; }
+.editor-line--heading-3 .editor-line-mirror { font-weight: 400; }
 .editor-line--heading-4 .editor-line-textarea,
 .editor-line--heading-4 .editor-line-mirror { font-weight: 400; }
 .editor-line--heading-5 .editor-line-textarea,
 .editor-line--heading-5 .editor-line-mirror { font-weight: 400; }
+.editor-line--heading-6 .editor-line-textarea,
+.editor-line--heading-6 .editor-line-mirror { font-weight: 400; }
 
 .editor-line-divider {
   width: 100%;

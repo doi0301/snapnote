@@ -8,14 +8,12 @@ export function normalizeHighlightColor(raw: string | undefined | null): Highlig
     case 'green':
     case 'pink':
     case 'gray':
-      return raw
     case 'blue':
+    case 'orange':
+    case 'purple':
+      return raw
     case 'mint':
       return 'green'
-    case 'orange':
-      return 'yellow'
-    case 'purple':
-      return 'pink'
     default:
       return 'yellow'
   }

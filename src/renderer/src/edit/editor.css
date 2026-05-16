@@ -70,10 +70,31 @@
   min-height: 120px;
 }
 
-.editor-sticky-sentinel {
-  height: 0;
+/* 맨 아래 표·중간선 다음 줄이 없을 때 클릭 영역 */
+.editor-block-after-pad {
+  display: block;
+  width: 100%;
+  min-height: 36px;
   margin: 0;
   padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: text;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.editor-block-after-pad:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.editor-sticky-sentinel {
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .editor-line--sticky-title {
@@ -85,21 +106,71 @@
 }
 
 .editor-line--sticky-title.editor-line--stuck {
-  background: rgba(26, 26, 26, var(--window-bg-alpha, 1));
+  background: #1a1a1a;
   border-bottom: 2px solid #333;
-}
-
-.editor-line--sticky-title.editor-line--stuck .editor-line-mirror,
-.editor-line--sticky-title.editor-line--stuck textarea {
-  color: #ffffff;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .editor-line--sticky-title.editor-line--stuck textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: transparent;
 }
 
-.editor-line--sticky-title.editor-line--stuck textarea {
+.editor-line--sticky-title.editor-line--stuck .editor-line-textarea {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
   caret-color: #ffffff;
+}
+
+/* 상단 고정 시 제목 한 줄 높이로 접기 — 본문과 겹침 방지 */
+.editor-line--sticky-title.editor-line--stuck {
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  overflow: hidden;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.editor-line--sticky-title.editor-line--stuck .editor-line-editor {
+  height: calc(1.38em + 10px);
+  max-height: calc(1.38em + 10px);
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+}
+
+.editor-line--sticky-title.editor-line--stuck .editor-line-mirror {
+  display: none;
+}
+
+.editor-sticky-title-preview {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: calc(1.38em + 10px);
+  padding: 5px 12px 5px 10px;
+  box-sizing: border-box;
+  font-size: 14px;
+  line-height: 1.38;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 2;
+  color: #ffffff;
+}
+
+.editor-line--sticky-title.editor-line--stuck .editor-line-textarea {
+  height: calc(1.38em + 10px) !important;
+  max-height: calc(1.38em + 10px) !important;
+  min-height: 28px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
 }
 
 .editor-copy-toast {

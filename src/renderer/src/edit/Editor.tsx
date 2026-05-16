@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -8,11 +9,20 @@ import {
   useState,
   forwardRef
 } from 'react'
-import type { EditorLine as EditorLineModel, HighlightColor, Memo, MemoId, TextSpan } from '@shared/types'
+import type {
+  AccentBarKind,
+  EditorLine as EditorLineModel,
+  HighlightColor,
+  Memo,
+  MemoId,
+  TextSpan
+} from '@shared/types'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
+import { EditorBlockAfterPad } from './EditorBlockAfterPad'
 import { EditorLineView } from './EditorLine'
 import { ClipboardHistoryControl } from './ClipboardPanel'
 import { FormatToolbar } from './FormatToolbar'
+import { TableEditorRow } from './TableLineView'
 import { TagInput } from './TagInput'
 import { MAX_INDENT, normalizeEditorLines } from './editorLines'
 import {
@@ -31,10 +41,12 @@ import {
   splitSpansAt,
   toggleHighlightColor,
   toggleMemoLinkOnRange,
-  toggleSpanProperty
+  toggleSpanProperty,
+  stripBoldFromInterval
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
+import { tableRowsToTsv } from './tableLine'
 import './editor.css'
 
 export { normalizeEditorLines } from './editorLines'
@@ -125,8 +137,79 @@ const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = 
   1: { open: '[', close: ']' },
   2: { open: '<', close: '>' },
   3: { open: '(', close: ')' },
-  4: { open: '\u25B8 ', close: null },
-  5: { open: '- ', close: null }
+  4: { open: '- ', close: null },
+  5: { open: '\u25B8 ', close: null },
+  6: { open: '\u25AB ', close: null }
+}
+
+function headingUsesStructuralBold(level?: number): boolean {
+  return level === 1 || level === 2
+}
+
+function headingBlocksBold(level?: number): boolean {
+  return level === 3
+}
+
+function isPrefixHeadingLevel(level: number): boolean {
+  return level >= 4 && level <= 6
+}
+
+/** Ctrl+Shift+H — 줄별 순환 */
+const ACCENT_BAR_CYCLE: Array<AccentBarKind | null> = [null, 'blue', 'teal', 'orange']
+
+function mergeSpansForBracketHeadingJoin(
+  prev: EditorLineModel[],
+  startLine: number,
+  endLine: number,
+  joinedInner: string,
+  markerOpenLen: number
+): TextSpan[] | undefined {
+  type Part = { lineIdx: number; stripped: string; innerStart: number; innerEnd: number }
+  const parts: Part[] = []
+  for (let i = startLine; i <= endLine; i++) {
+    const line = prev[i]
+    if (!line) continue
+    const stripped = stripAllHeadingMarkers(line.text).trim()
+    if (!stripped) continue
+    const innerStart = line.text.indexOf(stripped)
+    if (innerStart === -1) continue
+    parts.push({
+      lineIdx: i,
+      stripped,
+      innerStart,
+      innerEnd: innerStart + stripped.length
+    })
+  }
+  if (!parts.length) return undefined
+
+  let joinedCheck = ''
+  const offsets: number[] = []
+  let first = true
+  for (const p of parts) {
+    if (!first) joinedCheck += ' '
+    first = false
+    offsets.push(joinedCheck.length)
+    joinedCheck += p.stripped
+  }
+  if (joinedCheck !== joinedInner) return undefined
+
+  const merged: TextSpan[] = []
+  for (let pi = 0; pi < parts.length; pi++) {
+    const p = parts[pi]!
+    const offsetInJoined = offsets[pi]!
+    const line = prev[p.lineIdx]!
+    for (const s of line.spans ?? []) {
+      const lo = Math.max(s.start, p.innerStart)
+      const hi = Math.min(s.end, p.innerEnd)
+      if (lo >= hi) continue
+      merged.push({
+        ...s,
+        start: markerOpenLen + offsetInJoined + (lo - p.innerStart),
+        end: markerOpenLen + offsetInJoined + (hi - p.innerStart)
+      })
+    }
+  }
+  return merged.length ? merged.sort((a, b) => a.start - b.start || a.end - b.end) : undefined
 }
 
 function stripAllHeadingMarkers(text: string): string {
@@ -155,8 +238,8 @@ function stripAllHeadingMarkers(text: string): string {
   return t
 }
 
-/** H4/H5: 맨 앞 가운데점 목록(`• `)이 있으면 제목 접두와 겹치지 않도록 제거한 본문 */
-function stripLeadingBulletForH45(stripped: string): string {
+/** H4~H6 접두형: 맨 앞 가운데점 목록(`• `)이 있으면 제목 접두와 겹치지 않도록 제거한 본문 */
+function stripLeadingBulletForPrefixHeadings(stripped: string): string {
   return stripped.replace(/^(\s*)• /, '$1')
 }
 
@@ -197,7 +280,16 @@ function spanSignatureHash(line: EditorLineModel): number {
     hash = Math.imul(hash, 16777619)
     hash ^= s.strikethrough ? 2 : 0
     hash = Math.imul(hash, 16777619)
-    hash ^= s.highlight === 'yellow' ? 3 : s.highlight === 'green' ? 5 : s.highlight === 'pink' ? 7 : s.highlight === 'gray' ? 11 : 0
+    if (s.highlight) {
+      const id = String(s.highlight)
+      for (let j = 0; j < id.length; j++) {
+        hash ^= id.charCodeAt(j)
+        hash = Math.imul(hash, 16777619)
+      }
+    } else {
+      hash ^= 17
+      hash = Math.imul(hash, 16777619)
+    }
     hash = Math.imul(hash, 16777619)
     if (s.memoLinkId) {
       const id = s.memoLinkId
@@ -227,14 +319,20 @@ const NONE_HL_FULL: Record<HighlightColor, boolean> = {
   yellow: false,
   green: false,
   pink: false,
-  gray: false
+  gray: false,
+  blue: false,
+  orange: false,
+  purple: false
 }
 
 const ALL_HL_FULL: Record<HighlightColor, boolean> = {
   yellow: true,
   green: true,
   pink: true,
-  gray: true
+  gray: true,
+  blue: true,
+  orange: true,
+  purple: true
 }
 
 function highlightFullByRange(sp: TextSpan[], a: number, b: number): Record<HighlightColor, boolean> {
@@ -242,7 +340,10 @@ function highlightFullByRange(sp: TextSpan[], a: number, b: number): Record<High
     yellow: rangeFullyHasHighlight(sp, a, b, 'yellow'),
     green: rangeFullyHasHighlight(sp, a, b, 'green'),
     pink: rangeFullyHasHighlight(sp, a, b, 'pink'),
-    gray: rangeFullyHasHighlight(sp, a, b, 'gray')
+    gray: rangeFullyHasHighlight(sp, a, b, 'gray'),
+    blue: rangeFullyHasHighlight(sp, a, b, 'blue'),
+    orange: rangeFullyHasHighlight(sp, a, b, 'orange'),
+    purple: rangeFullyHasHighlight(sp, a, b, 'purple')
   }
 }
 
@@ -254,7 +355,10 @@ function mergeHighlightFullAnd(
     yellow: acc.yellow && next.yellow,
     green: acc.green && next.green,
     pink: acc.pink && next.pink,
-    gray: acc.gray && next.gray
+    gray: acc.gray && next.gray,
+    blue: acc.blue && next.blue,
+    orange: acc.orange && next.orange,
+    purple: acc.purple && next.purple
   }
 }
 
@@ -299,6 +403,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const pendingFocusRef = useRef<{ index: number; cursor: number } | null>(null)
   const [focusLineIndex, setFocusLineIndex] = useState(0)
   const pendingBoldLineIdsRef = useRef<Set<string>>(new Set())
+  /** sticky 제목이 상단에 붙었을 때 — 한 줄 높이로 고정 */
+  const titleLineStuckRef = useRef(false)
   const [toolbarTick, setToolbarTick] = useState(0)
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
@@ -555,17 +661,64 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   useAutoSave(save, [lines, memo.id])
 
-  const resizeOneLineTextarea = useCallback((el: HTMLTextAreaElement | null): void => {
+  const resizeOneLineTextarea = useCallback((el: HTMLTextAreaElement | null, lineIndex?: number): void => {
     if (!el) return
+    if (lineIndex === 0 && titleLineStuckRef.current) {
+      el.style.height = 'calc(1.38em + 10px)'
+      el.style.overflow = 'hidden'
+      return
+    }
+    el.style.overflow = ''
     el.style.height = 'auto'
     el.style.height = `${Math.max(28, el.scrollHeight)}px`
   }, [])
+
+  const handleTitleStickyStuckChange = useCallback(
+    (stuck: boolean) => {
+      const scrollEl = editorScrollRef.current
+      const titleTa = textareaRefs.current[0]
+      const titleLineEl = titleTa?.closest('.editor-line') as HTMLElement | null
+
+      if (stuck && scrollEl && titleLineEl) {
+        const prevLineHeight = titleLineEl.offsetHeight
+        titleLineStuckRef.current = true
+        resizeOneLineTextarea(titleTa, 0)
+        requestAnimationFrame(() => {
+          const nextLineHeight = titleLineEl.offsetHeight
+          const delta = Math.max(0, prevLineHeight - nextLineHeight)
+          if (delta > 0) {
+            scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop - delta)
+          }
+        })
+        return
+      }
+
+      if (!stuck && scrollEl && titleLineEl) {
+        const prevLineHeight = titleLineEl.offsetHeight
+        titleLineStuckRef.current = false
+        resizeOneLineTextarea(titleTa ?? null, 0)
+        requestAnimationFrame(() => {
+          const nextLineHeight = titleLineEl.offsetHeight
+          const delta = Math.max(0, nextLineHeight - prevLineHeight)
+          // 맨 위(scrollTop≈0)에서는 높이만 늘리고 스크롤 보정하지 않음 — 보정 시 다시 stuck 됨
+          if (delta > 0 && scrollEl.scrollTop > 1) {
+            scrollEl.scrollTop = scrollEl.scrollTop + delta
+          }
+        })
+        return
+      }
+
+      titleLineStuckRef.current = stuck
+      resizeOneLineTextarea(titleTa ?? null, 0)
+    },
+    [resizeOneLineTextarea]
+  )
 
   /** textarea 높이를 auto로 풀었다가 다시 잡으면 스크롤 컨테이너 scrollTop이 0으로 떨어지는 경우가 있어 복원 */
   const resizeAllLineTextareaHeights = useCallback((): void => {
     const scrollEl = editorScrollRef.current
     const prevTop = scrollEl?.scrollTop ?? 0
-    textareaRefs.current.forEach((el) => resizeOneLineTextarea(el))
+    textareaRefs.current.forEach((el, i) => resizeOneLineTextarea(el, i))
     if (scrollEl) scrollEl.scrollTop = prevTop
   }, [resizeOneLineTextarea])
 
@@ -579,8 +732,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const nextTexts = new Array<string>(lineCount)
       let resizedCount = 0
       if (!prevTexts || prevTexts.length !== lineCount) {
-        textareaRefs.current.forEach((el) => {
-          resizeOneLineTextarea(el)
+        textareaRefs.current.forEach((el, i) => {
+          resizeOneLineTextarea(el, i)
           if (el) resizedCount++
         })
         for (let i = 0; i < lineCount; i++) nextTexts[i] = lines[i]?.text ?? ''
@@ -592,7 +745,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const text = lines[i]?.text ?? ''
         nextTexts[i] = text
         if (prevTexts[i] === text) continue
-        resizeOneLineTextarea(textareaRefs.current[i] ?? null)
+        resizeOneLineTextarea(textareaRefs.current[i] ?? null, i)
         resizedCount++
       }
       prevLineTextsForResizeRef.current = nextTexts
@@ -788,7 +941,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             if (first) cache.delete(first)
           }
         }
-        boldAll = boldAll && segEval.boldAll
+        const hlLn = ln.formatting?.headingLevel
+        let segBold = segEval.boldAll
+        if (headingBlocksBold(hlLn)) segBold = false
+        else if (headingUsesStructuralBold(hlLn)) segBold = true
+        boldAll = boldAll && segBold
         strikeAll = strikeAll && segEval.strikeAll
         underlineAll = underlineAll && segEval.underlineAll
         hlAll = hlAll && segEval.highlightAll
@@ -816,7 +973,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
     if (!line || !ta) {
       return finish({
-        boldActive: pendingBold,
+        boldActive: line?.formatting?.isTable ? false : pendingBold,
+        strikeActive: false,
+        underlineActive: false,
+        highlightActive: false,
+        highlightFullByColor: NONE_HL_FULL,
+        memoLinkActive: false,
+        lineCheckboxActive,
+        lineDividerActive
+      })
+    }
+
+    const sp = line.spans ?? []
+    const len = line.text.length
+    const hlCur = line.formatting?.headingLevel
+
+    if (line.formatting?.isTable) {
+      return finish({
+        boldActive: false,
         strikeActive: false,
         underlineActive: false,
         highlightActive: false,
@@ -829,8 +1003,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
     const s = ta.selectionStart
     const e = ta.selectionEnd
-    const sp = line.spans ?? []
-    const len = line.text.length
 
     if (s === e) {
       const ref = caretReferenceCharIndex(s, len)
@@ -842,8 +1014,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         ref === null ? NONE_HL_FULL : highlightFullByRange(sp, ref, ref + 1)
       const memoLinkAtCaret =
         ref === null ? false : rangeFullyHasAnyMemoLink(sp, ref, ref + 1)
+      const boldToolbar =
+        headingBlocksBold(hlCur)
+          ? false
+          : headingUsesStructuralBold(hlCur)
+            ? true
+            : pendingBold || boldAtCaret
       return finish({
-        boldActive: pendingBold || boldAtCaret,
+        boldActive: boldToolbar,
         strikeActive: strikeAtCaret,
         underlineActive: underlineAtCaret,
         highlightActive: hlAtCaret,
@@ -854,8 +1032,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       })
     }
 
+    const boldRangeToolbar =
+      headingBlocksBold(hlCur)
+        ? false
+        : headingUsesStructuralBold(hlCur)
+          ? true
+          : pendingBold || rangeFullyHasProp(sp, s, e, 'bold')
+
     return finish({
-      boldActive: pendingBold || rangeFullyHasProp(sp, s, e, 'bold'),
+      boldActive: boldRangeToolbar,
       strikeActive: rangeFullyHasProp(sp, s, e, 'strikethrough'),
       underlineActive: rangeFullyHasProp(sp, s, e, 'underline'),
       highlightActive: rangeFullyHasAnyHighlight(sp, s, e),
@@ -975,7 +1160,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           return
         }
 
-        if ((newT.startsWith('- ') || newT.startsWith('+ ')) && !oldT.startsWith('- ') && !oldT.startsWith('+ ') && !oldT.startsWith('• ')) {
+        if (
+          (newT.startsWith('- ') || newT.startsWith('+ ')) &&
+          lines[index]?.formatting?.headingLevel !== 4 &&
+          !oldT.startsWith('- ') &&
+          !oldT.startsWith('+ ') &&
+          !oldT.startsWith('• ')
+        ) {
           const rest = newT.slice(2)
           const replaced = '• ' + rest
           pendingFocusRef.current = { index, cursor: replaced.length }
@@ -996,12 +1187,72 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         let spans = remapSpansAfterEdit(oldT, newT, line.spans)
         const ins = insertionIndexIfSingleChar(oldT, newT)
         if (ins !== null && pendingBoldLineIdsRef.current.has(line.id)) {
-          spans = addBoldOnRange(spans, ins, ins + 1)
+          const hl = line.formatting?.headingLevel
+          if (!headingUsesStructuralBold(hl) && !headingBlocksBold(hl)) {
+            spans = addBoldOnRange(spans, ins, ins + 1)
+          }
         }
         return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
       })
     },
     [lines]
+  )
+
+  const insertEmptyLineBelow = useCallback(
+    (index: number) => {
+      setMultiLineSelection(null)
+      const cur = linesRef.current
+      pushUndoSnapshot(cur, index + 1, 0)
+      const base = cur[index]
+      const newLine: EditorLineModel = {
+        id: crypto.randomUUID(),
+        text: '',
+        indentLevel: base?.indentLevel ?? 0,
+        formatting: {}
+      }
+      pendingFocusRef.current = { index: index + 1, cursor: 0 }
+      setLines((prev) => {
+        const next = [...prev]
+        next.splice(index + 1, 0, newLine)
+        return next
+      })
+      bumpToolbar()
+    },
+    [bumpToolbar, pushUndoSnapshot]
+  )
+
+  /** 표 UI(마지막 행 ×) 또는 아랫줄 Backspace — 표 줄 삭제 */
+  const deleteTableLine = useCallback(
+    (lineIndex: number, focusLineIndex?: number, cursor = 0) => {
+      setMultiLineSelection(null)
+      const cur = linesRef.current
+      if (lineIndex < 0 || lineIndex >= cur.length) return
+      if (!cur[lineIndex]?.formatting?.isTable) return
+      const hasBelow = lineIndex < cur.length - 1
+      const focusIndex =
+        focusLineIndex != null
+          ? focusLineIndex - 1
+          : hasBelow
+            ? lineIndex
+            : Math.max(0, lineIndex - 1)
+      setLines((prev) => {
+        if (lineIndex < 0 || lineIndex >= prev.length) return prev
+        if (!prev[lineIndex]?.formatting?.isTable) return prev
+        const next = [...prev.slice(0, lineIndex), ...prev.slice(lineIndex + 1)]
+        return next.length ? next : normalizeEditorLines([])
+      })
+      pendingFocusRef.current = { index: focusIndex, cursor }
+      bumpToolbar()
+    },
+    [bumpToolbar]
+  )
+
+  /** 표 바로 아랫줄 맨 앞에서 Backspace — 표 줄 삭제 */
+  const deleteTableLineAbove = useCallback(
+    (tableLineIndex: number, focusLineIndex: number, cursor: number) => {
+      deleteTableLine(tableLineIndex, focusLineIndex, cursor)
+    },
+    [deleteTableLine]
   )
 
   const mergeWithPrevious = useCallback(
@@ -1011,6 +1262,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const before = prev[index - 1]
         const current = prev[index]
         if (!before || !current) return prev
+        if (before.formatting?.isTable || current.formatting?.isTable) return prev
         const joinAt = before.text.length
         pendingFocusRef.current = { index: index - 1, cursor: joinAt }
         const remaining = current.text.slice(cutStart)
@@ -1038,6 +1290,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const toggleBold = useCallback(() => {
+    const applyBoldSegment = (line: EditorLineModel, seg: { s: number; e: number }): EditorLineModel => {
+      const hl = line.formatting?.headingLevel
+      pendingBoldLineIdsRef.current.delete(line.id)
+      if (headingBlocksBold(hl)) return line
+      const sp = line.spans ?? []
+      if (headingUsesStructuralBold(hl)) {
+        if (rangeFullyHasProp(sp, seg.s, seg.e, 'bold')) {
+          const nextSpans = toggleSpanProperty(sp, 'bold', seg.s, seg.e, line.text.length)
+          return { ...line, spans: nextSpans }
+        }
+        return line
+      }
+      const nextSpans = toggleSpanProperty(sp, 'bold', seg.s, seg.e, line.text.length)
+      return { ...line, spans: nextSpans }
+    }
+
     const virtual = multiLineSelectionRef.current
     if (virtual && isVirtualRangeSelection(virtual)) {
       const norm = normalizeSelection(virtual)
@@ -1047,9 +1315,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
           const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
           if (!seg || seg.s === seg.e) return line
-          const nextSpans = toggleSpanProperty(line.spans, 'bold', seg.s, seg.e, line.text.length)
-          pendingBoldLineIdsRef.current.delete(line.id)
-          return { ...line, spans: nextSpans }
+          return applyBoldSegment(line, seg)
         })
         queueMicrotask(bumpToolbar)
         return next
@@ -1066,7 +1332,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     setLines((prev) => {
       const line = prev[i]
       if (!line) return prev
+      const hl = line.formatting?.headingLevel
+      if (headingBlocksBold(hl)) {
+        queueMicrotask(bumpToolbar)
+        return prev
+      }
       if (s === e) {
+        if (headingUsesStructuralBold(hl)) {
+          pendingBoldLineIdsRef.current.delete(line.id)
+          queueMicrotask(bumpToolbar)
+          return prev
+        }
         const next = new Set(pendingBoldLineIdsRef.current)
         if (next.has(line.id)) next.delete(line.id)
         else next.add(line.id)
@@ -1074,10 +1350,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         queueMicrotask(bumpToolbar)
         return prev
       }
-      const nextSpans = toggleSpanProperty(line.spans, 'bold', s, e, line.text.length)
-      pendingBoldLineIdsRef.current.delete(line.id)
       queueMicrotask(bumpToolbar)
-      return prev.map((l, j) => (j === i ? { ...l, spans: nextSpans } : l))
+      return prev.map((l, j) => (j === i ? applyBoldSegment(line, { s, e }) : l))
     })
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
@@ -1431,7 +1705,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [lines, normalizeSelection, pushUndoSnapshot])
 
   const applyHeading = useCallback(
-    (level: 1 | 2 | 3 | 4 | 5) => {
+    (level: 1 | 2 | 3 | 4 | 5 | 6) => {
       const sel = multiLineSelectionRef.current
       const index = lastFocusIndex.current
       const ta = textareaRefs.current[index]
@@ -1441,8 +1715,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const startLine = norm.startLine
         const endLine = norm.endLine
 
-        /** H4/H5: 줄 합치지 않고 선택된 각 줄에만 접두(▸ / -) + 제목 레벨 적용 */
-        if (level === 4 || level === 5) {
+        /** H4~H6: 줄 합치지 않고 선택된 각 줄에만 접두 + 제목 레벨 적용 */
+        if (isPrefixHeadingLevel(level)) {
           pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
           const marker = HEADING_MARKERS[level]
           setLines((prev) =>
@@ -1460,7 +1734,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   formatting: { ...(l.formatting ?? {}), headingLevel: undefined }
                 }
               }
-              const contentForMarker = stripLeadingBulletForH45(stripped)
+              const contentForMarker = stripLeadingBulletForPrefixHeadings(stripped)
               const newText = marker.close
                 ? marker.open + contentForMarker + marker.close
                 : marker.open + contentForMarker
@@ -1497,10 +1771,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           const newText = marker.close ? marker.open + joinedRaw + marker.close : marker.open + joinedRaw
 
           const base = prev[startLine]
+          const mergedSpans = mergeSpansForBracketHeadingJoin(
+            prev,
+            startLine,
+            endLine,
+            joinedRaw,
+            marker.open.length
+          )
+          let spansOut: TextSpan[] | undefined = mergedSpans
+          if (level === 3 && spansOut?.length && newText.length > 0) {
+            spansOut = stripBoldFromInterval(spansOut, 0, newText.length, newText.length)
+          }
+
           const merged: EditorLineModel = {
             ...base,
             text: newText,
-            spans: undefined,
+            spans: spansOut,
             formatting: { ...(base.formatting ?? {}), headingLevel: level }
           }
           const result = [...prev]
@@ -1542,12 +1828,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             }
           }
 
-          const contentForMarker =
-            level === 4 || level === 5 ? stripLeadingBulletForH45(stripped) : stripped
+          const contentForMarker = isPrefixHeadingLevel(level)
+            ? stripLeadingBulletForPrefixHeadings(stripped)
+            : stripped
           const newText = marker.close
             ? marker.open + contentForMarker + marker.close
             : marker.open + contentForMarker
-          const newSpans = remapSpansForHeadingMarkerChange(l.text, contentForMarker, newText, l.spans)
+          let newSpans = remapSpansForHeadingMarkerChange(l.text, contentForMarker, newText, l.spans)
+          if (level === 3 && newSpans?.length && newText.length > 0) {
+            newSpans = stripBoldFromInterval(newSpans, 0, newText.length, newText.length)
+          }
 
           return {
             ...l,
@@ -1567,8 +1857,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         if (curLevel === level) {
           taEl.setSelectionRange(stripped.length, stripped.length)
         } else {
-          const contentForMarker =
-            level === 4 || level === 5 ? stripLeadingBulletForH45(stripped) : stripped
+          const contentForMarker = isPrefixHeadingLevel(level)
+            ? stripLeadingBulletForPrefixHeadings(stripped)
+            : stripped
           const cursorPos = marker.close
             ? marker.open.length + contentForMarker.length
             : marker.open.length + contentForMarker.length
@@ -1632,8 +1923,121 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     )
   }, [lines, pushUndoSnapshot])
 
+  const showCopyToastBrief = useCallback(() => {
+    if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
+    setCopyToastVisible(true)
+    copyToastTimeoutRef.current = setTimeout(() => {
+      copyToastTimeoutRef.current = null
+      setCopyToastVisible(false)
+    }, 2200)
+  }, [])
+
+  const handleTableRowsChange = useCallback(
+    (lineIndex: number, rows: string[][], tableCols: number) => {
+      setLines((prev) =>
+        prev.map((l, i) =>
+          i === lineIndex
+            ? { ...l, formatting: { ...(l.formatting ?? {}), tableRows: rows, tableCols } }
+            : l
+        )
+      )
+    },
+    []
+  )
+
+  const copyTableLineToClipboard = useCallback(
+    async (lineIndex: number) => {
+      const rows = linesRef.current[lineIndex]?.formatting?.tableRows
+      if (!rows?.length) return
+      try {
+        await window.snapnote.clipboard.writeSystem(tableRowsToTsv(rows), { skipHistory: true })
+        showCopyToastBrief()
+      } catch {
+        /* ignore */
+      }
+    },
+    [showCopyToastBrief]
+  )
+
+  const handleTablePasteFullGrid = useCallback(
+    (lineIndex: number, rows: string[][], tableCols: number) => {
+      setLines((prev) =>
+        prev.map((l, i) =>
+          i === lineIndex
+            ? { ...l, formatting: { ...(l.formatting ?? {}), tableRows: rows, tableCols } }
+            : l
+        )
+      )
+    },
+    []
+  )
+
+  const insertTableBelow = useCallback(() => {
+    setMultiLineSelection(null)
+    const i = lastFocusIndex.current
+    const ta = textareaRefs.current[i]
+    pushUndoSnapshot(lines, i, ta?.selectionStart ?? 0)
+    const indent = lines[i]?.indentLevel ?? 0
+    const newLine: EditorLineModel = {
+      id: crypto.randomUUID(),
+      text: '',
+      indentLevel: indent,
+      formatting: {
+        isTable: true,
+        tableCols: 5,
+        tableRows: [
+          ['', '', '', '', ''],
+          ['', '', '', '', '']
+        ]
+      },
+      spans: undefined
+    }
+    pendingFocusRef.current = { index: i + 1, cursor: 0 }
+    setLines((prev) => {
+      const next = [...prev]
+      next.splice(i + 1, 0, newLine)
+      return next
+    })
+    bumpToolbar()
+  }, [bumpToolbar, lines, pushUndoSnapshot])
+
+  const cycleAccentBarOnTargets = useCallback(() => {
+    const indices: number[] = []
+    const sel = multiLineSelectionRef.current
+    if (sel && isVirtualRangeSelection(sel)) {
+      const norm = normalizeSelection(sel)
+      for (let li = norm.startLine; li <= norm.endLine; li++) indices.push(li)
+    } else {
+      indices.push(lastFocusIndex.current)
+    }
+    const first = indices[0]
+    if (first === undefined) return
+    pushUndoSnapshot(lines, first, textareaRefs.current[first]?.selectionStart ?? 0)
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (!indices.includes(i)) return l
+        const cur = (l.formatting?.accentBar ?? null) as AccentBarKind | null
+        const ix = ACCENT_BAR_CYCLE.indexOf(cur)
+        const nix = ix < 0 ? 0 : (ix + 1) % ACCENT_BAR_CYCLE.length
+        const pick = ACCENT_BAR_CYCLE[nix]!
+        const formatting = { ...(l.formatting ?? {}) }
+        if (pick === null) delete formatting.accentBar
+        else formatting.accentBar = pick
+        return { ...l, formatting }
+      })
+    )
+    bumpToolbar()
+  }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
+
   const copyAllMemoTextToClipboard = useCallback(async () => {
-    const text = linesRef.current.map((l) => l.text).join('\n')
+    const text = linesRef.current
+      .map((l) => {
+        if (l.formatting?.isTable && l.formatting.tableRows?.length) {
+          return tableRowsToTsv(l.formatting.tableRows)
+        }
+        return l.text
+      })
+      .join('\n')
     try {
       await window.snapnote.clipboard.writeSystem(text, { skipHistory: true })
       if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
@@ -1801,10 +2205,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         setTimeout(() => searchInputRef.current?.focus(), 0)
         return
       }
-      if (mod && !e.shiftKey && key >= '1' && key <= '5') {
+      if (mod && !e.shiftKey && key >= '1' && key <= '6') {
         e.preventDefault()
-        const level = Number(key) as 1 | 2 | 3 | 4 | 5
+        const level = Number(key) as 1 | 2 | 3 | 4 | 5 | 6
         applyHeading(level)
+        return
+      }
+
+      if (mod && e.shiftKey && key === 'h') {
+        e.preventDefault()
+        cycleAccentBarOnTargets()
+        return
+      }
+
+      if (mod && e.shiftKey && key === 't') {
+        e.preventDefault()
+        insertTableBelow()
         return
       }
 
@@ -1991,9 +2407,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return
       }
 
-      if (e.key === 'Backspace' && start === 0 && index > 0) {
+      if (e.key === 'Backspace' && start === 0 && end === start && index > 0) {
         e.preventDefault()
         const prevLine = lines[index - 1]
+        if (prevLine?.formatting?.isTable) {
+          pushUndoSnapshot(lines, index, start)
+          deleteTableLineAbove(index - 1, index, start)
+          return
+        }
         if (prevLine?.formatting?.hasDivider) {
           pushUndoSnapshot(lines, index, start)
           setLines((prev) =>
@@ -2011,9 +2432,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
     },
     [
+      applyHeading,
+      cycleAccentBarOnTargets,
+      insertTableBelow,
       copyMultiLineSelectionToClipboard,
       cloneLines,
       deleteMultiLineSelection,
+      deleteTableLineAbove,
       lines,
       mergeWithPrevious,
       moveFocusToLine,
@@ -2239,6 +2664,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     const target = e.target as HTMLElement | null
     if (!target) return
     if (target.closest('.editor-line')) return
+    if (target.closest('.editor-block-after-pad')) return
     if (target.closest('button,input,textarea,[role="button"]')) return
     e.preventDefault()
     setLines((prev) => {
@@ -2339,44 +2765,81 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       )}
       <div ref={editorScrollRef} className="editor-scroll" onPointerDown={onEditorScrollPointerDown}>
         <div className="editor-lines">
-          {lines.map((line, index) => (
-            <EditorLineView
-              key={line.id}
-              ref={(el) => setRefAt(index, el)}
-              line={line}
-              placeholder={index === 0 ? '메모 제목' : ''}
-              isStickyTitle={index === 0}
-              searchHighlights={
-                searchOpen && searchQuery
-                  ? searchMatches
-                      .filter((m) => m.lineIdx === index)
-                      .map((m) => ({ start: m.start, end: m.end }))
-                  : undefined
-              }
-              onChange={(e) => handleLineChange(index, e)}
-              onBeforeInput={(e) => handleBeforeLineInput(index, e)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              onPointerDown={(e) => onLinePointerDown(index, e)}
-              onPointerMove={(e) => onLinePointerMove(index, e)}
-              onPointerLeave={onLinePointerLeave}
-              onFocus={() => {
-                lastFocusIndex.current = index
-                setFocusLineIndex(index)
-                if (suppressNextFocusSelectionClearRef.current) {
-                  suppressNextFocusSelectionClearRef.current = false
-                  return
-                }
-                if (!draggingSelectionRef.current) setMultiLineSelection(null)
-                requestAnimationFrame(() => {
-                  resizeAllLineTextareaHeights()
-                })
-              }}
-              mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
-              onCheckboxToggle={
-                line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
-              }
-            />
-          ))}
+          {lines.map((line, index) => {
+            const isLastLine = index === lines.length - 1
+            const needsLineBelowPad =
+              isLastLine &&
+              Boolean(
+                (line.formatting?.isTable && line.formatting.tableRows) ||
+                  line.formatting?.hasDivider
+              )
+            const row =
+              line.formatting?.isTable && line.formatting.tableRows ? (
+                <TableEditorRow
+                  line={line}
+                  index={index}
+                  bindTextareaRef={setRefAt}
+                  onRowsChange={handleTableRowsChange}
+                  onPasteFullGrid={handleTablePasteFullGrid}
+                  onTableFocus={(i) => {
+                    lastFocusIndex.current = i
+                    setFocusLineIndex(i)
+                  }}
+                onCopyTable={copyTableLineToClipboard}
+                onDeleteTable={(i) => {
+                  pushUndoSnapshot(linesRef.current, i, 0)
+                  deleteTableLine(i)
+                }}
+                onRequestUndo={() => pushUndoSnapshot(linesRef.current, index, 0)}
+                />
+              ) : (
+                <EditorLineView
+                  ref={(el) => setRefAt(index, el)}
+                  line={line}
+                  placeholder={index === 0 ? '메모 제목' : ''}
+                  isStickyTitle={index === 0}
+                  stickyScrollRootRef={index === 0 ? editorScrollRef : undefined}
+                  onStickyStuckChange={index === 0 ? handleTitleStickyStuckChange : undefined}
+                  searchHighlights={
+                    searchOpen && searchQuery
+                      ? searchMatches
+                          .filter((m) => m.lineIdx === index)
+                          .map((m) => ({ start: m.start, end: m.end }))
+                      : undefined
+                  }
+                  onChange={(e) => handleLineChange(index, e)}
+                  onBeforeInput={(e) => handleBeforeLineInput(index, e)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  onPointerDown={(e) => onLinePointerDown(index, e)}
+                  onPointerMove={(e) => onLinePointerMove(index, e)}
+                  onPointerLeave={onLinePointerLeave}
+                  onFocus={() => {
+                    lastFocusIndex.current = index
+                    setFocusLineIndex(index)
+                    if (suppressNextFocusSelectionClearRef.current) {
+                      suppressNextFocusSelectionClearRef.current = false
+                      return
+                    }
+                    if (!draggingSelectionRef.current) setMultiLineSelection(null)
+                    requestAnimationFrame(() => {
+                      resizeAllLineTextareaHeights()
+                    })
+                  }}
+                  mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
+                  onCheckboxToggle={
+                    line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
+                  }
+                />
+              )
+            return (
+              <Fragment key={line.id}>
+                {row}
+                {needsLineBelowPad ? (
+                  <EditorBlockAfterPad onActivate={() => insertEmptyLineBelow(index)} />
+                ) : null}
+              </Fragment>
+            )
+          })}
         </div>
         <textarea
           className="edit-serialized-content"
@@ -2410,6 +2873,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           </button>
           <FormatToolbar
             boldActive={toolbarToggleUi.boldActive}
+            boldDisabled={lines[focusLineIndex]?.formatting?.headingLevel === 3}
             strikeActive={toolbarToggleUi.strikeActive}
             underlineActive={toolbarToggleUi.underlineActive ?? false}
             lineCheckboxActive={toolbarToggleUi.lineCheckboxActive}

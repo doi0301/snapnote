@@ -540,7 +540,8 @@ export class WindowManager {
           this.deps.onNewMemoFromShortcut()
           return
         }
-        if (k === 'h') {
+        /** Ctrl+H 만 히스토리 — Ctrl+Shift+H 는 편집창 강조 바 등에 사용 */
+        if (k === 'h' && !input.shift) {
           event.preventDefault()
           this.deps.onOpenHistoryFromShortcut()
           return

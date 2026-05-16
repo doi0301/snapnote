@@ -6,7 +6,10 @@ const HL_CLASS: Record<HighlightColor, string> = {
   yellow: 'inline-hl-yellow',
   green: 'inline-hl-green',
   pink: 'inline-hl-pink',
-  gray: 'inline-hl-gray'
+  gray: 'inline-hl-gray',
+  blue: 'inline-hl-blue',
+  orange: 'inline-hl-orange',
+  purple: 'inline-hl-purple'
 }
 
 function collectBreakpoints(

@@ -224,6 +224,21 @@ export function toggleSpanProperty(
   return addPropertyToRange(list, prop, aa, bb)
 }
 
+/** 구간에서 볼드만 제거 (위계 H3 등) */
+export function stripBoldFromInterval(
+  spans: TextSpan[] | undefined,
+  a: number,
+  b: number,
+  textLength: number
+): TextSpan[] | undefined {
+  const list = spans ?? []
+  const aa = clamp(a, 0, textLength)
+  const bb = clamp(b, 0, textLength)
+  if (aa >= bb || !list.length) return spans
+  const next = removePropertyFromRange(list, 'bold', aa, bb)
+  return next.length ? next : undefined
+}
+
 /** Enter 줄 분리: split 기준 왼쪽 / 오른쪽 줄 span */
 export function splitSpansAt(
   spans: TextSpan[] | undefined,
