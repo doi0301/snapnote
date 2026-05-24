@@ -1,7 +1,9 @@
 import type { Memo } from '@shared/types'
 import { TrashIcon } from '@renderer/components/TrashIcon'
-import { firstLinePreview } from '@renderer/utils/memoPreview'
+import { SpannedLineMirror } from '@renderer/edit/InlineSpan'
+import { firstLinePreviewSpanned } from '@renderer/utils/memoPreview'
 import { memoHue, type MemoHue } from '@renderer/utils/memoHue'
+import '@renderer/edit/keycap-badge.css'
 import './memoSlotColors.css'
 
 export interface SlotColorMap {
@@ -40,7 +42,7 @@ interface MemoSlotProps {
 export function MemoSlot(props: MemoSlotProps): React.JSX.Element {
   const { memo, slotColors, onMouseEnter, onMouseLeave, onOpenEdit, onCloseFromStack } = props
   const hue = memoHue(memo.color)
-  const preview = firstLinePreview(memo.content, 10)
+  const previewSpanned = firstLinePreviewSpanned(memo.content, 10)
   const accent = accentForHue(hue, slotColors)
   const customStyle =
     accent != null
@@ -61,8 +63,16 @@ export function MemoSlot(props: MemoSlotProps): React.JSX.Element {
       onMouseLeave={onMouseLeave}
       role="listitem"
     >
-      <span className="memo-preview-text" title={preview}>
-        {preview || '…'}
+      <span className="memo-preview-text">
+        {previewSpanned.text === '…' ? (
+          '…'
+        ) : (
+          <SpannedLineMirror
+            text={previewSpanned.text}
+            spans={previewSpanned.spans}
+            variant="inline"
+          />
+        )}
       </span>
       <div className="memo-actions">
         <button type="button" title="편집 열기" onClick={() => void onOpenEdit()}>

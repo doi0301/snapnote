@@ -17,6 +17,8 @@ import type {
   MemoId,
   TextSpan
 } from '@shared/types'
+import { tryExpandTodayMacro } from '@shared/dateMacro'
+import { keycapDisplayChar } from '@shared/keycapChar'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
 import { EditorBlockAfterPad } from './EditorBlockAfterPad'
 import { EditorLineView } from './EditorLine'
@@ -24,9 +26,10 @@ import { ClipboardHistoryControl } from './ClipboardPanel'
 import { FormatToolbar } from './FormatToolbar'
 import { TableEditorRow } from './TableLineView'
 import { TagInput } from './TagInput'
-import { MAX_INDENT, normalizeEditorLines } from './editorLines'
+import { MAX_INDENT, MAX_TABLE_COLS, normalizeEditorLines } from './editorLines'
 import {
   addBoldOnRange,
+  applyKeycapOnRange,
   caretReferenceCharIndex,
   clearMemoLinksOnRange,
   insertionIndexIfSingleChar,
@@ -46,7 +49,7 @@ import {
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
-import { tableRowsToTsv } from './tableLine'
+import { tableRowsToTsv, padTableRows, resolveTableCols } from './tableLine'
 import './editor.css'
 
 export { normalizeEditorLines } from './editorLines'
@@ -1057,26 +1060,35 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const getLineSelectionRange = useCallback(
     (index: number): { start: number; end: number } | null => {
-      if (!multiLineSelection) return null
-      const norm = normalizeSelection(multiLineSelection)
-      if (index < norm.startLine || index > norm.endLine) return null
-      const t = lines[index]?.text ?? ''
-      const len = t.length
-      if (norm.startLine === norm.endLine) {
-        return {
-          start: Math.min(norm.startOffset, len),
-          end: Math.min(norm.endOffset, len)
+      if (multiLineSelection) {
+        const norm = normalizeSelection(multiLineSelection)
+        if (index < norm.startLine || index > norm.endLine) return null
+        const t = lines[index]?.text ?? ''
+        const len = t.length
+        if (norm.startLine === norm.endLine) {
+          return {
+            start: Math.min(norm.startOffset, len),
+            end: Math.min(norm.endOffset, len)
+          }
         }
+        if (index === norm.startLine) {
+          return { start: Math.min(norm.startOffset, len), end: len }
+        }
+        if (index === norm.endLine) {
+          return { start: 0, end: Math.min(norm.endOffset, len) }
+        }
+        return { start: 0, end: len }
       }
-      if (index === norm.startLine) {
-        return { start: Math.min(norm.startOffset, len), end: len }
-      }
-      if (index === norm.endLine) {
-        return { start: 0, end: Math.min(norm.endOffset, len) }
-      }
-      return { start: 0, end: len }
+      /** 같은 줄 드래그 선택 — multiLineSelection 없이 textarea 선택만 있는 경우 */
+      if (index !== focusLineIndex) return null
+      const ta = textareaRefs.current[index]
+      if (!ta) return null
+      const s = ta.selectionStart
+      const e = ta.selectionEnd
+      if (s === e) return null
+      return { start: s, end: e }
     },
-    [lines, multiLineSelection, normalizeSelection]
+    [lines, multiLineSelection, normalizeSelection, focusLineIndex, selectionTick]
   )
 
   useLayoutEffect(() => {
@@ -1870,30 +1882,37 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [lines, normalizeSelection, pushUndoSnapshot]
   )
 
-  const insertTextAtCursor = useCallback((snippet: string) => {
-    setMultiLineSelection(null)
-    const i = lastFocusIndex.current
-    const ta = textareaRefs.current[i]
-    if (!ta) return
-    const start = ta.selectionStart
-    const end = ta.selectionEnd
-    pushUndoSnapshot(lines, i, start)
-    const caret = start + snippet.length
-    pendingFocusRef.current = { index: i, cursor: caret }
-    setLines((prev) => {
-      const line = prev[i]
-      if (!line) return prev
-      const oldT = line.text
-      const newT = oldT.slice(0, start) + snippet + oldT.slice(end)
-      const spans = remapSpansAfterEdit(oldT, newT, line.spans)
-      return prev.map((l, j) => (j === i ? { ...l, text: newT, spans } : l))
-    })
-  }, [lines, pushUndoSnapshot])
+  const insertTextAtCursor = useCallback(
+    (snippet: string, opts?: { keycap?: boolean }) => {
+      setMultiLineSelection(null)
+      const i = lastFocusIndex.current
+      const ta = textareaRefs.current[i]
+      if (!ta) return
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      pushUndoSnapshot(lines, i, start)
+      const caret = start + snippet.length
+      pendingFocusRef.current = { index: i, cursor: caret }
+      setLines((prev) => {
+        const line = prev[i]
+        if (!line) return prev
+        const oldT = line.text
+        const newT = oldT.slice(0, start) + snippet + oldT.slice(end)
+        let spans = remapSpansAfterEdit(oldT, newT, line.spans)
+        if (opts?.keycap) {
+          spans = applyKeycapOnRange(spans, start, start + snippet.length)
+        }
+        return prev.map((l, j) => (j === i ? { ...l, text: newT, spans } : l))
+      })
+    },
+    [lines, pushUndoSnapshot]
+  )
 
   const handleEmojiSelect = useCallback(
-    (char: string) => {
-      insertTextAtCursor(char)
-      void window.snapnote.clipboard.writeSystem(char, { skipHistory: true })
+    (char: string, opts?: { keycap?: boolean }) => {
+      insertTextAtCursor(char, opts)
+      const clip = opts?.keycap ? keycapDisplayChar(char) : char
+      void window.snapnote.clipboard.writeSystem(clip, { skipHistory: true })
       setEmojiPaletteOpen(false)
     },
     [insertTextAtCursor]
@@ -1923,6 +1942,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     )
   }, [lines, pushUndoSnapshot])
 
+  const handleLineCollapsedToggle = useCallback((index: number) => {
+    pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (i !== index) return l
+        const f = { ...(l.formatting ?? {}) }
+        f.lineCollapsed = !f.lineCollapsed
+        return { ...l, formatting: f }
+      })
+    )
+  }, [lines, pushUndoSnapshot])
+
   const showCopyToastBrief = useCallback(() => {
     if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
     setCopyToastVisible(true)
@@ -1947,10 +1978,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const copyTableLineToClipboard = useCallback(
     async (lineIndex: number) => {
-      const rows = linesRef.current[lineIndex]?.formatting?.tableRows
+      const line = linesRef.current[lineIndex]
+      const rows = line?.formatting?.tableRows
       if (!rows?.length) return
+      const cols = resolveTableCols(rows, MAX_TABLE_COLS, line?.formatting?.tableCols)
+      const padded = padTableRows(rows, MAX_TABLE_COLS, cols)
       try {
-        await window.snapnote.clipboard.writeSystem(tableRowsToTsv(rows), { skipHistory: true })
+        await window.snapnote.clipboard.writeSystem(tableRowsToTsv(padded), { skipHistory: true })
         showCopyToastBrief()
       } catch {
         /* ignore */
@@ -1984,10 +2018,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       indentLevel: indent,
       formatting: {
         isTable: true,
-        tableCols: 5,
+        tableCols: 2,
         tableRows: [
-          ['', '', '', '', ''],
-          ['', '', '', '', '']
+          ['', ''],
+          ['', '']
         ]
       },
       spans: undefined
@@ -2289,6 +2323,20 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                 ? { ...l, text: '', formatting: { ...f, hasCheckbox: true, checkboxChecked: false } }
                 : l
             )
+          })
+          return
+        }
+        const todayExpand = tryExpandTodayMacro(val.slice(0, start), val.slice(start))
+        if (todayExpand) {
+          e.preventDefault()
+          pushUndoSnapshot(lines, index, start)
+          pendingFocusRef.current = { index, cursor: todayExpand.cursor }
+          setLines((prev) => {
+            const cur = prev[index]
+            if (!cur) return prev
+            const oldT = cur.text
+            const spans = remapSpansAfterEdit(oldT, todayExpand.text, cur.spans)
+            return prev.map((l, i) => (i === index ? { ...l, text: todayExpand.text, spans } : l))
           })
           return
         }
@@ -2828,6 +2876,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
                   onCheckboxToggle={
                     line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined
+                  }
+                  onToggleLineCollapsed={
+                    line.formatting?.accentBar && line.text.includes('\n')
+                      ? () => handleLineCollapsedToggle(index)
+                      : undefined
                   }
                 />
               )

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { EMOJI_PALETTE_ITEMS } from './emojiPaletteItems'
 import { getEditPopoverRoot } from './editPopoverRoot'
 import './emoji-palette.css'
+import './keycap-badge.css'
 
 const VIEW_MARGIN = 8
 const GAP_PX = 6
@@ -15,7 +16,7 @@ export interface EmojiPaletteProps {
   anchorRef: React.RefObject<HTMLElement | null>
   onClose: () => void
   /** 심볼 삽입 후 호출부에서 닫기 처리 */
-  onSelectSymbol: (char: string) => void
+  onSelectSymbol: (char: string, opts?: { keycap?: boolean }) => void
 }
 
 function usePaletteFixedStyle(
@@ -109,6 +110,21 @@ export function EmojiPalette({
         {EMOJI_PALETTE_ITEMS.map((entry, i) =>
           entry.kind === 'sep' ? (
             <div key={`sep-${i}`} className="emoji-palette-sep" role="separator" />
+          ) : entry.kind === 'keycap' ? (
+            <button
+              key={`keycap-${entry.digit}-${i}`}
+              type="button"
+              className="emoji-palette-cell emoji-palette-cell--keycap"
+              title={entry.label}
+              aria-label={entry.label}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onClick={() => onSelectSymbol(entry.insertChar, { keycap: true })}
+            >
+              <span className="snapnote-keycap-badge">{entry.digit}</span>
+            </button>
           ) : (
             <button
               key={`${entry.char}-${i}`}

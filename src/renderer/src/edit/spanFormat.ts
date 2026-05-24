@@ -44,9 +44,9 @@ export function remapSpansAfterEdit(
   for (const s of list) {
     const ns = mapEndpoint(s.start, start, oldEnd, newEnd)
     let ne = mapEndpoint(s.end, start, oldEnd, newEnd)
-    /** 한 글자 삽입이 span 직후(배타적 end)일 때는 형광이 새 글자로 이어지지 않게 end 확장 취소 */
+    /** 한 글자 삽입이 span 직후(배타적 end)일 때는 형광·keycap이 새 글자로 이어지지 않게 end 확장 취소 */
     if (
-      s.highlight &&
+      (s.highlight || s.keycap) &&
       ins != null &&
       ins === s.end &&
       oldEnd === start &&
@@ -64,6 +64,7 @@ export function remapSpansAfterEdit(
     if (s.underline) copy.underline = true
     if (s.highlight) copy.highlight = s.highlight
     if (s.memoLinkId) copy.memoLinkId = s.memoLinkId
+    if (s.keycap) copy.keycap = true
     next.push(copy)
   }
   return next.sort((a, b) => a.start - b.start || a.end - b.end)
@@ -101,6 +102,7 @@ export function remapSpansForHeadingMarkerChange(
     if (s.underline) copy.underline = true
     if (s.highlight) copy.highlight = s.highlight
     if (s.memoLinkId) copy.memoLinkId = s.memoLinkId
+    if (s.keycap) copy.keycap = true
     next.push(copy)
   }
   return next.length ? next.sort((a, b) => a.start - b.start || a.end - b.end) : undefined
@@ -295,6 +297,11 @@ export function insertionIndexIfSingleChar(oldText: string, newText: string): nu
 export function addBoldOnRange(spans: TextSpan[] | undefined, a: number, b: number): TextSpan[] {
   const list = spans ?? []
   return addPropertyToRange(list, 'bold', a, b)
+}
+
+export function applyKeycapOnRange(spans: TextSpan[] | undefined, a: number, b: number): TextSpan[] {
+  if (a >= b) return spans ?? []
+  return [...(spans ?? []), { start: a, end: b, keycap: true }]
 }
 
 export function rangeFullyHasHighlight(

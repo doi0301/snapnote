@@ -1,7 +1,8 @@
-import { StrictMode, useCallback, useEffect, useState } from 'react'
+import { StrictMode, useCallback, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { Memo, Settings } from '@shared/types'
-import { fullContentPreview } from '@renderer/utils/memoPreview'
+import type { Memo } from '@shared/types'
+import { SpannedLineMirror } from '@renderer/edit/InlineSpan'
+import { fullContentPreviewLines } from '@renderer/utils/memoPreview'
 import { memoHue } from '@renderer/utils/memoHue'
 import './preview.css'
 
@@ -9,10 +10,25 @@ function getMemoIdFromHash(): string {
   return window.location.hash.replace(/^#/, '')
 }
 
+function PreviewBody({ content }: { content: Memo['content'] }): React.JSX.Element {
+  const lines = useMemo(() => fullContentPreviewLines(content, 700), [content])
+  if (lines.length === 1 && lines[0]?.text === '…') {
+    return <>…</>
+  }
+  return (
+    <>
+      {lines.map((line, i) => (
+        <div key={i} className="preview-line">
+          <SpannedLineMirror text={line.text} spans={line.spans} variant="inline" />
+        </div>
+      ))}
+    </>
+  )
+}
+
 function PreviewApp(): React.JSX.Element {
   const [memoId] = useState(() => getMemoIdFromHash())
   const [memo, setMemo] = useState<Memo | null>(null)
-  const [settings, setSettings] = useState<Settings | null>(null)
 
   useEffect(() => {
     if (!memoId) return
@@ -20,9 +36,11 @@ function PreviewApp(): React.JSX.Element {
   }, [memoId])
 
   useEffect(() => {
-    void window.snapnote.settings.get().then(setSettings)
-    return window.snapnote.on.settingsChanged((s) => setSettings(s))
-  }, [])
+    if (!memoId) return
+    return window.snapnote.on.memoUpdated((m) => {
+      if (m.id === memoId) setMemo(m)
+    })
+  }, [memoId])
 
   useEffect(() => {
     const onWinBlur = (): void => {
@@ -39,8 +57,6 @@ function PreviewApp(): React.JSX.Element {
     }
   }, [])
 
-  const body = memo ? fullContentPreview(memo.content, 700) : '메모를 불러올 수 없습니다.'
-
   const openEdit = useCallback(() => {
     if (!memoId) return
     void window.snapnote.memo.closePreview()
@@ -48,8 +64,6 @@ function PreviewApp(): React.JSX.Element {
   }, [memoId])
 
   const hue = memo ? memoHue(memo.color) : 'default'
-  const bgAlpha = Math.min(1, Math.max(0.6, Number(settings?.windowOpacity) || 1))
-  const textAlpha = Math.max(0.92, bgAlpha)
 
   const onPreviewPointerEnter = useCallback(() => {
     // 즉시 close 정책: enter 시 별도 동작 없음
@@ -62,12 +76,6 @@ function PreviewApp(): React.JSX.Element {
   return (
     <div
       className={`preview-root preview-root--memo-${hue}`}
-      style={
-        {
-          '--window-bg-alpha': String(bgAlpha),
-          '--window-text-alpha': String(textAlpha)
-        } as React.CSSProperties
-      }
       data-testid="preview-root"
       role="button"
       tabIndex={0}
@@ -83,7 +91,9 @@ function PreviewApp(): React.JSX.Element {
       }}
     >
       <div className="preview-inner">
-        <div className="preview-body">{body}</div>
+        <div className="preview-body">
+          {memo ? <PreviewBody content={memo.content} /> : '메모를 불러올 수 없습니다.'}
+        </div>
       </div>
     </div>
   )

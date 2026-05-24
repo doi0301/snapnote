@@ -1,6 +1,6 @@
-/** 표 한 줄을 엑셀용 TSV 한 블록으로 직렬화 */
+/** 표 한 줄을 엑셀용 TSV 한 블록으로 직렬화 (Windows Excel: CRLF 행 구분) */
 export function tableRowsToTsv(rows: string[][]): string {
-  return rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\n')
+  return rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\r\n')
 }
 
 function escapeTsvCell(cell: string): string {

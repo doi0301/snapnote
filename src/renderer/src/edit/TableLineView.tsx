@@ -37,8 +37,8 @@ export const TableEditorRow = memo(function TableEditorRow({
   onRequestUndo
 }: TableEditorRowProps) {
   const rawRows = line.formatting?.tableRows ?? [
-    ['', '', '', '', ''],
-    ['', '', '', '', '']
+    ['', ''],
+    ['', '']
   ]
   const colCount = resolveTableCols(rawRows, MAX_TABLE_COLS, line.formatting?.tableCols)
   const rows = padTableRows(rawRows, MAX_TABLE_COLS, colCount)
@@ -105,6 +105,13 @@ export const TableEditorRow = memo(function TableEditorRow({
     commitRows(next)
   }
 
+  const deleteCol = (ci: number) => {
+    if (colCount <= 2) return
+    onRequestUndo?.()
+    const next = rows.map((row) => row.filter((_, c) => c !== ci))
+    commitRows(next, colCount - 1)
+  }
+
   const isLastRowOnly = rows.length <= 1
 
   const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -164,6 +171,9 @@ export const TableEditorRow = memo(function TableEditorRow({
           <button type="button" onClick={addCol} disabled={colCount >= MAX_TABLE_COLS}>
             + 열 추가
           </button>
+          <button type="button" onClick={() => deleteCol(colCount - 1)} disabled={colCount <= 2}>
+            − 열 삭제
+          </button>
           <button type="button" onClick={() => onCopyTable?.(index)}>
             복사
           </button>
@@ -178,6 +188,16 @@ export const TableEditorRow = memo(function TableEditorRow({
                 role="columnheader"
               >
                 {ci + 1}
+                <button
+                  type="button"
+                  className="table-editor-col-del"
+                  title="이 열 삭제"
+                  aria-label={`${ci + 1}열 삭제`}
+                  disabled={colCount <= 2}
+                  onClick={() => deleteCol(ci)}
+                >
+                  ×
+                </button>
               </div>
             ))}
           </div>

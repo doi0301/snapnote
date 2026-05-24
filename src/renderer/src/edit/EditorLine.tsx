@@ -13,6 +13,7 @@ import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
 import './editor-line.css'
+import './keycap-badge.css'
 
 export const INDENT_PX = 20
 
@@ -38,6 +39,7 @@ export interface EditorLineViewProps {
   onPointerLeave?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onFocus?: () => void
   onCheckboxToggle?: () => void
+  onToggleLineCollapsed?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -58,6 +60,7 @@ export const EditorLineView = memo(
       onPointerLeave,
       onFocus,
       onCheckboxToggle,
+      onToggleLineCollapsed,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -129,70 +132,97 @@ export const EditorLineView = memo(
 
     const stickyClass = isStickyTitle ? ' editor-line--sticky-title' : ''
     const stuckClass = isStuck ? ' editor-line--stuck' : ''
+    const isMultiLine = line.text.includes('\n')
+    const canCollapse = Boolean(accent) && isMultiLine
+    const isLineCollapsed = canCollapse && Boolean(line.formatting?.lineCollapsed)
+    const collapsedClass = isLineCollapsed ? ' editor-line--collapsed' : ''
+    const firstLinePreview = stickyTitlePreviewText(line.text)
 
     return (
       <>
         {isStickyTitle && <div ref={sentinelRef} className="editor-sticky-sentinel" />}
-      <div
-        className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}${stuckClass}`}
-        style={{ '--indent-level': level } as React.CSSProperties}
-      >
         <div
-          className={`editor-line-gutter${accentClass}`}
-          style={{
-            width: marginW,
-            minWidth: marginW,
-            '--indent-alpha': INDENT_ALPHA[level] ?? 0.02
-          } as React.CSSProperties}
-          aria-hidden
+          className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}${stuckClass}${collapsedClass}`}
+          style={{ '--indent-level': level } as React.CSSProperties}
         >
-          {accent ? <span className="editor-line-accent-bar" /> : null}
-        </div>
-        {line.formatting?.hasCheckbox && onCheckboxToggle ? (
-          <Checkbox
-            checked={Boolean(line.formatting.checkboxChecked)}
-            onToggle={onCheckboxToggle}
-          />
-        ) : null}
-        <div
-          className="editor-line-editor"
-          title={isStuck && line.text.trim() ? line.text.replace(/\n/g, ' ') : undefined}
-        >
-          {isStuck ? (
-            <div className="editor-sticky-title-preview" aria-hidden>
-              {stickyTitlePreviewText(line.text) || placeholder || ''}
-            </div>
-          ) : null}
-          <div className="editor-line-mirror" aria-hidden>
-            {!isStuck ? (
-              <SpannedLineMirror
-                text={line.text}
-                spans={line.spans}
-                lineFormatting={line.formatting}
-                selectionStart={mirrorSelectionRange?.start}
-                selectionEnd={mirrorSelectionRange?.end}
-                searchHighlights={searchHighlights}
-              />
-            ) : null}
+          <div
+            className={`editor-line-gutter${accentClass}`}
+            style={
+              {
+                width: marginW,
+                minWidth: marginW,
+                '--indent-alpha': INDENT_ALPHA[level] ?? 0.02
+              } as React.CSSProperties
+            }
+            aria-hidden
+          >
+            {accent ? <span className="editor-line-accent-bar" /> : null}
           </div>
-          <textarea
-            ref={bindTextareaRef}
-            className="editor-line-textarea editor-line-textarea--mirror"
-            value={line.text}
-            placeholder={placeholder}
-            onChange={onChange}
-            onBeforeInput={onBeforeInput}
-            onKeyDown={onKeyDown}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerLeave={onPointerLeave}
-            onFocus={onFocus}
-            rows={1}
-            spellCheck={false}
-          />
+          {line.formatting?.hasCheckbox && onCheckboxToggle ? (
+            <Checkbox
+              checked={Boolean(line.formatting.checkboxChecked)}
+              onToggle={onCheckboxToggle}
+            />
+          ) : null}
+          <div
+            className={`editor-line-editor${canCollapse ? ' editor-line-editor--collapsible' : ''}`}
+            title={isStuck && line.text.trim() ? line.text.replace(/\n/g, ' ') : undefined}
+          >
+            {canCollapse && onToggleLineCollapsed ? (
+              <button
+                type="button"
+                className="editor-line-collapse-btn"
+                title={isLineCollapsed ? '펼치기' : '접기'}
+                aria-label={isLineCollapsed ? '펼치기' : '접기'}
+                aria-expanded={!isLineCollapsed}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onToggleLineCollapsed}
+              >
+                {isLineCollapsed ? '▸' : '▾'}
+              </button>
+            ) : null}
+            {isStuck ? (
+              <div className="editor-sticky-title-preview" aria-hidden>
+                {firstLinePreview || placeholder || ''}
+              </div>
+            ) : null}
+            {isLineCollapsed ? (
+              <div className="editor-line-collapsed-preview" aria-hidden>
+                {firstLinePreview || placeholder || ''}
+                {isMultiLine && firstLinePreview.length < line.text.length ? '…' : ''}
+              </div>
+            ) : null}
+            <div className="editor-line-mirror" aria-hidden>
+              {!isStuck && !isLineCollapsed ? (
+                <SpannedLineMirror
+                  text={line.text}
+                  spans={line.spans}
+                  lineFormatting={line.formatting}
+                  selectionStart={mirrorSelectionRange?.start}
+                  selectionEnd={mirrorSelectionRange?.end}
+                  searchHighlights={searchHighlights}
+                />
+              ) : null}
+            </div>
+            <textarea
+              ref={bindTextareaRef}
+              className={`editor-line-textarea editor-line-textarea--mirror${isLineCollapsed ? ' editor-line-textarea--collapsed' : ''}`}
+              value={line.text}
+              placeholder={placeholder}
+              onChange={onChange}
+              onBeforeInput={onBeforeInput}
+              onKeyDown={onKeyDown}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerLeave={onPointerLeave}
+              onFocus={onFocus}
+              rows={1}
+              spellCheck={false}
+              tabIndex={isLineCollapsed ? -1 : undefined}
+            />
+          </div>
+          {line.formatting?.hasDivider ? <div className="editor-line-divider" aria-hidden /> : null}
         </div>
-        {line.formatting?.hasDivider ? <div className="editor-line-divider" aria-hidden /> : null}
-      </div>
       </>
     )
   })

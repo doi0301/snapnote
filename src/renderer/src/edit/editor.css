@@ -6,10 +6,21 @@
 }
 
 /**
- * 가상 다중 줄 선택: textarea(z-index 위)의 네이티브 선택이 미러보다 위에 그려져
- * 배경·글자색이 겹친다. 배경만 투명하면 글자는 여전히 검게 보일 수 있어 글자도 투명 처리해
- * 미러(.inline-selected, 흰 글자)만 보이게 한다.
+ * mirror 편집: 네이티브 textarea 선택은 미러(.inline-selected)로만 표시.
+ * 글자색까지 투명하지 않으면 keycap 등이 plain 텍스트로 겹쳐 보인다.
  */
+.editor-line-textarea--mirror::selection {
+  background-color: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+}
+.editor-line-textarea--mirror::-moz-selection {
+  background-color: transparent !important;
+  color: transparent !important;
+}
+
+/** 다중 줄 가상 선택 시에도 동일 (하위 호환) */
 .editor--virtual-selection-active .editor-line-textarea::selection {
   background-color: transparent !important;
   color: transparent !important;

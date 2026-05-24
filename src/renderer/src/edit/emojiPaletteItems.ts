@@ -3,9 +3,24 @@
  * 그리드에서 `sep` 행은 시각적 구분선(전체 너비)
  */
 
+import { keycapStorageChar } from '@shared/keycapChar'
+
 export type EmojiPaletteEntry =
   | { kind: 'sym'; char: string; label: string }
+  | {
+      kind: 'keycap'
+      digit: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+      label: string
+      insertChar: string
+    }
   | { kind: 'sep' }
+
+const KEYCAP_ITEMS: EmojiPaletteEntry[] = ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((digit) => ({
+  kind: 'keycap' as const,
+  digit,
+  label: `숫자 ${digit}`,
+  insertChar: keycapStorageChar(digit)
+}))
 
 export const EMOJI_PALETTE_ITEMS: EmojiPaletteEntry[] = [
   { kind: 'sym', char: '🔴', label: '빨강 원' },
@@ -25,6 +40,8 @@ export const EMOJI_PALETTE_ITEMS: EmojiPaletteEntry[] = [
   { kind: 'sym', char: '🟪', label: '보라 사각형' },
   { kind: 'sym', char: '⬛', label: '검정 사각형' },
   { kind: 'sym', char: '⬜', label: '흰 사각형' },
+  { kind: 'sep' },
+  ...KEYCAP_ITEMS,
   { kind: 'sep' },
   { kind: 'sym', char: '→', label: '오른쪽 화살표' },
   { kind: 'sym', char: '←', label: '왼쪽 화살표' },

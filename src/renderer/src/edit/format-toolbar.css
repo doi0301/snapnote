@@ -207,6 +207,11 @@
   border-color: #171717;
 }
 
+.format-hl-swatch:hover {
+  border-color: #52525b;
+  box-shadow: 0 0 0 1px rgba(23, 23, 23, 0.1);
+}
+
 .format-hl-swatch--yellow {
   background: rgba(254, 240, 138, 0.95);
 }

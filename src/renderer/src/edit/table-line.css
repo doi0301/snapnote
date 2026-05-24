@@ -123,5 +123,37 @@
 
 .table-editor-col-head {
   user-select: none;
-  pointer-events: none;
+  position: relative;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #71717a;
+  background: #fafafa;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.table-editor-col-del {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.table-editor-col-del:hover:not(:disabled) {
+  color: #dc2626;
+}
+
+.table-editor-col-del:disabled {
+  opacity: 0.2;
+  cursor: default;
 }

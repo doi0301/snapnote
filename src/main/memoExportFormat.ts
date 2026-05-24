@@ -1,5 +1,29 @@
 import type { Memo } from '@shared/types'
 
+const TITLE_MAX_LEN = 15
+
+/** Windows 파일명 금지 문자 제거·길이 제한 */
+export function sanitizeFilenamePart(raw: string, maxLen: number): string {
+  const cleaned = raw
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return 'memo'
+  if (cleaned.length <= maxLen) return cleaned
+  return cleaned.slice(0, maxLen)
+}
+
+export function memoMarkdownDefaultFilename(m: Memo): string {
+  const titleRaw = (m.content[0]?.text ?? '').trim() || '(제목없음)'
+  const title = sanitizeFilenamePart(titleRaw, TITLE_MAX_LEN)
+  return `snapnote_${title}.md`
+}
+
+export function memosMarkdownDefaultFilename(memos: Memo[]): string {
+  if (memos.length === 1) return memoMarkdownDefaultFilename(memos[0]!)
+  return 'snapnote_export.md'
+}
+
 export function memoBodyPlain(m: Memo): string {
   return m.content.map((l) => l.text).join('\n')
 }
@@ -11,10 +35,7 @@ export function memosToMarkdown(memos: Memo[]): string {
     const title = (m.content[0]?.text ?? '').trim() || '(제목 없음)'
     const tags = m.tags.length ? m.tags.map((t) => `#${t}`).join(' ') : ''
     parts.push(
-      `# ${title}\n\n` +
-        `- tags: ${tags}\n` +
-        `- updated: ${m.updatedAt}\n\n` +
-        memoBodyPlain(m)
+      `# ${title}\n\n` + `- tags: ${tags}\n` + `- updated: ${m.updatedAt}\n\n` + memoBodyPlain(m)
     )
   }
   return parts.join('\n---\n\n')

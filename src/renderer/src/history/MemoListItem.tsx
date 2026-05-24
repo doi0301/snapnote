@@ -2,7 +2,9 @@ import { useCallback } from 'react'
 import type { JSX } from 'react'
 import type { Memo, MemoId } from '@shared/types'
 import { TrashIcon } from '@renderer/components/TrashIcon'
-import { firstLinePreview } from '@renderer/utils/memoPreview'
+import { SpannedLineMirror } from '@renderer/edit/InlineSpan'
+import { firstLinePreviewSpanned, plainLinePreview } from '@renderer/utils/memoPreview'
+import '@renderer/edit/keycap-badge.css'
 
 function formatYmd(iso: string): string {
   const d = new Date(iso)
@@ -11,13 +13,6 @@ function formatYmd(iso: string): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}.${m}.${day}`
-}
-
-function preview30(lines: Memo['content']): string {
-  const t = lines[0]?.text?.trim() ?? ''
-  if (!t) return ''
-  if (t.length <= 30) return t
-  return `${t.slice(0, 30)}…`
 }
 
 export interface MemoListItemProps {
@@ -43,8 +38,9 @@ export function MemoListItem({
   menuOpen,
   onMenuToggle
 }: MemoListItemProps): JSX.Element {
-  const titlePreview = firstLinePreview(memo.content, 80)
-  const preview = preview30(memo.content)
+  const titlePreview = plainLinePreview(memo.content, 80)
+  const previewSpanned = firstLinePreviewSpanned(memo.content, 30)
+  const previewPlain = plainLinePreview(memo.content, 30)
 
   const exportMemo = useCallback(
     async () => {
@@ -60,7 +56,7 @@ export function MemoListItem({
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect(memo.id)}
-          aria-label={`${preview || '메모'} 선택`}
+          aria-label={`${previewPlain || '메모'} 선택`}
         />
       </label>
       <button
@@ -81,7 +77,17 @@ export function MemoListItem({
         onClick={() => onOpen(memo)}
       >
         <div className="history-memo-item-body">
-          <div className="history-memo-preview">{preview}</div>
+          <div className="history-memo-preview">
+            {previewSpanned.text === '…' ? (
+              previewPlain
+            ) : (
+              <SpannedLineMirror
+                text={previewSpanned.text}
+                spans={previewSpanned.spans}
+                variant="inline"
+              />
+            )}
+          </div>
           {memo.tags.length > 0 ? (
             <div className="history-memo-tags">
               {memo.tags.map((t) => (

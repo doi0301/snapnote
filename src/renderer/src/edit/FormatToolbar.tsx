@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { HighlightColor, Memo, MemoId } from '@shared/types'
+import { highlightSwatchLabel } from '@shared/highlightMeta'
 import { EmojiPalette } from './EmojiPalette'
 import { getEditPopoverRoot } from './editPopoverRoot'
 import {
@@ -63,7 +64,7 @@ export interface FormatToolbarProps {
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
-  onSymbolSelect: (char: string) => void
+  onSymbolSelect: (char: string, opts?: { keycap?: boolean }) => void
   onCloseSymbolPalette: () => void
 }
 
@@ -303,8 +304,8 @@ export function FormatToolbar({
                 key={c}
                 type="button"
                 className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
-                title={HL_LABEL[c]}
-                aria-label={HL_LABEL[c]}
+                title={highlightSwatchLabel(c, HL_LABEL[c])}
+                aria-label={highlightSwatchLabel(c, HL_LABEL[c])}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   onPickHighlightColor(c)
@@ -385,7 +386,8 @@ export function FormatToolbar({
                 type="button"
                 role="menuitem"
                 className={`format-hl-swatch format-hl-swatch--${c}${highlightFullByColor[c] ? ' format-hl-swatch--current' : ''}`}
-                title={HL_LABEL[c]}
+                title={highlightSwatchLabel(c, HL_LABEL[c])}
+                aria-label={highlightSwatchLabel(c, HL_LABEL[c])}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   e.stopPropagation()

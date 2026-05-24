@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { keycapStorageChar } from '@shared/keycapChar'
 import {
   addBoldOnRange,
   caretReferenceCharIndex,
@@ -38,6 +39,13 @@ describe('remapSpansAfterEdit', () => {
     const spans = [{ start: 0, end: 3, highlight: 'yellow' as const }]
     const next = remapSpansAfterEdit('abc', 'abcX', spans)
     expect(next).toEqual([{ start: 0, end: 3, highlight: 'yellow' }])
+  })
+  it('does not extend keycap when inserting another keycap after', () => {
+    const a = keycapStorageChar(2)
+    const b = keycapStorageChar(3)
+    const spans = [{ start: 0, end: 1, keycap: true }]
+    const next = remapSpansAfterEdit(a, a + b, spans)
+    expect(next).toEqual([{ start: 0, end: 1, keycap: true }])
   })
   it('still extends highlight when typing inside highlighted run', () => {
     const spans = [{ start: 0, end: 3, highlight: 'green' as const }]

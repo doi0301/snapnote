@@ -727,27 +727,6 @@ export class WindowManager {
       return
     }
 
-    if (this.previewWindow && !this.previewWindow.isDestroyed() && this.previewMemoId === memoId && anchor) {
-      const panel = this.foldedPanel
-      if (panel && !panel.isDestroyed()) {
-        const cb = panel.getContentBounds()
-        const sy = cb.y + anchor.top
-        const sh = anchor.height
-        const wa = screen.getDisplayNearestPoint({ x: cb.x, y: cb.y }).workArea
-        let fx = cb.x + cb.width + PREVIEW_GAP
-        if (fx + PREVIEW_WIDTH > wa.x + wa.width - 2) {
-          fx = cb.x - PREVIEW_WIDTH - PREVIEW_GAP
-        }
-        const fy = sy + Math.round(sh / 2 - PREVIEW_HEIGHT / 2)
-        const clamped = clampPreviewTopLeft(fx, fy, PREVIEW_WIDTH, PREVIEW_HEIGHT)
-        this.previewWindow.setBounds(
-          { x: clamped.x, y: clamped.y, width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT },
-          false
-        )
-      }
-      return
-    }
-
     this.hidePreview()
 
     const memo = this.deps.memos.getMemo(memoId)
@@ -793,12 +772,12 @@ export class WindowManager {
       y: finalBounds.y,
       show: false,
       frame: false,
-      transparent: true,
+      transparent: false,
       focusable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
-      backgroundColor: '#00000000',
+      backgroundColor: '#ffffff',
       ...(process.platform === 'linux' ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

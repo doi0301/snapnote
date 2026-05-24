@@ -1,3 +1,5 @@
+@import './edit/keycap-badge.css';
+
 html,
 body,
 #root {
@@ -6,24 +8,29 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #fff;
 }
 
 /* 호버 프리뷰: 애니메이션 없음 (즉시 표시) */
 .preview-root {
-  --window-bg-alpha: 1;
-  --window-text-alpha: 1;
   font-family: system-ui, sans-serif;
   font-size: 13px;
   height: 100vh;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
+  background: #fff;
   border: none;
   border-radius: 1px;
-  color: rgba(51, 51, 51, var(--window-text-alpha, 1));
+  color: #333;
   box-shadow: none;
   overflow: hidden;
   cursor: pointer;
   outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.preview-root ::selection {
+  background: transparent;
 }
 
 .preview-root:focus-visible {
@@ -35,6 +42,7 @@ body,
   height: 100%;
   box-sizing: border-box;
   overflow: hidden;
+  background: inherit;
 }
 
 .preview-body {
@@ -45,21 +53,30 @@ body,
   overflow: hidden;
 }
 
+.preview-line {
+  min-height: 1.38em;
+}
+
+.preview-body .snapnote-keycap-badge {
+  vertical-align: -0.12em;
+}
+
 .preview-root--memo-coral {
   border-left: 4px solid #f28b74;
-  background: rgba(253, 244, 241, var(--window-bg-alpha, 1));
+  background: #fdf4f1;
 }
 
 .preview-root--memo-green {
   border-left: 4px solid #5bb47a;
-  background: rgba(241, 250, 244, var(--window-bg-alpha, 1));
+  background: #f1faf4;
 }
 
 .preview-root--memo-blue {
   border-left: 4px solid #5b8fd4;
-  background: rgba(242, 247, 253, var(--window-bg-alpha, 1));
+  background: #f2f7fd;
 }
 
 .preview-root--memo-default {
   border-left: 4px solid #cbd5e1;
+  background: #fff;
 }

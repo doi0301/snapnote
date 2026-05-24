@@ -21,7 +21,7 @@ import { SettingsRepository } from './repositories/SettingsRepository'
 import { GlobalShortcutService } from './globalShortcutService'
 import { WindowManager } from './WindowManager'
 import { registerUpdaterIpcHandlers } from './autoUpdate'
-import { memosToMarkdown } from './memoExportFormat'
+import { memosToMarkdown, memosMarkdownDefaultFilename } from './memoExportFormat'
 
 /** TRD §9 export JSON */
 interface ExportFile {
@@ -453,8 +453,7 @@ export class DataService {
         }
         if (!memos.length) return { ok: false, reason: 'no-memos' }
         const focused = BrowserWindow.getFocusedWindow()
-        const defaultPath =
-          memos.length === 1 ? `snapnote-${memos[0].id.slice(0, 8)}.md` : 'snapnote-export.md'
+        const defaultPath = memosMarkdownDefaultFilename(memos)
         const saveOpts = {
           title: '메모 내보내기 (Markdown)',
           defaultPath,

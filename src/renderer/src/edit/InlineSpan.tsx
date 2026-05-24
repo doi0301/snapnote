@@ -1,4 +1,5 @@
 import { normalizeHighlightColor } from '@shared/highlight'
+import { keycapDisplayChar } from '@shared/keycapChar'
 import type { HighlightColor, LineFormatting, TextSpan } from '@shared/types'
 import { clamp } from './spanFormat'
 
@@ -66,6 +67,7 @@ function classForSlice(
         if (c) parts.push(c)
       }
       if (s.memoLinkId) parts.push('inline-memo-link')
+      if (s.keycap) parts.push('snapnote-keycap-badge')
     }
   }
   return parts.join(' ')
@@ -83,6 +85,8 @@ export interface SpannedLineMirrorProps {
   selectionStart?: number
   selectionEnd?: number
   searchHighlights?: SearchHighlight[]
+  /** mirror: 에디터(커서 정렬) · inline: 리스트 미리보기 */
+  variant?: 'mirror' | 'inline'
 }
 
 export function SpannedLineMirror({
@@ -91,7 +95,8 @@ export function SpannedLineMirror({
   lineFormatting,
   selectionStart,
   selectionEnd,
-  searchHighlights
+  searchHighlights,
+  variant = 'mirror'
 }: SpannedLineMirrorProps): React.JSX.Element {
   const s = spans ?? []
   const lineStrike = Boolean(
@@ -121,11 +126,30 @@ export function SpannedLineMirror({
       const inSearch = searchHighlights.some((h) => a >= h.start && b <= h.end)
       if (inSearch) cls = cls ? cls + ' editor-search-highlight' : 'editor-search-highlight'
     }
-    parts.push(
-      <span key={`${a}:${b}`} className={cls}>
-        {slice}
-      </span>
-    )
+    const hasKeycap = cls.includes('snapnote-keycap-badge')
+    if (hasKeycap && variant === 'inline') {
+      parts.push(
+        <span key={`${a}:${b}`} className={cls}>
+          {keycapDisplayChar(slice)}
+        </span>
+      )
+    } else if (hasKeycap) {
+      parts.push(
+        <span
+          key={`${a}:${b}`}
+          className={cls}
+          data-keycap-display={keycapDisplayChar(slice)}
+        >
+          {slice}
+        </span>
+      )
+    } else {
+      parts.push(
+        <span key={`${a}:${b}`} className={cls}>
+          {slice}
+        </span>
+      )
+    }
   }
   return <span className="editor-line-mirror-parts">{parts}</span>
 }

@@ -42,6 +42,7 @@
   position: relative;
   z-index: 1;
   color: transparent;
+  -webkit-text-fill-color: transparent;
   caret-color: #1a1a1a;
 }
 
@@ -231,6 +232,59 @@
   background: #F28B74;
   margin: 2px 8px 0;
   border-radius: 1px;
+}
+
+.editor-line-editor--collapsible {
+  position: relative;
+}
+
+.editor-line-collapse-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 4px;
+  background: #fafafa;
+  color: #52525b;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.editor-line-collapse-btn:hover {
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+}
+
+.editor-line--collapsed .editor-line-textarea--collapsed {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.editor-line-collapsed-preview {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 34px 5px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.38;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-line--collapsed .editor-line-mirror {
+  display: none;
 }
 
 .inline-underline {

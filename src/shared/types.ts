@@ -17,6 +17,8 @@ export interface TextSpan {
   strikethrough?: boolean
   underline?: boolean
   highlight?: HighlightColor
+  /** 검정 네모 숫자 아이콘 (0–9) */
+  keycap?: boolean
   /** 연결된 메모 UUID — 클릭 시 해당 편집 창 열기 */
   memoLinkId?: MemoId
 }
@@ -32,6 +34,8 @@ export interface LineFormatting {
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
   /** 단축키로 줄마다 설정하는 왼쪽 강조 바 */
   accentBar?: AccentBarKind | null
+  /** accent bar 줄 본문 접기 (기본 펼침) */
+  lineCollapsed?: boolean
   /** 이 줄 전체가 표 셀 편집 모드일 때 */
   isTable?: boolean
   /** 행 × 열 (열 최대 5, 빈 문자열 허용) */
