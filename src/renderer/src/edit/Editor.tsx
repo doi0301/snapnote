@@ -604,8 +604,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   useEffect(() => {
     let raf = 0
     const onSel = (): void => {
-      /** 가상 다중 줄 드래그 중 setSelectionRange 동기화가 매 프레임 selectionchange 를 쏘아 툴바·전체 줄이 흔들린다 */
-      if (draggingSelectionRef.current) return
+      /**
+       * 가상 선택(multiLineSelection) 동기화 setSelectionRange 가 selectionchange 를 연속 발생시켜
+       * 툴바가 흔들린다. 같은 줄 네이티브 드래그·더블클릭은 multiLineSelection 없이 진행되므로 tick 을 갱신한다.
+       */
+      if (draggingSelectionRef.current && multiLineSelectionRef.current) return
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => setSelectionTick((t) => t + 1))
     }
@@ -1056,6 +1059,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const bumpToolbar = useCallback(() => {
     setToolbarTick((t) => t + 1)
+  }, [])
+
+  const bumpSelectionTick = useCallback(() => {
+    setSelectionTick((t) => t + 1)
   }, [])
 
   const getLineSelectionRange = useCallback(
@@ -2582,15 +2589,16 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       if (!found) return
 
       if (!dragSelectionActive) {
-        const lineChanged = found.index !== lineIndexDown
-        if (!lineChanged) return
+        const { ta: taUnder, index: elIndex } = found
+        const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
+        const lineChanged = elIndex !== lineIndexDown
+        const offsetMoved = elIndex === lineIndexDown && focusOffset !== initialAnchorOffset
+        if (!lineChanged && !offsetMoved) return
         dragSelectionActive = true
         selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: initialAnchorOffset }
-        const { ta: taUnder, index: elIndex } = found
         taUnder.focus()
         lastFocusIndex.current = elIndex
         setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
-        const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
         const nextSel: MultiLineSelection = {
           anchorLine: lineIndexDown,
           anchorOffset: initialAnchorOffset,
@@ -2646,6 +2654,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       endSelectionDragRef.current = null
       draggingSelectionRef.current = false
       selectionAnchorRef.current = null
+      requestAnimationFrame(() => setSelectionTick((t) => t + 1))
       const before = multiLineSelectionRef.current
       setMultiLineSelection((p) => {
         if (!p) return null
@@ -2861,6 +2870,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   onPointerDown={(e) => onLinePointerDown(index, e)}
                   onPointerMove={(e) => onLinePointerMove(index, e)}
                   onPointerLeave={onLinePointerLeave}
+                  onSelect={bumpSelectionTick}
                   onFocus={() => {
                     lastFocusIndex.current = index
                     setFocusLineIndex(index)

@@ -37,6 +37,7 @@ export interface EditorLineViewProps {
   onPointerDown?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onPointerMove?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onPointerLeave?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
+  onSelect?: () => void
   onFocus?: () => void
   onCheckboxToggle?: () => void
   onToggleLineCollapsed?: () => void
@@ -58,6 +59,7 @@ export const EditorLineView = memo(
       onPointerDown,
       onPointerMove,
       onPointerLeave,
+      onSelect,
       onFocus,
       onCheckboxToggle,
       onToggleLineCollapsed,
@@ -215,6 +217,7 @@ export const EditorLineView = memo(
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerLeave={onPointerLeave}
+              onSelect={onSelect}
               onFocus={onFocus}
               rows={1}
               spellCheck={false}
