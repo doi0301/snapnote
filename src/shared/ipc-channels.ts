@@ -47,6 +47,10 @@ export const IPC_CHANNELS = {
   CLIPBOARD_GET_IMAGE_PREVIEW: 'clipboard:get-image-preview',
   /** OS 클립보드에 이미지 복사 (히스토리 📋) */
   CLIPBOARD_WRITE_SYSTEM_IMAGE: 'clipboard:write-system-image',
+  /** SnapNote 서식 포함 클립보드 쓰기 */
+  CLIPBOARD_WRITE_SNAPNOTE: 'clipboard:write-snapnote',
+  /** SnapNote 서식 클립보드 읽기 */
+  CLIPBOARD_READ_SNAPNOTE: 'clipboard:read-snapnote',
 
   SETTINGS_GET: 'settings:get',
   SETTINGS_UPDATE: 'settings:update',

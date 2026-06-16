@@ -19,6 +19,13 @@ import type {
 } from '@shared/types'
 import { tryExpandTodayMacro } from '@shared/dateMacro'
 import { keycapDisplayChar } from '@shared/keycapChar'
+import { looksLikeMarkdown, parseMarkdownToEditorLines } from '@shared/memoMarkdownImport'
+import {
+  deserializeSnapnoteClipboard,
+  extractLinesForSelection,
+  linesToPlainText,
+  serializeLinesForClipboard
+} from '@shared/snapnoteClipboard'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
 import { EditorBlockAfterPad } from './EditorBlockAfterPad'
 import { EditorLineView } from './EditorLine'
@@ -26,7 +33,7 @@ import { ClipboardHistoryControl } from './ClipboardPanel'
 import { FormatToolbar } from './FormatToolbar'
 import { TableEditorRow } from './TableLineView'
 import { TagInput } from './TagInput'
-import { MAX_INDENT, MAX_TABLE_COLS, normalizeEditorLines } from './editorLines'
+import { MAX_INDENT, normalizeEditorLines } from './editorLines'
 import {
   addBoldOnRange,
   applyKeycapOnRange,
@@ -49,7 +56,6 @@ import {
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
-import { tableRowsToTsv, padTableRows, resolveTableCols } from './tableLine'
 import './editor.css'
 
 export { normalizeEditorLines } from './editorLines'
@@ -134,6 +140,74 @@ declare global {
   interface Window {
     snapnotePerfConfig?: SnapnotePerfConfigApi
   }
+}
+
+function isBlockMarkdownLine(line: EditorLineModel): boolean {
+  const f = line.formatting ?? {}
+  return Boolean(
+    f.hasCheckbox || f.headingLevel || f.hasDivider || f.isTable || line.indentLevel > 0
+  )
+}
+
+function mergeSpanLists(...lists: Array<TextSpan[] | undefined>): TextSpan[] | undefined {
+  const merged: TextSpan[] = []
+  for (const list of lists) {
+    if (!list?.length) continue
+    merged.push(...list.map((s) => ({ ...s })))
+  }
+  return merged.length
+    ? merged.sort((a, b) => a.start - b.start || a.end - b.end)
+    : undefined
+}
+
+function buildLinesFromImportedInsert(
+  prev: EditorLineModel[],
+  lineIndex: number,
+  selStart: number,
+  selEnd: number,
+  imported: EditorLineModel[]
+): EditorLineModel[] {
+  const cur = prev[lineIndex]
+  if (!cur || !imported.length) return prev
+
+  const before = cur.text.slice(0, selStart)
+  const after = cur.text.slice(selEnd)
+  const [leftSpans] = splitSpansAt(cur.spans, selStart)
+  const [, afterSpans] = splitSpansAt(cur.spans, selEnd)
+
+  if (imported.length === 1 && !isBlockMarkdownLine(imported[0]!)) {
+    const piece = imported[0]!
+    const newText = before + piece.text + after
+    const midSpans = shiftSpans(before.length, piece.spans)
+    const tailSpans = shiftSpans(before.length + piece.text.length, afterSpans)
+    return prev.map((l, i) =>
+      i === lineIndex
+        ? {
+            ...l,
+            text: newText,
+            spans: mergeSpanLists(leftSpans, midSpans, tailSpans)
+          }
+        : l
+    )
+  }
+
+  const built = imported.map((l) => ({ ...l, id: crypto.randomUUID() }))
+  built[0] = {
+    ...built[0]!,
+    text: before + built[0]!.text,
+    spans: mergeSpanLists(leftSpans, shiftSpans(before.length, built[0]!.spans))
+  }
+  const lastIdx = built.length - 1
+  const lastBase = built[lastIdx]!.text
+  built[lastIdx] = {
+    ...built[lastIdx]!,
+    text: lastBase + after,
+    spans: mergeSpanLists(built[lastIdx]!.spans, shiftSpans(lastBase.length, afterSpans))
+  }
+
+  const next = [...prev]
+  next.splice(lineIndex, 1, ...built)
+  return next
 }
 
 const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = {
@@ -1983,21 +2057,45 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     []
   )
 
+  const writeSnapnoteLines = useCallback(async (extracted: EditorLineModel[]) => {
+    if (!extracted.length) return
+    const payload = serializeLinesForClipboard(extracted)
+    const plain = linesToPlainText(extracted)
+    try {
+      await window.snapnote.clipboard.writeSnapnote(payload, plain, { skipHistory: true })
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const insertImportedLines = useCallback(
+    (index: number, start: number, end: number, imported: EditorLineModel[]) => {
+      setMultiLineSelection(null)
+      pushUndoSnapshot(linesRef.current, index, start)
+      const next = buildLinesFromImportedInsert(linesRef.current, index, start, end, imported)
+      const focusIndex =
+        imported.length === 1 && !isBlockMarkdownLine(imported[0]!)
+          ? index
+          : index + imported.length - 1
+      const focusLine = next[focusIndex]
+      pendingFocusRef.current = { index: focusIndex, cursor: focusLine?.text.length ?? 0 }
+      setLines(next)
+    },
+    [pushUndoSnapshot]
+  )
+
   const copyTableLineToClipboard = useCallback(
     async (lineIndex: number) => {
       const line = linesRef.current[lineIndex]
-      const rows = line?.formatting?.tableRows
-      if (!rows?.length) return
-      const cols = resolveTableCols(rows, MAX_TABLE_COLS, line?.formatting?.tableCols)
-      const padded = padTableRows(rows, MAX_TABLE_COLS, cols)
+      if (!line) return
       try {
-        await window.snapnote.clipboard.writeSystem(tableRowsToTsv(padded), { skipHistory: true })
+        await writeSnapnoteLines([line])
         showCopyToastBrief()
       } catch {
         /* ignore */
       }
     },
-    [showCopyToastBrief]
+    [showCopyToastBrief, writeSnapnoteLines]
   )
 
   const handleTablePasteFullGrid = useCallback(
@@ -2071,16 +2169,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
   const copyAllMemoTextToClipboard = useCallback(async () => {
-    const text = linesRef.current
-      .map((l) => {
-        if (l.formatting?.isTable && l.formatting.tableRows?.length) {
-          return tableRowsToTsv(l.formatting.tableRows)
-        }
-        return l.text
-      })
-      .join('\n')
     try {
-      await window.snapnote.clipboard.writeSystem(text, { skipHistory: true })
+      await writeSnapnoteLines(linesRef.current)
       if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
       setCopyToastVisible(true)
       copyToastTimeoutRef.current = setTimeout(() => {
@@ -2090,27 +2180,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     } catch {
       /* 클립보드 실패 시 조용히 무시 */
     }
-  }, [])
+  }, [writeSnapnoteLines])
 
   const copyMultiLineSelectionToClipboard = useCallback(
     (sel: MultiLineSelection) => {
       const norm = normalizeSelection(sel)
-      const parts: string[] = []
-      for (let i = norm.startLine; i <= norm.endLine; i++) {
-        const t = lines[i]?.text ?? ''
-        if (i === norm.startLine && i === norm.endLine) {
-          parts.push(t.slice(norm.startOffset, norm.endOffset))
-        } else if (i === norm.startLine) {
-          parts.push(t.slice(norm.startOffset))
-        } else if (i === norm.endLine) {
-          parts.push(t.slice(0, norm.endOffset))
-        } else {
-          parts.push(t)
-        }
-      }
-      void window.snapnote.clipboard.writeSystem(parts.join('\n'), { skipHistory: true })
+      const extracted = extractLinesForSelection(lines, norm)
+      void writeSnapnoteLines(extracted)
     },
-    [lines, normalizeSelection]
+    [lines, normalizeSelection, writeSnapnoteLines]
   )
 
   const moveFocusToLine = useCallback((nextIndex: number, nextCursor: number) => {
@@ -2508,29 +2586,131 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     ]
   )
 
-  useImperativeHandle(
-    imperativeRef,
-    () => ({
-      appendTextFromClipboard: (text: string) => {
-        setMultiLineSelection(null)
-        const i = lastFocusIndex.current
-        const ta = textareaRefs.current[i]
-        pushUndoSnapshot(linesRef.current, i, ta?.selectionStart ?? 0)
+  const handleLineCopy = useCallback(
+    (index: number, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const virtual = multiLineSelectionRef.current
+      if (virtual && isVirtualRangeSelection(virtual)) {
+        e.preventDefault()
+        copyMultiLineSelectionToClipboard(virtual)
+        return
+      }
+      const start = e.currentTarget.selectionStart
+      const end = e.currentTarget.selectionEnd
+      if (start === end) return
+      e.preventDefault()
+      const extracted = extractLinesForSelection(linesRef.current, {
+        startLine: index,
+        startOffset: start,
+        endLine: index,
+        endOffset: end
+      })
+      void writeSnapnoteLines(extracted)
+    },
+    [copyMultiLineSelectionToClipboard, writeSnapnoteLines]
+  )
+
+  const handleLineCut = useCallback(
+    (index: number, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const virtual = multiLineSelectionRef.current
+      if (virtual && isVirtualRangeSelection(virtual)) return
+      const start = e.currentTarget.selectionStart
+      const end = e.currentTarget.selectionEnd
+      if (start === end) return
+      e.preventDefault()
+      const extracted = extractLinesForSelection(linesRef.current, {
+        startLine: index,
+        startOffset: start,
+        endLine: index,
+        endOffset: end
+      })
+      void writeSnapnoteLines(extracted)
+      pushUndoSnapshot(linesRef.current, index, start)
+      setLines((prev) => {
+        const cur = prev[index]
+        if (!cur) return prev
+        const newT = cur.text.slice(0, start) + cur.text.slice(end)
+        const spans = remapSpansAfterEdit(cur.text, newT, cur.spans)
+        return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
+      })
+      pendingFocusRef.current = { index, cursor: start }
+    },
+    [pushUndoSnapshot, writeSnapnoteLines]
+  )
+
+  const handleLinePaste = useCallback(
+    (index: number, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      e.preventDefault()
+      const start = e.currentTarget.selectionStart
+      const end = e.currentTarget.selectionEnd
+      const text = e.clipboardData.getData('text/plain')
+      void (async () => {
+        const snap = await window.snapnote.clipboard.readSnapnote()
+        if (snap) {
+          const imported = deserializeSnapnoteClipboard(snap)
+          insertImportedLines(index, start, end, imported)
+          return
+        }
+        if (text && looksLikeMarkdown(text)) {
+          const imported = parseMarkdownToEditorLines(text)
+          insertImportedLines(index, start, end, imported)
+          return
+        }
+        if (!text) return
+        pushUndoSnapshot(linesRef.current, index, start)
         setLines((prev) =>
           prev.map((l, idx) => {
-            if (idx !== i) return l
+            if (idx !== index) return l
             const oldT = l.text
-            const newT = l.text + text
+            const newT = l.text.slice(0, start) + text + l.text.slice(end)
             const spans = remapSpansAfterEdit(oldT, newT, l.spans)
             return { ...l, text: newT, spans }
           })
         )
+        pendingFocusRef.current = { index, cursor: start + text.length }
+      })()
+    },
+    [insertImportedLines, pushUndoSnapshot]
+  )
+
+  useImperativeHandle(
+    imperativeRef,
+    () => ({
+      appendTextFromClipboard: (text: string) => {
+        void (async () => {
+          setMultiLineSelection(null)
+          const i = lastFocusIndex.current
+          const ta = textareaRefs.current[i]
+          const start = ta?.selectionStart ?? linesRef.current[i]?.text.length ?? 0
+          const end = ta?.selectionEnd ?? start
+          const snap = await window.snapnote.clipboard.readSnapnote()
+          if (snap) {
+            const imported = deserializeSnapnoteClipboard(snap)
+            insertImportedLines(i, start, end, imported)
+            return
+          }
+          if (looksLikeMarkdown(text)) {
+            const imported = parseMarkdownToEditorLines(text)
+            insertImportedLines(i, start, end, imported)
+            return
+          }
+          pushUndoSnapshot(linesRef.current, i, start)
+          setLines((prev) =>
+            prev.map((l, idx) => {
+              if (idx !== i) return l
+              const oldT = l.text
+              const newT = l.text.slice(0, start) + text + l.text.slice(end)
+              const spans = remapSpansAfterEdit(oldT, newT, l.spans)
+              return { ...l, text: newT, spans }
+            })
+          )
+          pendingFocusRef.current = { index: i, cursor: start + text.length }
+        })()
       },
       copyAllToClipboard: () => {
         void copyAllMemoTextToClipboard()
       }
     }),
-    [pushUndoSnapshot, copyAllMemoTextToClipboard]
+    [pushUndoSnapshot, copyAllMemoTextToClipboard, insertImportedLines]
   )
 
   const serialized = useMemo(() => JSON.stringify(lines), [lines])
@@ -2883,6 +3063,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       resizeAllLineTextareaHeights()
                     })
                   }}
+                  onPaste={(e) => handleLinePaste(index, e)}
+                  onCopy={(e) => handleLineCopy(index, e)}
+                  onCut={(e) => handleLineCut(index, e)}
                   mirrorSelectionRange={getLineSelectionRange(index) ?? undefined}
                   onCheckboxToggle={
                     line.formatting?.hasCheckbox ? () => handleLineCheckboxToggle(index) : undefined

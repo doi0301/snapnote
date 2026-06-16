@@ -22,6 +22,8 @@ import { GlobalShortcutService } from './globalShortcutService'
 import { WindowManager } from './WindowManager'
 import { registerUpdaterIpcHandlers } from './autoUpdate'
 import { memosToMarkdown, memosMarkdownDefaultFilename } from './memoExportFormat'
+import { readSnapnoteClipboard, writeSnapnoteClipboard } from './snapnoteClipboardIO'
+import type { SnapnoteClipboardPayload } from '@shared/snapnoteClipboard'
 
 /** TRD §9 export JSON */
 interface ExportFile {
@@ -304,6 +306,30 @@ export class DataService {
       }
       }
     )
+
+    ipcMain.handle(
+      IPC_CHANNELS.CLIPBOARD_WRITE_SNAPNOTE,
+      (
+        _e,
+        body: {
+          payload?: SnapnoteClipboardPayload
+          plainText?: string
+          opts?: { skipHistory?: boolean }
+        }
+      ) => {
+        const payload = body?.payload
+        const plainText = body?.plainText
+        if (!payload || typeof plainText !== 'string') return
+        if (body.opts?.skipHistory) {
+          this.clipboardService.suppressNextClipboardText(plainText)
+        }
+        writeSnapnoteClipboard(plainText, payload)
+      }
+    )
+
+    ipcMain.handle(IPC_CHANNELS.CLIPBOARD_READ_SNAPNOTE, () => {
+      return readSnapnoteClipboard()
+    })
 
     ipcMain.handle(IPC_CHANNELS.CLIPBOARD_HAS_EDIT_TARGET, () => {
       return this.windowManager.lastFocusedEditMemoId != null

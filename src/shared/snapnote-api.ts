@@ -13,6 +13,7 @@ import type {
   SettingsUpdatePatch,
   UpdateEventPayload
 } from './types'
+import type { SnapnoteClipboardPayload } from './snapnoteClipboard'
 
 export type ExportMemosAsFilePayload = { ids: MemoId[] }
 export type ExportMemosAsFileResult = { ok: boolean; reason?: string }
@@ -56,6 +57,12 @@ export interface SnapnotePreloadAPI {
     hasEditInsertTarget: () => Promise<boolean>
     getImagePreview: (id: number) => Promise<{ dataUrl: string } | null>
     writeSystemImage: (id: number) => Promise<void>
+    writeSnapnote: (
+      payload: SnapnoteClipboardPayload,
+      plainText: string,
+      opts?: { skipHistory?: boolean }
+    ) => Promise<void>
+    readSnapnote: () => Promise<SnapnoteClipboardPayload | null>
   }
   settings: {
     get: () => Promise<Settings>

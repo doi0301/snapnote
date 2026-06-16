@@ -39,6 +39,9 @@ export interface EditorLineViewProps {
   onPointerLeave?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onSelect?: () => void
   onFocus?: () => void
+  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
+  onCopy?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
+  onCut?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onCheckboxToggle?: () => void
   onToggleLineCollapsed?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
@@ -61,6 +64,9 @@ export const EditorLineView = memo(
       onPointerLeave,
       onSelect,
       onFocus,
+      onPaste,
+      onCopy,
+      onCut,
       onCheckboxToggle,
       onToggleLineCollapsed,
       isStickyTitle,
@@ -219,6 +225,9 @@ export const EditorLineView = memo(
               onPointerLeave={onPointerLeave}
               onSelect={onSelect}
               onFocus={onFocus}
+              onPaste={onPaste}
+              onCopy={onCopy}
+              onCut={onCut}
               rows={1}
               spellCheck={false}
               tabIndex={isLineCollapsed ? -1 : undefined}

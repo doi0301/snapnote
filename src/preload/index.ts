@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IPC_CHANNELS } from '@shared/ipc-channels'
+import type { SnapnoteClipboardPayload } from '@shared/snapnoteClipboard'
 import type { SnapnotePreloadAPI, UpdateCheckResult } from '@shared/snapnote-api'
 import type { UpdateEventPayload } from '@shared/types'
 import type {
@@ -57,7 +58,15 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
     getImagePreview: (id: number): Promise<{ dataUrl: string } | null> =>
       ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_GET_IMAGE_PREVIEW, id),
     writeSystemImage: (id: number): Promise<void> =>
-      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM_IMAGE, id)
+      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_SYSTEM_IMAGE, id),
+    writeSnapnote: (
+      payload: SnapnoteClipboardPayload,
+      plainText: string,
+      opts?: { skipHistory?: boolean }
+    ): Promise<void> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_SNAPNOTE, { payload, plainText, opts }),
+    readSnapnote: (): Promise<SnapnoteClipboardPayload | null> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_READ_SNAPNOTE)
   }
 
   const settings = {

@@ -1,7 +1,7 @@
 import { isKeycapStorageChar, keycapDisplayChar } from './keycapChar'
 import type { EditorLine, TextSpan } from './types'
 
-const INDENT_SPACES = 2
+export const MARKDOWN_INDENT_SPACES = 2
 
 const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = {
   1: { open: '[', close: ']' },
@@ -43,7 +43,14 @@ export function stripAllHeadingMarkers(text: string): string {
 
 function indentPrefix(level: number): string {
   const n = Math.min(6, Math.max(0, level))
-  return ' '.repeat(n * INDENT_SPACES)
+  return ' '.repeat(n * MARKDOWN_INDENT_SPACES)
+}
+
+/** MD → 에디터 역변환 시 SnapNote 위계 마커를 본문에 다시 붙임 */
+export function applyHeadingMarkersToText(text: string, level: 1 | 2 | 3 | 4 | 5 | 6): string {
+  const marker = HEADING_MARKERS[level]!
+  const content = text.replace(/^(\s*)• /, '$1')
+  return marker.close ? marker.open + content + marker.close : marker.open + content
 }
 
 function headingUsesStructuralBold(level?: number): boolean {
