@@ -14,15 +14,11 @@ export function writeSnapnoteClipboard(
 ): void {
   const json = payloadToJson(payload)
   const html = embedSnapnoteInHtml(plainText, json)
+  /** writeBuffer 는 Windows 에서 text/plain 을 덮어써 외부 앱 붙여넣기가 깨진다. SnapNote 메타는 HTML 주석으로만 보관 */
   clipboard.write({
     text: plainText,
     html
   })
-  try {
-    clipboard.writeBuffer(SNAPNOTE_CLIPBOARD_MIME, Buffer.from(json, 'utf8'))
-  } catch {
-    /* html 백업으로 충분 */
-  }
 }
 
 export function readSnapnoteClipboard(): SnapnoteClipboardPayload | null {

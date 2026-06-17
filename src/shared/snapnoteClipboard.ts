@@ -1,4 +1,5 @@
 import type { EditorLine, LineFormatting, TextSpan } from './types'
+import { keycapDisplayChar } from './keycapChar'
 
 export const SNAPNOTE_CLIPBOARD_MIME = 'application/x-snapnote+json'
 
@@ -36,8 +37,12 @@ function escapeTsvCell(cell: string): string {
   return c
 }
 
+function plainTextFromString(text: string): string {
+  return [...text].map((ch) => keycapDisplayChar(ch)).join('')
+}
+
 function tableRowsToPlainTsv(rows: string[][]): string {
-  return rows.map((row) => row.map(escapeTsvCell).join('\t')).join('\r\n')
+  return rows.map((row) => row.map((cell) => escapeTsvCell(plainTextFromString(cell ?? ''))).join('\t')).join('\r\n')
 }
 
 /** 복사용 — id 제외 deep clone */
@@ -87,7 +92,7 @@ export function linesToPlainText(lines: EditorLine[]): string {
       if (l.formatting?.isTable && l.formatting.tableRows?.length) {
         return tableRowsToPlainTsv(l.formatting.tableRows)
       }
-      return l.text
+      return plainTextFromString(l.text)
     })
     .join('\n')
 }

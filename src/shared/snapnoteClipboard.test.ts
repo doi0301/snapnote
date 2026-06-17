@@ -58,6 +58,19 @@ describe('linesToPlainText', () => {
     ])
     expect(text).toBe('A\tB')
   })
+
+  it('converts keycap storage digits to display digits', () => {
+    const text = linesToPlainText([
+      line({
+        text: '\uFF11\uFF12 task',
+        spans: [
+          { start: 0, end: 1, keycap: true },
+          { start: 1, end: 2, keycap: true }
+        ]
+      })
+    ])
+    expect(text).toBe('12 task')
+  })
 })
 
 describe('sliceEditorLine', () => {

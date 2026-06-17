@@ -2604,6 +2604,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         endLine: index,
         endOffset: end
       })
+      const plain = linesToPlainText(extracted)
+      e.clipboardData.setData('text/plain', plain)
       void writeSnapnoteLines(extracted)
     },
     [copyMultiLineSelectionToClipboard, writeSnapnoteLines]
@@ -2623,6 +2625,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         endLine: index,
         endOffset: end
       })
+      const plain = linesToPlainText(extracted)
+      e.clipboardData.setData('text/plain', plain)
       void writeSnapnoteLines(extracted)
       pushUndoSnapshot(linesRef.current, index, start)
       setLines((prev) => {
