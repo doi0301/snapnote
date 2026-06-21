@@ -1,22 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SnapnoteClipboardPayload } from '@shared/snapnoteClipboard'
 
-const { writeMock, writeBufferMock } = vi.hoisted(() => ({
-  writeMock: vi.fn(),
-  writeBufferMock: vi.fn()
+const { writeTextMock, readTextMock, readHTMLMock } = vi.hoisted(() => ({
+  writeTextMock: vi.fn(),
+  readTextMock: vi.fn(() => ''),
+  readHTMLMock: vi.fn(() => '')
 }))
 
 vi.mock('electron', () => ({
   clipboard: {
-    write: writeMock,
-    writeBuffer: writeBufferMock,
-    has: vi.fn(() => false),
-    readBuffer: vi.fn(),
-    readHTML: vi.fn(() => '')
+    writeText: writeTextMock,
+    readText: readTextMock,
+    readHTML: readHTMLMock
   }
 }))
 
-import { writeSnapnoteClipboard } from './snapnoteClipboardIO'
+import {
+  clearSnapnoteClipboardCache,
+  readSnapnoteClipboard,
+  writeSnapnoteClipboard
+} from './snapnoteClipboardIO'
 
 const payload: SnapnoteClipboardPayload = {
   version: 1,
@@ -25,19 +28,33 @@ const payload: SnapnoteClipboardPayload = {
 
 describe('writeSnapnoteClipboard', () => {
   beforeEach(() => {
-    writeMock.mockClear()
-    writeBufferMock.mockClear()
+    writeTextMock.mockClear()
+    readTextMock.mockClear()
+    readHTMLMock.mockClear()
+    clearSnapnoteClipboardCache()
   })
 
-  it('writes text and html once without writeBuffer', () => {
+  it('writes text/plain only without html or custom mime', () => {
     writeSnapnoteClipboard('hello', payload)
-    expect(writeMock).toHaveBeenCalledTimes(1)
-    expect(writeMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: 'hello',
-        html: expect.stringContaining('hello')
-      })
-    )
-    expect(writeBufferMock).not.toHaveBeenCalled()
+    expect(writeTextMock).toHaveBeenCalledTimes(1)
+    expect(writeTextMock).toHaveBeenCalledWith('hello')
+  })
+})
+
+describe('readSnapnoteClipboard', () => {
+  beforeEach(() => {
+    clearSnapnoteClipboardCache()
+  })
+
+  it('returns cached payload when system text matches', () => {
+    writeSnapnoteClipboard('hello', payload)
+    readTextMock.mockReturnValue('hello')
+    expect(readSnapnoteClipboard()).toEqual(payload)
+  })
+
+  it('returns null when clipboard text changed externally', () => {
+    writeSnapnoteClipboard('hello', payload)
+    readTextMock.mockReturnValue('other')
+    expect(readSnapnoteClipboard()).toBeNull()
   })
 })

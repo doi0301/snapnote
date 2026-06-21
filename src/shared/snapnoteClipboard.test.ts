@@ -71,6 +71,13 @@ describe('linesToPlainText', () => {
     ])
     expect(text).toBe('12 task')
   })
+
+  it('strips SnapNote heading markers for external paste', () => {
+    const text = linesToPlainText([
+      line({ text: '[회의록]', formatting: { headingLevel: 1 } })
+    ])
+    expect(text).toBe('회의록')
+  })
 })
 
 describe('sliceEditorLine', () => {

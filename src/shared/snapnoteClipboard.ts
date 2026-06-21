@@ -1,5 +1,6 @@
 import type { EditorLine, LineFormatting, TextSpan } from './types'
 import { keycapDisplayChar } from './keycapChar'
+import { stripAllHeadingMarkers } from './memoMarkdownExport'
 
 export const SNAPNOTE_CLIPBOARD_MIME = 'application/x-snapnote+json'
 
@@ -85,14 +86,14 @@ export function deserializeSnapnoteClipboard(
   }))
 }
 
-/** 외부 앱용 text/plain */
+/** 외부 앱용 text/plain — SnapNote 마커 제거, keycap 반각 숫자 */
 export function linesToPlainText(lines: EditorLine[]): string {
   return lines
     .map((l) => {
       if (l.formatting?.isTable && l.formatting.tableRows?.length) {
         return tableRowsToPlainTsv(l.formatting.tableRows)
       }
-      return plainTextFromString(l.text)
+      return plainTextFromString(stripAllHeadingMarkers(l.text ?? ''))
     })
     .join('\n')
 }

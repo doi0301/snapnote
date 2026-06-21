@@ -1,48 +1,61 @@
 import { clipboard } from 'electron'
 import {
-  SNAPNOTE_CLIPBOARD_MIME,
-  embedSnapnoteInHtml,
   extractSnapnoteFromHtml,
   parsePayloadJson,
-  payloadToJson,
   type SnapnoteClipboardPayload
 } from '@shared/snapnoteClipboard'
+
+let cachedRichClipboard: {
+  plainText: string
+  payload: SnapnoteClipboardPayload
+} | null = null
+
+/** 테스트·캐시 초기화 */
+export function clearSnapnoteClipboardCache(): void {
+  cachedRichClipboard = null
+}
 
 export function writeSnapnoteClipboard(
   plainText: string,
   payload: SnapnoteClipboardPayload
 ): void {
-  const json = payloadToJson(payload)
-  const html = embedSnapnoteInHtml(plainText, json)
-  /** writeBuffer 는 Windows 에서 text/plain 을 덮어써 외부 앱 붙여넣기가 깨진다. SnapNote 메타는 HTML 주석으로만 보관 */
-  clipboard.write({
-    text: plainText,
-    html
-  })
+  cachedRichClipboard = { plainText, payload }
+  /** HTML/커스텀 MIME 는 외부 앱에서 서식 붙여넣기를 유발하므로 text/plain 만 기록 */
+  clipboard.writeText(plainText)
 }
 
 export function readSnapnoteClipboard(): SnapnoteClipboardPayload | null {
+  let systemText = ''
   try {
-    if (clipboard.has(SNAPNOTE_CLIPBOARD_MIME)) {
-      const buf = clipboard.readBuffer(SNAPNOTE_CLIPBOARD_MIME)
-      const json = buf.toString('utf8')
-      const parsed = parsePayloadJson(json)
-      if (parsed) return parsed
-    }
+    systemText = clipboard.readText()
   } catch {
-    /* fall through */
+    return null
   }
 
+  if (
+    cachedRichClipboard &&
+    cachedRichClipboard.plainText === systemText
+  ) {
+    return cachedRichClipboard.payload
+  }
+
+  /** 이전 버전(HTML 백업) 클립보드 호환 */
   try {
     const html = clipboard.readHTML()
     const json = extractSnapnoteFromHtml(html)
     if (json) {
       const parsed = parsePayloadJson(json)
-      if (parsed) return parsed
+      if (parsed && linesPlainFromPayload(parsed) === systemText) {
+        return parsed
+      }
     }
   } catch {
     /* no payload */
   }
 
   return null
+}
+
+function linesPlainFromPayload(payload: SnapnoteClipboardPayload): string {
+  return payload.lines.map((l) => l.text).join('\n')
 }
