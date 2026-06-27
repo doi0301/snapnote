@@ -121,7 +121,24 @@ export function extractSnapnoteFromHtml(html: string): string | null {
 }
 
 /** 한 줄 구간 slice (spans 재매핑) */
-export function sliceEditorLine(line: EditorLine, start: number, end: number): EditorLine {
+/** surrogate pair(이모지) 중간 인덱스 보정 — 쪼개진 lone surrogate(U+FFFD) 방지 */
+function snapStartToCodePoint(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index
+  const code = text.charCodeAt(index)
+  const prev = text.charCodeAt(index - 1)
+  return code >= 0xdc00 && code <= 0xdfff && prev >= 0xd800 && prev <= 0xdbff ? index - 1 : index
+}
+
+function snapEndToCodePoint(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index
+  const code = text.charCodeAt(index)
+  const prev = text.charCodeAt(index - 1)
+  return code >= 0xdc00 && code <= 0xdfff && prev >= 0xd800 && prev <= 0xdbff ? index + 1 : index
+}
+
+export function sliceEditorLine(line: EditorLine, rawStart: number, rawEnd: number): EditorLine {
+  const start = snapStartToCodePoint(line.text, rawStart)
+  const end = snapEndToCodePoint(line.text, rawEnd)
   const text = line.text.slice(start, end)
   const spans = line.spans
     ?.filter((s) => s.end > start && s.start < end)

@@ -65,6 +65,14 @@
   text-shadow: 0.35px 0 currentColor, -0.35px 0 currentColor;
 }
 
+/* 컬러 이모지는 faux-bold text-shadow가 검정 테두리처럼 보이므로 그림자 제거 */
+.inline-emoji,
+.editor-line-mirror span.inline-emoji,
+.editor-line-mirror span.inline-selected.inline-bold.inline-emoji {
+  text-shadow: none !important;
+  font-weight: 400 !important;
+}
+
 .inline-strike {
   text-decoration: line-through;
 }

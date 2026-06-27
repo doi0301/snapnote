@@ -13,6 +13,35 @@ const HL_CLASS: Record<HighlightColor, string> = {
   purple: 'inline-hl-purple'
 }
 
+/** 컬러 이모지 매칭 (variation selector·ZWJ 시퀀스 포함) */
+const EMOJI_SEQUENCE_RE =
+  /\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}\uFE0F?)*/gu
+const EMOJI_ONLY_RE =
+  /^(\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}\uFE0F?)*)+$/u
+
+/** 이모지 구간 경계를 분리해 faux-bold text-shadow(검정 테두리)를 끌 수 있게 한다 */
+function addEmojiBreakpoints(text: string, set: Set<number>): void {
+  EMOJI_SEQUENCE_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = EMOJI_SEQUENCE_RE.exec(text)) !== null) {
+    set.add(m.index)
+    set.add(m.index + m[0].length)
+    if (m[0].length === 0) EMOJI_SEQUENCE_RE.lastIndex++
+  }
+}
+
+function isEmojiOnly(slice: string): boolean {
+  return EMOJI_ONLY_RE.test(slice)
+}
+
+/** surrogate pair(이모지) 중간에서 끊기면 lone surrogate(U+FFFD) 렌더 방지 — 쌍 끝으로 보정 */
+function snapBreakpoint(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index
+  const code = text.charCodeAt(index)
+  const prev = text.charCodeAt(index - 1)
+  return code >= 0xdc00 && code <= 0xdfff && prev >= 0xd800 && prev <= 0xdbff ? index + 1 : index
+}
+
 function collectBreakpoints(
   text: string,
   spans: TextSpan[],
@@ -113,7 +142,9 @@ export function SpannedLineMirror({
     }
     bp.sort((a, b) => a - b)
   }
-  const uniq = [...new Set(bp)]
+  const snapped = new Set(bp.map((i) => snapBreakpoint(text, i)))
+  addEmojiBreakpoints(text, snapped)
+  const uniq = [...snapped].sort((a, b) => a - b)
   const parts: React.JSX.Element[] = []
   for (let k = 0; k < uniq.length - 1; k++) {
     const a = uniq[k]!
@@ -126,6 +157,7 @@ export function SpannedLineMirror({
       const inSearch = searchHighlights.some((h) => a >= h.start && b <= h.end)
       if (inSearch) cls = cls ? cls + ' editor-search-highlight' : 'editor-search-highlight'
     }
+    if (isEmojiOnly(slice)) cls = cls ? cls + ' inline-emoji' : 'inline-emoji'
     const hasKeycap = cls.includes('snapnote-keycap-badge')
     if (hasKeycap && variant === 'inline') {
       parts.push(

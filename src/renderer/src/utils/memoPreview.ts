@@ -10,6 +10,14 @@ function clampSpanIndex(n: number, max: number): number {
   return Math.max(0, Math.min(n, max))
 }
 
+/** surrogate pair(이모지) 중간에서 자르면 lone surrogate(U+FFFD)가 생기므로 한 칸 앞으로 보정 */
+function snapClipEnd(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index
+  const code = text.charCodeAt(index)
+  const prev = text.charCodeAt(index - 1)
+  return code >= 0xdc00 && code <= 0xdfff && prev >= 0xd800 && prev <= 0xdbff ? index - 1 : index
+}
+
 function copySpanSlice(s: TextSpan, start: number, end: number): TextSpan {
   const copy: TextSpan = { start, end }
   if (s.bold) copy.bold = true
@@ -65,8 +73,8 @@ function previewFromTrimmedLine(
   leading: number
 ): LinePreviewSpanned {
   const truncated = trimmed.length > max
-  const clipEnd = truncated ? max : trimmed.length
-  const text = truncated ? `${trimmed.slice(0, max)}…` : trimmed
+  const clipEnd = truncated ? snapClipEnd(trimmed, max) : trimmed.length
+  const text = truncated ? `${trimmed.slice(0, clipEnd)}…` : trimmed
   const remapped = remapSpansForTrimmedLine(clipEnd, sourceSpans, leading)
   const spans = mergeInferredKeycapSpans(text, clipEnd, remapped)
   return spans ? { text, spans } : { text }
@@ -143,5 +151,5 @@ export function fullContentPreview(lines: EditorLine[], max = 320): string {
     .trim()
   if (!text) return '…'
   if (text.length <= max) return text
-  return `${text.slice(0, max)}…`
+  return `${text.slice(0, snapClipEnd(text, max))}…`
 }

@@ -37,6 +37,9 @@ export interface EditorLineViewProps {
   onPointerDown?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onPointerMove?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
   onPointerLeave?: (e: React.PointerEvent<HTMLTextAreaElement>) => void
+  onDoubleClick?: (e: React.MouseEvent<HTMLTextAreaElement>) => void
+  onCompositionStart?: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
+  onCompositionEnd?: (e: React.CompositionEvent<HTMLTextAreaElement>) => void
   onSelect?: () => void
   onFocus?: () => void
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
@@ -62,6 +65,9 @@ export const EditorLineView = memo(
       onPointerDown,
       onPointerMove,
       onPointerLeave,
+      onDoubleClick,
+      onCompositionStart,
+      onCompositionEnd,
       onSelect,
       onFocus,
       onPaste,
@@ -223,6 +229,9 @@ export const EditorLineView = memo(
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerLeave={onPointerLeave}
+              onDoubleClick={onDoubleClick}
+              onCompositionStart={onCompositionStart}
+              onCompositionEnd={onCompositionEnd}
               onSelect={onSelect}
               onFocus={onFocus}
               onPaste={onPaste}

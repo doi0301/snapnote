@@ -125,6 +125,30 @@ describe('extractLinesForSelection', () => {
   })
 })
 
+describe('emoji surrogate safety', () => {
+  const REPLACEMENT = '\uFFFD'
+
+  it('keeps emoji intact on full-line copy round trip', () => {
+    const src = [line({ text: 'before 🔴 after 🤖' })]
+    const payload = serializeLinesForClipboard(
+      extractLinesForSelection(src, { startLine: 0, startOffset: 0, endLine: 0, endOffset: src[0]!.text.length })
+    )
+    const restored = deserializeSnapnoteClipboard(parsePayloadJson(payloadToJson(payload))!)
+    expect(restored[0]?.text).toBe('before 🔴 after 🤖')
+    expect(restored[0]?.text).not.toContain(REPLACEMENT)
+  })
+
+  it('does not split a surrogate pair when offsets land mid-emoji', () => {
+    // text: x(0) high(1) low(2) y(3) — '🔴' occupies indices 1..3
+    const text = 'x🔴y'
+    const endsMid = sliceEditorLine(line({ text }), 0, 2)
+    expect(endsMid.text).not.toContain(REPLACEMENT)
+    const startsMid = sliceEditorLine(line({ text }), 2, text.length)
+    expect(startsMid.text).not.toContain(REPLACEMENT)
+    expect(linesToPlainText([endsMid, startsMid])).not.toContain(REPLACEMENT)
+  })
+})
+
 describe('html backup', () => {
   it('embeds and extracts json', () => {
     const payload = serializeLinesForClipboard([line({ text: 'x' })])

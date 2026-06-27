@@ -4,6 +4,7 @@ out
 .cursor/
 .DS_Store
 .eslintcache
+*.tsbuildinfo
 *.log*
 test-results/
 playwright-report/

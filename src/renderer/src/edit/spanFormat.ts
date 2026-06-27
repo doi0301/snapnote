@@ -299,6 +299,29 @@ export function addBoldOnRange(spans: TextSpan[] | undefined, a: number, b: numb
   return addPropertyToRange(list, 'bold', a, b)
 }
 
+/**
+ * 구간 [a,b)에 속성을 강제로 켜거나(enable=true) 끈다(enable=false).
+ * 다중 줄/다중 구간 선택에서 "전체 적용 후 전체 해제"식 통일 토글에 사용.
+ */
+export function setSpanPropertyOnRange(
+  spans: TextSpan[] | undefined,
+  prop: InlineFormatProp,
+  a: number,
+  b: number,
+  textLength: number,
+  enable: boolean
+): TextSpan[] {
+  const list = spans ?? []
+  const aa = clamp(a, 0, textLength)
+  const bb = clamp(b, 0, textLength)
+  if (aa >= bb) return list.map((s) => ({ ...s }))
+  if (enable) {
+    if (rangeFullyHasProp(list, aa, bb, prop)) return list.map((s) => ({ ...s }))
+    return addPropertyToRange(list, prop, aa, bb)
+  }
+  return removePropertyFromRange(list, prop, aa, bb)
+}
+
 export function applyKeycapOnRange(spans: TextSpan[] | undefined, a: number, b: number): TextSpan[] {
   if (a >= b) return spans ?? []
   return [...(spans ?? []), { start: a, end: b, keycap: true }]

@@ -169,6 +169,19 @@ function getCachedVisualLines(
   return lines
 }
 
+/**
+ * UTF-16 인덱스가 surrogate pair(이모지 등 astral 문자) 중간에 떨어지면 한 칸 뒤로 보정.
+ * 캐럿/선택 경계가 surrogate 사이에 생기면 복사 시 문자가 쪼개져 U+FFFD(마름모 물음표)가 된다.
+ */
+function snapToCodePointBoundary(text: string, index: number): number {
+  if (index <= 0 || index >= text.length) return index
+  const code = text.charCodeAt(index)
+  const prev = text.charCodeAt(index - 1)
+  const isLowSurrogate = code >= 0xdc00 && code <= 0xdfff
+  const prevHighSurrogate = prev >= 0xd800 && prev <= 0xdbff
+  return isLowSurrogate && prevHighSurrogate ? index + 1 : index
+}
+
 function offsetInRowFromX(rowText: string, relX: number, ctx: CanvasRenderingContext2D): number {
   if (rowText.length === 0) return 0
   const rx = Math.max(0, relX)
@@ -243,7 +256,7 @@ export function getCaretOffsetFromPointInTextarea(
       }
       const rowText = text.slice(rowStart, rowEnd)
       const offsetInRow = offsetInRowFromX(rowText, relX, ctx)
-      return Math.min(rowStart + offsetInRow, text.length)
+      return snapToCodePointBoundary(text, Math.min(rowStart + offsetInRow, text.length))
     }
     y = nextY
   }

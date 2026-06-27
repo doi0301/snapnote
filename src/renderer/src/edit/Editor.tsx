@@ -45,6 +45,7 @@ import {
   rangeFullyHasAnyMemoLink,
   rangeFullyHasHighlight,
   rangeFullyHasProp,
+  setSpanPropertyOnRange,
   remapSpansAfterEdit,
   remapSpansForHeadingMarkerChange,
   shiftSpans,
@@ -480,6 +481,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const pendingFocusRef = useRef<{ index: number; cursor: number } | null>(null)
   const [focusLineIndex, setFocusLineIndex] = useState(0)
   const pendingBoldLineIdsRef = useRef<Set<string>>(new Set())
+  /** IME(한글) 조합 중인 줄 — 조합 중에는 해당 textarea 레이아웃을 건드리지 않는다 */
+  const composingLineRef = useRef<number | null>(null)
   /** sticky 제목이 상단에 붙었을 때 — 한 줄 높이로 고정 */
   const titleLineStuckRef = useRef(false)
   const [toolbarTick, setToolbarTick] = useState(0)
@@ -743,6 +746,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const resizeOneLineTextarea = useCallback((el: HTMLTextAreaElement | null, lineIndex?: number): void => {
     if (!el) return
+    /**
+     * IME(한글) 조합 중인 줄은 height='auto'↔scrollHeight 재설정이 조합을 강제 종료시키고
+     * 캐럿이 튀게 만든다. 조합이 끝난 뒤(onCompositionEnd) 한 번만 다시 맞춘다.
+     */
+    if (lineIndex != null && lineIndex === composingLineRef.current) return
     if (lineIndex === 0 && titleLineStuckRef.current) {
       el.style.height = 'calc(1.38em + 10px)'
       el.style.overflow = 'hidden'
@@ -752,6 +760,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     el.style.height = 'auto'
     el.style.height = `${Math.max(28, el.scrollHeight)}px`
   }, [])
+
+  const handleLineCompositionStart = useCallback((index: number) => {
+    composingLineRef.current = index
+  }, [])
+
+  const handleLineCompositionEnd = useCallback(
+    (index: number) => {
+      if (composingLineRef.current === index) composingLineRef.current = null
+      /** 조합이 끝난 뒤 한 번만 높이 재계산 */
+      requestAnimationFrame(() => resizeOneLineTextarea(textareaRefs.current[index] ?? null, index))
+    },
+    [resizeOneLineTextarea]
+  )
 
   const handleTitleStickyStuckChange = useCallback(
     (stuck: boolean) => {
@@ -1383,32 +1404,56 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   )
 
   const toggleBold = useCallback(() => {
-    const applyBoldSegment = (line: EditorLineModel, seg: { s: number; e: number }): EditorLineModel => {
+    /**
+     * 선택 전체를 하나의 단위로 토글한다(워드/노션 방식):
+     * 일부만 볼드여도 1번째엔 전체 볼드 적용, 다시 누르면 전체 해제.
+     * enable=true면 구간 볼드 켜기, false면 끄기.
+     */
+    const applyBoldSegment = (
+      line: EditorLineModel,
+      seg: { s: number; e: number },
+      enable: boolean
+    ): EditorLineModel => {
       const hl = line.formatting?.headingLevel
       pendingBoldLineIdsRef.current.delete(line.id)
       if (headingBlocksBold(hl)) return line
       const sp = line.spans ?? []
       if (headingUsesStructuralBold(hl)) {
-        if (rangeFullyHasProp(sp, seg.s, seg.e, 'bold')) {
-          const nextSpans = toggleSpanProperty(sp, 'bold', seg.s, seg.e, line.text.length)
+        // 구조적 볼드(제목 위계): 켜기는 불가, 끄기만 허용
+        if (!enable && rangeFullyHasProp(sp, seg.s, seg.e, 'bold')) {
+          const nextSpans = setSpanPropertyOnRange(sp, 'bold', seg.s, seg.e, line.text.length, false)
           return { ...line, spans: nextSpans }
         }
         return line
       }
-      const nextSpans = toggleSpanProperty(sp, 'bold', seg.s, seg.e, line.text.length)
+      const nextSpans = setSpanPropertyOnRange(sp, 'bold', seg.s, seg.e, line.text.length, enable)
       return { ...line, spans: nextSpans }
     }
 
     const virtual = multiLineSelectionRef.current
     if (virtual && isVirtualRangeSelection(virtual)) {
       const norm = normalizeSelection(virtual)
+      // 선택 전체가 이미 볼드인지 한 번에 판단 → 통일된 토글 방향 결정
+      let anyToggleable = false
+      let allBold = true
+      for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
+        const line = lines[lineIdx]
+        if (!line) continue
+        const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
+        if (!seg || seg.s === seg.e) continue
+        if (headingBlocksBold(line.formatting?.headingLevel)) continue
+        anyToggleable = true
+        if (!rangeFullyHasProp(line.spans ?? [], seg.s, seg.e, 'bold')) allBold = false
+      }
+      if (!anyToggleable) return
+      const enable = !allBold
       pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
       setLines((prev) => {
         const next = prev.map((line, lineIdx) => {
           if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
           const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
           if (!seg || seg.s === seg.e) return line
-          return applyBoldSegment(line, seg)
+          return applyBoldSegment(line, seg, enable)
         })
         queueMicrotask(bumpToolbar)
         return next
@@ -1444,7 +1489,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return prev
       }
       queueMicrotask(bumpToolbar)
-      return prev.map((l, j) => (j === i ? applyBoldSegment(line, { s, e }) : l))
+      const enable = !rangeFullyHasProp(line.spans ?? [], s, e, 'bold')
+      return prev.map((l, j) => (j === i ? applyBoldSegment(line, { s, e }, enable) : l))
     })
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
@@ -1453,23 +1499,25 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     if (virtual && isVirtualRangeSelection(virtual)) {
       const norm = normalizeSelection(virtual)
       let any = false
+      let allStrike = true
       for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
         const line = lines[lineIdx]
         if (!line) continue
         const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
         if (seg && seg.s !== seg.e) {
           any = true
-          break
+          if (!rangeFullyHasProp(line.spans ?? [], seg.s, seg.e, 'strikethrough')) allStrike = false
         }
       }
       if (!any) return
+      const enable = !allStrike
       pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
       setLines((prev) =>
         prev.map((line, lineIdx) => {
           if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
           const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
           if (!seg || seg.s === seg.e) return line
-          const nextSpans = toggleSpanProperty(line.spans, 'strikethrough', seg.s, seg.e, line.text.length)
+          const nextSpans = setSpanPropertyOnRange(line.spans, 'strikethrough', seg.s, seg.e, line.text.length, enable)
           return { ...line, spans: nextSpans }
         })
       )
@@ -1496,20 +1544,25 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     if (virtual && isVirtualRangeSelection(virtual)) {
       const norm = normalizeSelection(virtual)
       let any = false
+      let allUnderline = true
       for (let lineIdx = norm.startLine; lineIdx <= norm.endLine; lineIdx++) {
         const line = lines[lineIdx]
         if (!line) continue
         const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
-        if (seg && seg.s !== seg.e) { any = true; break }
+        if (seg && seg.s !== seg.e) {
+          any = true
+          if (!rangeFullyHasProp(line.spans ?? [], seg.s, seg.e, 'underline')) allUnderline = false
+        }
       }
       if (!any) return
+      const enable = !allUnderline
       pushUndoSnapshot(lines, norm.startLine, norm.startOffset)
       setLines((prev) =>
         prev.map((line, lineIdx) => {
           if (lineIdx < norm.startLine || lineIdx > norm.endLine) return line
           const seg = getSegmentForNormalizedLine(norm, lineIdx, line.text)
           if (!seg || seg.s === seg.e) return line
-          const nextSpans = toggleSpanProperty(line.spans, 'underline', seg.s, seg.e, line.text.length)
+          const nextSpans = setSpanPropertyOnRange(line.spans, 'underline', seg.s, seg.e, line.text.length, enable)
           return { ...line, spans: nextSpans }
         })
       )
@@ -2723,6 +2776,26 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     textareaRefs.current[i] = el
   }, [])
 
+  /** 더블클릭 — 해당 줄(논리 줄) 전체 선택 */
+  const handleLineDoubleClick = useCallback(
+    (index: number, e: React.MouseEvent<HTMLTextAreaElement>) => {
+      const ta = e.currentTarget
+      const len = ta.value.length
+      if (len === 0) return
+      e.preventDefault()
+      endSelectionDragRef.current?.()
+      endSelectionDragRef.current = null
+      draggingSelectionRef.current = false
+      setMultiLineSelection(null)
+      ta.focus()
+      lastFocusIndex.current = index
+      setFocusLineIndex(index)
+      ta.setSelectionRange(0, len)
+      setSelectionTick((t) => t + 1)
+    },
+    []
+  )
+
   const onLinePointerDown = useCallback((index: number, e: React.PointerEvent<HTMLTextAreaElement>) => {
     if (e.button !== 0) return
     setLinkHoverHint(null)
@@ -2758,7 +2831,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     setMultiLineSelection(null)
     selectionAnchorRef.current = null
     const lineIndexDown = index
-    let dragSelectionActive = false
+    let crossedLines = false
     let moveRafId = 0
     let pendingPointer: { x: number; y: number } | null = null
 
@@ -2771,29 +2844,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const clientY = p.y
       const found = findEditorTextareaUnderPoint(clientX, clientY, textareaRefs.current, lineIndexDown)
       if (!found) return
+      const { ta: taUnder, index: elIndex } = found
 
-      if (!dragSelectionActive) {
-        const { ta: taUnder, index: elIndex } = found
-        const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
-        const lineChanged = elIndex !== lineIndexDown
-        const offsetMoved = elIndex === lineIndexDown && focusOffset !== initialAnchorOffset
-        if (!lineChanged && !offsetMoved) return
-        dragSelectionActive = true
-        selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: initialAnchorOffset }
-        taUnder.focus()
-        lastFocusIndex.current = elIndex
-        setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
-        const nextSel: MultiLineSelection = {
-          anchorLine: lineIndexDown,
-          anchorOffset: initialAnchorOffset,
-          focusLine: elIndex,
-          focusOffset
-        }
-        setMultiLineSelection((prev) => (multiLineSelectionEqual(prev, nextSel) ? prev : nextSel))
+      /**
+       * 같은 줄 안에서의 드래그는 브라우저 네이티브 textarea 선택이 픽셀 단위로 정확하다.
+       * 캔버스 추정 좌표로 가상 선택을 덮어쓰면 "중간이 잘리는" 부정확함이 생기므로,
+       * 줄을 한 번도 넘지 않은 동안에는 네이티브 선택을 그대로 미러에 반영만 한다.
+       */
+      if (!crossedLines && elIndex === lineIndexDown) {
+        if (multiLineSelectionRef.current) setMultiLineSelection(null)
+        setSelectionTick((t) => t + 1)
         return
       }
 
-      const { ta: taUnder, index: elIndex } = found
+      /** 줄을 넘어선 순간부터 가상 멀티라인 선택 사용 (textarea 경계를 넘는 선택은 네이티브 불가) */
+      if (!crossedLines) {
+        crossedLines = true
+        selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: initialAnchorOffset }
+      }
       taUnder.focus()
       lastFocusIndex.current = elIndex
       setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
@@ -2801,19 +2869,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       setMultiLineSelection((prev) => {
         const anchor = selectionAnchorRef.current
         if (!anchor) return prev
-        const next: MultiLineSelection = !prev
-          ? {
-              anchorLine: anchor.line,
-              anchorOffset: anchor.anchorOffset,
-              focusLine: elIndex,
-              focusOffset
-            }
-          : {
-              anchorLine: prev.anchorLine,
-              anchorOffset: prev.anchorOffset,
-              focusLine: elIndex,
-              focusOffset
-            }
+        const next: MultiLineSelection = {
+          anchorLine: anchor.line,
+          anchorOffset: anchor.anchorOffset,
+          focusLine: elIndex,
+          focusOffset
+        }
         return multiLineSelectionEqual(prev, next) ? prev : next
       })
     }
@@ -3054,6 +3115,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   onPointerDown={(e) => onLinePointerDown(index, e)}
                   onPointerMove={(e) => onLinePointerMove(index, e)}
                   onPointerLeave={onLinePointerLeave}
+                  onDoubleClick={(e) => handleLineDoubleClick(index, e)}
+                  onCompositionStart={() => handleLineCompositionStart(index)}
+                  onCompositionEnd={() => handleLineCompositionEnd(index)}
                   onSelect={bumpSelectionTick}
                   onFocus={() => {
                     lastFocusIndex.current = index
