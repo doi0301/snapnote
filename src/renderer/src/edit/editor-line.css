@@ -18,23 +18,33 @@
   align-items: stretch;
 }
 
+/* textarea·mirror 공통 typography — 좌표 계산/선택 정렬용으로 대칭 유지 */
+.editor-line-mirror,
+.editor-line-textarea {
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.38;
+  letter-spacing: normal;
+  word-spacing: normal;
+  tab-size: 8;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
 .editor-line-mirror {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
   bottom: 0;
-  padding: 5px 10px;
-  font-size: 14px;
-  line-height: 1.38;
-  font-family: inherit;
-  letter-spacing: normal;
-  white-space: pre-wrap;
-  word-break: break-word;
   pointer-events: none;
   color: #1a1a1a;
   z-index: 0;
-  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -198,21 +208,13 @@
   flex: 1;
   min-width: 0;
   min-height: 28px;
-  padding: 5px 10px;
   border: none;
   margin: 0;
   resize: none;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1.38;
   background: transparent;
   color: #1a1a1a;
   /* 기본 overflow:auto → 줄마다 세로 스크롤+화살표가 생김. 높이는 JS/field-sizing으로 맞춤 */
   overflow: hidden;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-sizing: border-box;
 }
 
 .editor-line-textarea:focus {
@@ -234,9 +236,11 @@
   font-weight: 700;
 }
 
-/* 접기 버튼 공간 — mirror·textarea 동일 적용으로 정렬 유지 */
+/* 접기 버튼 공간 — 섹션·accent 접기 모두 mirror·textarea에 동일 우측 여백 */
 .editor-line--section-title .editor-line-textarea,
-.editor-line--section-title .editor-line-mirror {
+.editor-line--section-title .editor-line-mirror,
+.editor-line-editor--collapsible .editor-line-textarea,
+.editor-line-editor--collapsible .editor-line-mirror {
   padding-right: 32px;
 }
 

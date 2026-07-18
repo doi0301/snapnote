@@ -55,7 +55,11 @@ import {
   toggleSpanProperty,
   stripBoldFromInterval
 } from './spanFormat'
-import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
+import {
+  findEditorTextareaUnderPoint,
+  getCaretOffsetFromPointInTextarea,
+  nativeAnchorOffsetFromTextarea
+} from './editorCaretFromPoint'
 import { computeSectionHiddenIndices, nextVisibleLineIndex } from './sectionFold'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
@@ -2933,18 +2937,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     requestAnimationFrame(() => {
       resizeAllLineTextareaHeights()
     })
-    const initialAnchorOffset = getCaretOffsetFromPointInTextarea(ta, e.clientX, e.clientY)
     /**
      * mousedown 직후에는 브라우저가 아직 캐럿/선택을 갱신하지 않아 selectionStart/End 가 이전 줄 전체 선택 등
      * 으로 남을 수 있다. multiLineSelection 을 여기서 채우면 sync effect 가 그대로 DOM 에 박혀
      * "줄 클릭 시 전체 선택" 처럼 보인다. 실제 드래그가 시작된 뒤에만 가상 선택을 연다.
+     *
+     * 줄 경계를 넘는 순간의 앵커는 pointerdown 캔버스 추정이 아니라, 그 직전까지의
+     * 네이티브 selectionStart/End/Direction 으로 고정한다.
      */
     setMultiLineSelection(null)
     selectionAnchorRef.current = null
     const lineIndexDown = index
-    let crossedLines = false
+    const sourceTa = ta
+    /** native: 같은 줄 네이티브 선택 / virtual: 다중 줄 가상 선택 (세션 종료까지 유지) */
+    let phase: 'native' | 'virtual' = 'native'
     let moveRafId = 0
     let pendingPointer: { x: number; y: number } | null = null
+    let latestVirtual: MultiLineSelection | null = null
 
     const flushMove = (): void => {
       moveRafId = 0
@@ -2959,35 +2968,34 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       /**
        * 같은 줄 안에서의 드래그는 브라우저 네이티브 textarea 선택이 픽셀 단위로 정확하다.
-       * 캔버스 추정 좌표로 가상 선택을 덮어쓰면 "중간이 잘리는" 부정확함이 생기므로,
        * 줄을 한 번도 넘지 않은 동안에는 네이티브 선택을 그대로 미러에 반영만 한다.
        */
-      if (!crossedLines && elIndex === lineIndexDown) {
+      if (phase === 'native' && elIndex === lineIndexDown) {
         if (multiLineSelectionRef.current) setMultiLineSelection(null)
         setSelectionTick((t) => t + 1)
         return
       }
 
-      /** 줄을 넘어선 순간부터 가상 멀티라인 선택 사용 (textarea 경계를 넘는 선택은 네이티브 불가) */
-      if (!crossedLines) {
-        crossedLines = true
-        selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: initialAnchorOffset }
+      /** 줄을 넘어선 순간: 네이티브 앵커를 채택한 뒤 세션 종료까지 virtual 유지 */
+      if (phase === 'native') {
+        phase = 'virtual'
+        const nativeAnchor = nativeAnchorOffsetFromTextarea(sourceTa)
+        selectionAnchorRef.current = { line: lineIndexDown, anchorOffset: nativeAnchor }
       }
       taUnder.focus()
       lastFocusIndex.current = elIndex
       setFocusLineIndex((prev) => (prev === elIndex ? prev : elIndex))
       const focusOffset = getCaretOffsetFromPointInTextarea(taUnder, clientX, clientY)
-      setMultiLineSelection((prev) => {
-        const anchor = selectionAnchorRef.current
-        if (!anchor) return prev
-        const next: MultiLineSelection = {
-          anchorLine: anchor.line,
-          anchorOffset: anchor.anchorOffset,
-          focusLine: elIndex,
-          focusOffset
-        }
-        return multiLineSelectionEqual(prev, next) ? prev : next
-      })
+      const anchor = selectionAnchorRef.current
+      if (!anchor) return
+      const next: MultiLineSelection = {
+        anchorLine: anchor.line,
+        anchorOffset: anchor.anchorOffset,
+        focusLine: elIndex,
+        focusOffset
+      }
+      latestVirtual = next
+      setMultiLineSelection((prev) => (multiLineSelectionEqual(prev, next) ? prev : next))
     }
 
     const move = (ev: PointerEvent): void => {
@@ -2998,10 +3006,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       moveRafId = requestAnimationFrame(flushMove)
     }
 
-    const endDrag = (): void => {
+    const endDrag = (ev?: Event): void => {
+      if (ev && 'clientX' in ev && 'clientY' in ev) {
+        const pe = ev as PointerEvent
+        pendingPointer = { x: pe.clientX, y: pe.clientY }
+      }
+      /** pointerup 이 RAF 보다 먼저 와도 마지막 좌표를 동기적으로 반영 */
       if (moveRafId) {
         cancelAnimationFrame(moveRafId)
         moveRafId = 0
+      }
+      if (pendingPointer && draggingSelectionRef.current) {
+        flushMove()
       }
       pendingPointer = null
       document.removeEventListener('pointermove', move)
@@ -3011,7 +3027,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       draggingSelectionRef.current = false
       selectionAnchorRef.current = null
       requestAnimationFrame(() => setSelectionTick((t) => t + 1))
-      const before = multiLineSelectionRef.current
+      const before = latestVirtual ?? multiLineSelectionRef.current
       setMultiLineSelection((p) => {
         if (!p) return null
         if (p.anchorLine === p.focusLine && p.anchorOffset === p.focusOffset) return null
@@ -3028,7 +3044,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
     }
 
-    endSelectionDragRef.current = endDrag
+    endSelectionDragRef.current = () => endDrag()
     document.addEventListener('pointermove', move)
     document.addEventListener('pointerup', endDrag)
     document.addEventListener('pointercancel', endDrag)

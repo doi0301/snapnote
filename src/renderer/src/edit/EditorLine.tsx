@@ -154,7 +154,8 @@ export const EditorLineView = memo(
     const stickyClass = isStickyTitle ? ' editor-line--sticky-title' : ''
     const stuckClass = isStuck ? ' editor-line--stuck' : ''
     const isMultiLine = line.text.includes('\n')
-    const canCollapse = Boolean(accent) && isMultiLine
+    /** 섹션 접기 버튼과 accent 줄내 접기가 겹치지 않도록 섹션이면 줄내 접기 UI 숨김 */
+    const canCollapse = !isSectionTitle && Boolean(accent) && isMultiLine
     const isLineCollapsed = canCollapse && Boolean(line.formatting?.lineCollapsed)
     const collapsedClass = isLineCollapsed ? ' editor-line--collapsed' : ''
     const firstLinePreview = stickyTitlePreviewText(line.text)
