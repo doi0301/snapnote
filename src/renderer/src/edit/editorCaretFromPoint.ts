@@ -6,8 +6,10 @@
  * 동일 거리(두 줄 사이)면 인접한 두 줄이면 갭의 수직 중점으로 구분하고,
  * 그 외에는 앵커 줄 기준으로 보조한다.
  *
- * 좌표→오프셋은 Canvas 폭 추정 대신 textarea와 동일한 스타일의 measurement DOM +
- * Range.getClientRects()를 사용해 Chromium 실제 줄바꿈/글리프 폭을 따른다.
+ * 좌표→오프셋은 사용자가 실제로 보는 mirror(.editor-line-mirror)의 글자 사각형을
+ * Range.getClientRects()로 직접 측정한다 — 복제 DOM/Canvas 추정과 달리 렌더링과
+ * 어긋날 수 없다. mirror 가 없을 때만(스티키·접힘) measurement DOM → Canvas 순서로
+ * fallback 한다.
  */
 
 function verticalDistanceToRect(clientY: number, r: DOMRect): number {
@@ -79,7 +81,8 @@ export function findEditorTextareaUnderPoint(
     const ta = refs[i]
     if (!ta) continue
     const r = getEditorLineRect(ta)
-    if (clientX < r.left || clientX > r.right) continue
+    // X 는 필터하지 않는다 — 창 가장자리 밖·거터 쪽으로 드래그해도 선택이 이어져야
+    // 하며, 줄 내 오프셋 계산이 X 를 자연스럽게 clamp 한다.
     const dist = verticalDistanceToRect(clientY, r)
     candidates.push({ ta, index: i, dist })
   }
@@ -194,6 +197,139 @@ export function offsetFromMidpoints(
     }
   }
   return best
+}
+
+/** 렌더링된 grapheme cluster 하나의 화면 사각형 */
+export type ClusterRect = {
+  start: number
+  end: number
+  left: number
+  right: number
+  top: number
+  bottom: number
+  newline: boolean
+}
+
+/**
+ * cluster 사각형 목록에서 (x, y)가 가리키는 오프셋을 고른다.
+ * 행은 Y로 결정(포함 행 우선, 없으면 최근접), 행 안에서는 글자 중점 기준.
+ * 개행 cluster 는 "행의 끝"으로 취급 — 행 오른쪽 여백을 클릭해도 다음 줄로 넘어가지 않는다.
+ */
+export function pickOffsetFromClusterRects(
+  clusters: ClusterRect[],
+  x: number,
+  y: number
+): number | null {
+  if (!clusters.length) return null
+  type Row = { top: number; bottom: number; clusters: ClusterRect[] }
+  const rows: Row[] = []
+  for (const c of clusters) {
+    const h = Math.max(1, c.bottom - c.top)
+    const last = rows[rows.length - 1]
+    // 문서 순서에서 이전 행과 세로로 절반 이상 겹치면 같은 시각 행
+    if (last && c.top < last.bottom - h * 0.5) {
+      last.clusters.push(c)
+      last.top = Math.min(last.top, c.top)
+      last.bottom = Math.max(last.bottom, c.bottom)
+    } else {
+      rows.push({ top: c.top, bottom: c.bottom, clusters: [c] })
+    }
+  }
+
+  let row = rows[0]!
+  let bestY = Infinity
+  for (const r of rows) {
+    if (y >= r.top && y < r.bottom) {
+      row = r
+      break
+    }
+    const d = y < r.top ? r.top - y : y - r.bottom
+    if (d < bestY) {
+      bestY = d
+      row = r
+    }
+  }
+
+  const cs = row.clusters
+  for (const c of cs) {
+    const mid = (c.left + c.right) / 2
+    if (x < mid) return c.start
+    if (x < c.right) return c.newline ? c.start : c.end
+  }
+  const last = cs[cs.length - 1]!
+  return last.newline ? last.start : last.end
+}
+
+function textNodesWithOffsets(root: Element): { node: Text; start: number }[] {
+  const out: { node: Text; start: number }[] = []
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let acc = 0
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text
+    out.push({ node, start: acc })
+    acc += node.nodeValue?.length ?? 0
+  }
+  return out
+}
+
+function locateInTextNodes(
+  nodes: { node: Text; start: number }[],
+  offset: number
+): { node: Text; local: number } | null {
+  for (const e of nodes) {
+    const len = e.node.nodeValue?.length ?? 0
+    if (offset < e.start + len) return { node: e.node, local: offset - e.start }
+  }
+  const last = nodes[nodes.length - 1]
+  if (!last) return null
+  return { node: last.node, local: last.node.nodeValue?.length ?? 0 }
+}
+
+/**
+ * mirror 의 실제 텍스트 노드에서 grapheme cluster 별 화면 사각형을 얻는다.
+ * mirror 텍스트가 textarea 값과 다르면(접힘·미리보기 등) null.
+ */
+function buildClusterRectsFromMirror(mirror: Element, text: string): ClusterRect[] | null {
+  const nodes = textNodesWithOffsets(mirror)
+  if (!nodes.length) return null
+  let joined = ''
+  for (const e of nodes) joined += e.node.nodeValue ?? ''
+  if (joined !== text) return null
+
+  const bounds = graphemeBoundaries(text)
+  const range = document.createRange()
+  const clusters: ClusterRect[] = []
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const a = bounds[i]!
+    const b = bounds[i + 1]!
+    const sa = locateInTextNodes(nodes, a)
+    const sb = locateInTextNodes(nodes, b)
+    if (!sa || !sb) return null
+    range.setStart(sa.node, sa.local)
+    range.setEnd(sb.node, sb.local)
+    const rects = range.getClientRects()
+    let rect: DOMRect | null = null
+    for (let k = 0; k < rects.length; k++) {
+      const r = rects[k]!
+      if (!rect || r.width > rect.width) rect = r
+    }
+    if (!rect) rect = range.getBoundingClientRect()
+    clusters.push({
+      start: a,
+      end: b,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom || rect.top + 1,
+      newline: text.slice(a, b) === '\n'
+    })
+  }
+  return clusters
+}
+
+function mirrorForTextarea(ta: HTMLTextAreaElement): Element | null {
+  const editor = ta.closest('.editor-line-editor')
+  return editor ? editor.querySelector('.editor-line-mirror') : null
 }
 
 type CaretProbe = { offset: number; left: number; top: number; bottom: number }
@@ -466,7 +602,7 @@ function canvasFallbackOffset(
 }
 
 /**
- * textarea 내 문자 오프셋 (DOM Range 측정 우선, Canvas fallback)
+ * textarea 내 문자 오프셋 (mirror 실측 우선 → measurement DOM → Canvas fallback)
  */
 export function getCaretOffsetFromPointInTextarea(
   ta: HTMLTextAreaElement,
@@ -482,6 +618,16 @@ export function getCaretOffsetFromPointInTextarea(
   }
   if (clientY < rect.top + 1 && clientX < rect.left + 1) {
     return 0
+  }
+
+  /** 사용자가 보는 mirror 글리프를 직접 히트테스트 — 렌더링과 정확히 일치 */
+  const mirror = mirrorForTextarea(ta)
+  if (mirror) {
+    const clusters = buildClusterRectsFromMirror(mirror, text)
+    if (clusters && clusters.length) {
+      const off = pickOffsetFromClusterRects(clusters, clientX, clientY)
+      if (off !== null) return snapToGraphemeBoundary(text, off)
+    }
   }
 
   const style = window.getComputedStyle(ta)

@@ -3,8 +3,10 @@ import {
   graphemeBoundaries,
   nativeAnchorOffsetFromTextarea,
   offsetFromMidpoints,
+  pickOffsetFromClusterRects,
   snapToCodePointBoundary,
-  snapToGraphemeBoundary
+  snapToGraphemeBoundary,
+  type ClusterRect
 } from './editorCaretFromPoint'
 
 describe('snapToCodePointBoundary', () => {
@@ -46,6 +48,66 @@ describe('offsetFromMidpoints', () => {
     // x=15 → closer to 10 than 20? dist 5 vs 5 — prefer lower index on tie in our impl via <
     // actually equal distance: we use < so first wins when equal... check: d===bestDist && boundaries[i] < best
     expect(offsetFromMidpoints(boundaries, widths, 15)).toBe(1)
+  })
+})
+
+describe('pickOffsetFromClusterRects', () => {
+  /** 폭 10, 높이 20 글자를 rows×cols로 배치 */
+  function cluster(
+    start: number,
+    col: number,
+    row: number,
+    opts?: { newline?: boolean; width?: number }
+  ): ClusterRect {
+    const w = opts?.width ?? 10
+    return {
+      start,
+      end: start + 1,
+      left: col * 10,
+      right: col * 10 + w,
+      top: row * 20,
+      bottom: row * 20 + 20,
+      newline: Boolean(opts?.newline)
+    }
+  }
+
+  it('picks offset by glyph midpoint within a row', () => {
+    const cs = [cluster(0, 0, 0), cluster(1, 1, 0), cluster(2, 2, 0)]
+    expect(pickOffsetFromClusterRects(cs, 4, 10)).toBe(0) // 첫 글자 중점(5) 이전
+    expect(pickOffsetFromClusterRects(cs, 6, 10)).toBe(1) // 첫 글자 중점 이후
+    expect(pickOffsetFromClusterRects(cs, 999, 10)).toBe(3) // 행 오른쪽 끝 너머 → 행 끝
+  })
+
+  it('returns row start without off-by-one at wrapped row start', () => {
+    // "abcd" 가 2글자씩 wrap: row0 = a,b / row1 = c,d
+    const cs = [cluster(0, 0, 0), cluster(1, 1, 0), cluster(2, 0, 1), cluster(3, 1, 1)]
+    // 두 번째 시각 행의 왼쪽 끝 클릭 → wrap 지점 오프셋 2 (3이 아니어야 함)
+    expect(pickOffsetFromClusterRects(cs, 0, 30)).toBe(2)
+    expect(pickOffsetFromClusterRects(cs, 999, 30)).toBe(4)
+  })
+
+  it('treats newline cluster as end-of-row, not next-line start', () => {
+    // "ab\ncd": row0 = a,b,\n / row1 = c,d
+    const cs = [
+      cluster(0, 0, 0),
+      cluster(1, 1, 0),
+      cluster(2, 2, 0, { newline: true, width: 0 }),
+      cluster(3, 0, 1),
+      cluster(4, 1, 1)
+    ]
+    // 첫 행 오른쪽 여백 클릭 → \n 앞(2), 다음 줄 시작(3) 아님
+    expect(pickOffsetFromClusterRects(cs, 999, 10)).toBe(2)
+    expect(pickOffsetFromClusterRects(cs, 999, 30)).toBe(5)
+  })
+
+  it('snaps to nearest row when y is outside all rows', () => {
+    const cs = [cluster(0, 0, 0), cluster(1, 1, 0), cluster(2, 0, 1), cluster(3, 1, 1)]
+    expect(pickOffsetFromClusterRects(cs, 0, -50)).toBe(0)
+    expect(pickOffsetFromClusterRects(cs, 999, 500)).toBe(4)
+  })
+
+  it('returns null for empty cluster list', () => {
+    expect(pickOffsetFromClusterRects([], 0, 0)).toBe(null)
   })
 })
 
