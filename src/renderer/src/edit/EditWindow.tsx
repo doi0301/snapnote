@@ -122,6 +122,7 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
       }
     >
       <TopBar
+        currentMemoId={memo.id}
         isPinned={pinned}
         onPinToggle={onPinToggle}
         onFold={saveAndFold}

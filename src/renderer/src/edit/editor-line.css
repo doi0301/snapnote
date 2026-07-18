@@ -219,6 +219,54 @@
   outline: none;
 }
 
+/* 섹션 컬러바 타이틀 (텍스트 유형 최상위) — 행 전체 배경색 */
+.editor-line--section-title {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.editor-line--section-title .editor-line-gutter {
+  background-color: transparent;
+}
+
+.editor-line--section-title .editor-line-textarea,
+.editor-line--section-title .editor-line-mirror {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* 접기 버튼 공간 — mirror·textarea 동일 적용으로 정렬 유지 */
+.editor-line--section-title .editor-line-textarea,
+.editor-line--section-title .editor-line-mirror {
+  padding-right: 32px;
+}
+
+/* 섹션 접기 드롭다운 — 테두리 없이 아이콘만, 우측 끝 */
+.editor-section-fold-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #52525b;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.editor-section-fold-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #18181b;
+}
+
 /* Ctrl+1~6 위계 스타일 */
 .editor-line--heading-1 .editor-line-textarea,
 .editor-line--heading-1 .editor-line-mirror { font-size: 15px; font-weight: 700; }
@@ -251,22 +299,24 @@
   top: 4px;
   right: 6px;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid #e4e4e7;
+  border: none;
   border-radius: 4px;
-  background: #fafafa;
+  background: transparent;
   color: #52525b;
-  font-size: 11px;
   line-height: 1;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 
 .editor-line-collapse-btn:hover {
-  background: #f4f4f5;
-  border-color: #d4d4d8;
+  background: rgba(0, 0, 0, 0.06);
+  color: #18181b;
 }
 
 .editor-line--collapsed .editor-line-textarea--collapsed {
@@ -298,4 +348,15 @@
 .inline-underline {
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* 본문 #키워드 뱃지 — 테두리만, 배경 없음 (box-shadow는 폭에 영향 없어 textarea 정렬 유지) */
+.inline-keyword-badge,
+.editor-line-mirror span.inline-keyword-badge {
+  background: none;
+  color: #1d4ed8;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.55);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }

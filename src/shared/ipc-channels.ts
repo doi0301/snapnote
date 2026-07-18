@@ -76,6 +76,8 @@ export const IPC_CHANNELS = {
   FOLDED_PANEL_SET_CONTENT_HEIGHT: 'folded-panel:set-content-height',
   /** 메모 히스토리 모달 */
   APP_OPEN_HISTORY: 'app:open-history',
+  /** 현재 열린 편집 창 목록 (호버 패널) */
+  WINDOWS_LIST_OPEN: 'windows:list-open',
 
   /** Renderer → Main (ipcRenderer.send): 편집 창 상단 스트립 드래그 — delta만큼 setPosition */
   EDIT_WINDOW_MOVE_DELTA: 'edit-window:move-delta',

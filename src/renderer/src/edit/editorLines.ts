@@ -24,6 +24,19 @@ function normalizeAccentBar(line: EditorLineModel): EditorLineModel {
   return { ...line, formatting }
 }
 
+/** 섹션 타이틀: sectionCollapsed는 타이틀일 때만 유지 */
+function normalizeSectionTitle(line: EditorLineModel): EditorLineModel {
+  const formatting = { ...(line.formatting ?? {}) }
+  if (!formatting.sectionTitle) {
+    delete formatting.sectionTitle
+    delete formatting.sectionCollapsed
+    return { ...line, formatting }
+  }
+  formatting.sectionTitle = true
+  if (!formatting.sectionCollapsed) delete formatting.sectionCollapsed
+  return { ...line, formatting }
+}
+
 function migrateHeadingMarkers(line: EditorLineModel): EditorLineModel {
   const formatting = { ...(line.formatting ?? {}) }
   const hl = formatting.headingLevel
@@ -112,7 +125,9 @@ export function normalizeEditorLines(content: EditorLineModel[]): EditorLineMode
       indentLevel: Math.min(MAX_INDENT, Math.max(0, migrated.indentLevel ?? 0)),
       formatting: migrated.formatting ?? {}
     }
-    return normalizeTableLine(normalizeAccentBar(stripBoldForParenHeading(base)))
+    return normalizeTableLine(
+      normalizeSectionTitle(normalizeAccentBar(stripBoldForParenHeading(base)))
+    )
   })
 }
 

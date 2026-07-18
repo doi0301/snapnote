@@ -56,6 +56,7 @@ import {
   stripBoldFromInterval
 } from './spanFormat'
 import { findEditorTextareaUnderPoint, getCaretOffsetFromPointInTextarea } from './editorCaretFromPoint'
+import { computeSectionHiddenIndices, nextVisibleLineIndex } from './sectionFold'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
 
@@ -1855,6 +1856,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       const sel = multiLineSelectionRef.current
       const index = lastFocusIndex.current
       const ta = textareaRefs.current[index]
+      const clearSectionOnFmt = (formatting: NonNullable<EditorLineModel['formatting']>): void => {
+        delete formatting.sectionTitle
+        delete formatting.sectionCollapsed
+      }
 
       if (sel && sel.anchorLine !== sel.focusLine) {
         const norm = normalizeSelection(sel)
@@ -1885,11 +1890,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                 ? marker.open + contentForMarker + marker.close
                 : marker.open + contentForMarker
               const newSpans = remapSpansForHeadingMarkerChange(l.text, contentForMarker, newText, l.spans)
+              const formatting = { ...(l.formatting ?? {}), headingLevel: level }
+              clearSectionOnFmt(formatting)
               return {
                 ...l,
                 text: newText,
                 spans: newSpans,
-                formatting: { ...(l.formatting ?? {}), headingLevel: level }
+                formatting
               }
             })
           )
@@ -1929,11 +1936,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             spansOut = stripBoldFromInterval(spansOut, 0, newText.length, newText.length)
           }
 
+          const formatting = { ...(base.formatting ?? {}), headingLevel: level }
+          clearSectionOnFmt(formatting)
           const merged: EditorLineModel = {
             ...base,
             text: newText,
             spans: spansOut,
-            formatting: { ...(base.formatting ?? {}), headingLevel: level }
+            formatting
           }
           const result = [...prev]
           result.splice(startLine, endLine - startLine + 1, merged)
@@ -1985,11 +1994,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             newSpans = stripBoldFromInterval(newSpans, 0, newText.length, newText.length)
           }
 
+          const formatting = { ...(l.formatting ?? {}), headingLevel: level }
+          clearSectionOnFmt(formatting)
           return {
             ...l,
             text: newText,
             spans: newSpans,
-            formatting: { ...(l.formatting ?? {}), headingLevel: level }
+            formatting
           }
         })
       )
@@ -2087,6 +2098,61 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       })
     )
   }, [lines, pushUndoSnapshot])
+
+  const sectionHiddenIndices = useMemo(() => computeSectionHiddenIndices(lines), [lines])
+
+  /** 섹션 컬러바 타이틀 적용/해제 (Ctrl+`) */
+  const toggleSectionTitle = useCallback(() => {
+    const indices: number[] = []
+    const sel = multiLineSelectionRef.current
+    if (sel && isVirtualRangeSelection(sel)) {
+      const norm = normalizeSelection(sel)
+      for (let li = norm.startLine; li <= norm.endLine; li++) indices.push(li)
+    } else {
+      indices.push(lastFocusIndex.current)
+    }
+    const first = indices[0]
+    if (first === undefined) return
+    const turningOff = Boolean(lines[first]?.formatting?.sectionTitle)
+    pushUndoSnapshot(lines, first, textareaRefs.current[first]?.selectionStart ?? 0)
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (!indices.includes(i)) return l
+        const formatting = { ...(l.formatting ?? {}) }
+        if (turningOff) {
+          delete formatting.sectionTitle
+          delete formatting.sectionCollapsed
+          return { ...l, formatting }
+        }
+        formatting.sectionTitle = true
+        // 섹션이 최상위 — 위계 마커/레벨은 해제
+        if (formatting.headingLevel) {
+          const stripped = stripAllHeadingMarkers(l.text)
+          const newSpans = remapSpansForHeadingMarkerChange(l.text, stripped, stripped, l.spans)
+          delete formatting.headingLevel
+          return { ...l, text: stripped, spans: newSpans, formatting }
+        }
+        return { ...l, formatting }
+      })
+    )
+    bumpToolbar()
+  }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
+
+  const handleSectionCollapsedToggle = useCallback(
+    (index: number) => {
+      pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
+      setLines((prev) =>
+        prev.map((l, i) => {
+          if (i !== index) return l
+          if (!l.formatting?.sectionTitle) return l
+          const f = { ...(l.formatting ?? {}) }
+          f.sectionCollapsed = !f.sectionCollapsed
+          return { ...l, formatting: f }
+        })
+      )
+    },
+    [lines, pushUndoSnapshot]
+  )
 
   const showCopyToastBrief = useCallback(() => {
     if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
@@ -2244,6 +2310,32 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [lines, normalizeSelection, writeSnapnoteLines]
   )
 
+  /** Ctrl+Shift+C: 서식 없이 plain text만 복사 (rich 캐시 미기록 → 붙여넣기 시 양식 미포함) */
+  const copySelectionAsPlainText = useCallback(async () => {
+    const virtual = multiLineSelectionRef.current
+    let extracted: EditorLineModel[]
+    if (virtual && isVirtualRangeSelection(virtual)) {
+      extracted = extractLinesForSelection(linesRef.current, normalizeSelection(virtual))
+    } else {
+      const i = lastFocusIndex.current
+      const ta = textareaRefs.current[i]
+      if (!ta || ta.selectionStart === ta.selectionEnd) return
+      extracted = extractLinesForSelection(linesRef.current, {
+        startLine: i,
+        startOffset: ta.selectionStart,
+        endLine: i,
+        endOffset: ta.selectionEnd
+      })
+    }
+    if (!extracted.length) return
+    const plain = linesToPlainText(extracted)
+    try {
+      await window.snapnote.clipboard.writeSystem(plain, { skipHistory: true })
+    } catch {
+      /* ignore */
+    }
+  }, [normalizeSelection])
+
   const moveFocusToLine = useCallback((nextIndex: number, nextCursor: number) => {
     const ta = textareaRefs.current[nextIndex]
     if (!ta) return
@@ -2325,6 +2417,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
       }
 
+      if (mod && e.shiftKey && key === 'c') {
+        e.preventDefault()
+        void copySelectionAsPlainText()
+        return
+      }
+
       if (mod && key === 'z' && !e.shiftKey) {
         e.preventDefault()
         const prev = undoStackRef.current.pop()
@@ -2384,6 +2482,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         return
       }
 
+      if (mod && !e.shiftKey && (key === '`' || e.code === 'Backquote')) {
+        e.preventDefault()
+        toggleSectionTitle()
+        return
+      }
+
       if (mod && e.shiftKey && key === 'h') {
         e.preventDefault()
         cycleAccentBarOnTargets()
@@ -2411,8 +2515,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       if (e.key === 'ArrowUp' && start === end && start === 0 && index > 0) {
         e.preventDefault()
-        const prevLen = lines[index - 1]?.text.length ?? 0
-        moveFocusToLine(index - 1, prevLen)
+        const prevIdx = nextVisibleLineIndex(index, -1, lines.length, sectionHiddenIndices)
+        if (prevIdx == null) return
+        const prevLen = lines[prevIdx]?.text.length ?? 0
+        moveFocusToLine(prevIdx, prevLen)
         return
       }
 
@@ -2423,7 +2529,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         index < lines.length - 1
       ) {
         e.preventDefault()
-        moveFocusToLine(index + 1, 0)
+        const nextIdx = nextVisibleLineIndex(index, 1, lines.length, sectionHiddenIndices)
+        if (nextIdx == null) return
+        moveFocusToLine(nextIdx, 0)
         return
       }
 
@@ -2622,6 +2730,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       cycleAccentBarOnTargets,
       insertTableBelow,
       copyMultiLineSelectionToClipboard,
+      copySelectionAsPlainText,
       cloneLines,
       deleteMultiLineSelection,
       deleteTableLineAbove,
@@ -2635,6 +2744,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       toggleBold,
       toggleStrikethrough,
       toggleUnderline,
+      toggleSectionTitle,
+      sectionHiddenIndices,
       handleBeforeLineInput
     ]
   )
@@ -3068,6 +3179,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       <div ref={editorScrollRef} className="editor-scroll" onPointerDown={onEditorScrollPointerDown}>
         <div className="editor-lines">
           {lines.map((line, index) => {
+            if (sectionHiddenIndices.has(index)) return null
             const isLastLine = index === lines.length - 1
             const needsLineBelowPad =
               isLastLine &&
@@ -3143,6 +3255,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       ? () => handleLineCollapsedToggle(index)
                       : undefined
                   }
+                  onToggleSectionCollapsed={
+                    line.formatting?.sectionTitle
+                      ? () => handleSectionCollapsedToggle(index)
+                      : undefined
+                  }
                 />
               )
             return (
@@ -3205,6 +3322,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             openLinkPicker={linkPickerRequested > 0 ? true : undefined}
             headingLevel={lines[focusLineIndex]?.formatting?.headingLevel}
             onHeading={applyHeading}
+            sectionTitleActive={Boolean(lines[focusLineIndex]?.formatting?.sectionTitle)}
+            onToggleSectionTitle={toggleSectionTitle}
             compactActions={compactToolbarActions}
             symbolPaletteOpen={emojiPaletteOpen}
             onToggleSymbolPalette={toggleEmojiPalette}

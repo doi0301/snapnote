@@ -1,17 +1,55 @@
-import { useCallback, useRef, useState, type JSX } from 'react'
-import { IconTopBarMinimize, IconTopBarPin } from './toolbarIcons'
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
+import type { MemoId } from '@shared/types'
+import { IconTopBarMinimize, IconTopBarPin, IconTopBarWindowList } from './toolbarIcons'
 
 interface TopBarProps {
+  currentMemoId: MemoId
   isPinned: boolean
   onPinToggle: () => void
   onFold: () => void
   onCloseWindow: () => void
 }
 
+type OpenWinItem = { memoId: MemoId; title: string }
+
 export function TopBar(props: TopBarProps): JSX.Element {
-  const { isPinned, onPinToggle, onFold, onCloseWindow } = props
+  const { currentMemoId, isPinned, onPinToggle, onFold, onCloseWindow } = props
   const lastScreenRef = useRef<{ x: number; y: number } | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [listOpen, setListOpen] = useState(false)
+  const [openWindows, setOpenWindows] = useState<OpenWinItem[]>([])
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const listWrapRef = useRef<HTMLDivElement>(null)
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = null
+    }
+  }, [])
+
+  const loadOpenWindows = useCallback(async () => {
+    try {
+      const list = await window.snapnote.app.listOpenEditWindows()
+      setOpenWindows(list)
+    } catch {
+      setOpenWindows([])
+    }
+  }, [])
+
+  const openList = useCallback(() => {
+    clearHoverTimer()
+    hoverTimerRef.current = setTimeout(() => {
+      void loadOpenWindows().then(() => setListOpen(true))
+    }, 150)
+  }, [clearHoverTimer, loadOpenWindows])
+
+  const scheduleCloseList = useCallback(() => {
+    clearHoverTimer()
+    hoverTimerRef.current = setTimeout(() => setListOpen(false), 180)
+  }, [clearHoverTimer])
+
+  useEffect(() => () => clearHoverTimer(), [clearHoverTimer])
 
   const onDragStripPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
@@ -55,6 +93,51 @@ export function TopBar(props: TopBarProps): JSX.Element {
         onPointerCancel={endDragStrip}
       />
       <div className="edit-topbar-actions">
+        <div
+          ref={listWrapRef}
+          className="edit-window-list-wrap"
+          onMouseEnter={openList}
+          onMouseLeave={scheduleCloseList}
+        >
+          <button
+            type="button"
+            className="edit-icon-btn edit-icon-btn--line"
+            title="열린 편집창 목록"
+            aria-label="열린 편집창 목록"
+            aria-expanded={listOpen}
+            onClick={() => {
+              clearHoverTimer()
+              if (listOpen) setListOpen(false)
+              else void loadOpenWindows().then(() => setListOpen(true))
+            }}
+          >
+            <IconTopBarWindowList size={17} />
+          </button>
+          {listOpen ? (
+            <div className="edit-window-list-popover" role="menu" aria-label="열린 편집창">
+              {openWindows.length === 0 ? (
+                <div className="edit-window-list-empty">열린 편집창 없음</div>
+              ) : (
+                openWindows.map((item) => (
+                  <button
+                    key={item.memoId}
+                    type="button"
+                    role="menuitem"
+                    className={`edit-window-list-item${item.memoId === currentMemoId ? ' edit-window-list-item--current' : ''}`}
+                    title={item.title}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setListOpen(false)
+                      void window.snapnote.memo.openEdit(item.memoId)
+                    }}
+                  >
+                    {item.title}
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </div>
         <button
           type="button"
           className="edit-icon-btn edit-icon-btn--line"

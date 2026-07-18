@@ -190,6 +190,49 @@ export function IconTopBarMinimize(props: { size?: number; className?: string })
   )
 }
 
+/** 접기/펼치기 셰브론 — 펼침 상태에서 표시 (누르면 접힘) */
+export function IconChevronDown(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 14
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** 접기/펼치기 셰브론 — 접힘 상태에서 표시 (누르면 펼침) */
+export function IconChevronUp(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 14
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <path
+        d="M6 15l6-6 6 6"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** 열린 편집창 목록 */
+export function IconTopBarWindowList(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 18
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <rect x="4" y="5" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth={stroke} />
+      <rect x="8" y="10" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth={stroke} />
+    </svg>
+  )
+}
+
 export function IconToolbarRobot(props: { size?: number; className?: string }): React.JSX.Element {
   const s = props.size ?? 18
   return (

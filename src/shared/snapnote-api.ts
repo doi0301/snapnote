@@ -78,6 +78,8 @@ export interface SnapnotePreloadAPI {
     hideFoldedPanel: () => Promise<void>
     /** 메모 히스토리 창 (전체보기) */
     openHistory: () => Promise<void>
+    /** 현재 열린 편집 창 목록 (memoId + 제목) */
+    listOpenEditWindows: () => Promise<Array<{ memoId: MemoId; title: string }>>
     /** 폴디드 `.folded-root` 픽셀 높이 — 창 클라이언트 높이 맞춤 */
     setFoldedPanelContentHeight: (heightPx: number) => Promise<void>
     /** frameless 편집 창: 상단 드래그 스트립에서만 호출 — IPC로 창 위치 이동 */

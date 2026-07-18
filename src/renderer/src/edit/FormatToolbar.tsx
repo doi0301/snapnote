@@ -61,6 +61,8 @@ export interface FormatToolbarProps {
   openLinkPicker?: boolean
   headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
   onHeading: (level: 1 | 2 | 3 | 4 | 5 | 6) => void
+  sectionTitleActive?: boolean
+  onToggleSectionTitle?: () => void
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
@@ -88,6 +90,8 @@ export function FormatToolbar({
   openLinkPicker,
   headingLevel,
   onHeading,
+  sectionTitleActive = false,
+  onToggleSectionTitle,
   compactActions = false,
   symbolPaletteOpen,
   onToggleSymbolPalette,
@@ -328,9 +332,23 @@ export function FormatToolbar({
             <IconToolbarMemoLink size={14} /> 다른 메모로 연결
           </button>
         </div>
-        <div className="format-toolbar-modal-heading" role="group" aria-label="제목 위계">
-          <p className="format-toolbar-modal-hl-label">제목 위계</p>
+        <div className="format-toolbar-modal-heading" role="group" aria-label="텍스트 유형">
+          <p className="format-toolbar-modal-hl-label">텍스트 유형</p>
           <div className="format-toolbar-modal-heading-row">
+            {onToggleSectionTitle ? (
+              <button
+                type="button"
+                className={`format-toolbar-btn format-toolbar-btn--heading${sectionTitleActive ? ' format-toolbar-btn--active' : ''}`}
+                title="Ctrl+` / 섹션 컬러바 타이틀"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onToggleSectionTitle()
+                  setActionModalOpen(false)
+                }}
+              >
+                섹션
+              </button>
+            ) : null}
             {([1, 2, 3, 4, 5, 6] as const).map((lv) => (
               <button
                 key={lv}

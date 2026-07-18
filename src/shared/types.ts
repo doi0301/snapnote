@@ -36,6 +36,10 @@ export interface LineFormatting {
   accentBar?: AccentBarKind | null
   /** accent bar 줄 본문 접기 (기본 펼침) */
   lineCollapsed?: boolean
+  /** 섹션 컬러바 타이틀 (텍스트 유형 최상위, Ctrl+`) */
+  sectionTitle?: boolean
+  /** 섹션 타이틀 아래 줄들 접기 (다음 섹션 전까지) */
+  sectionCollapsed?: boolean
   /** 이 줄 전체가 표 셀 편집 모드일 때 */
   isTable?: boolean
   /** 행 × 열 (열 최대 5, 빈 문자열 허용) */

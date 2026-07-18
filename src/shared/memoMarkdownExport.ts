@@ -140,14 +140,20 @@ export function editorLineToMarkdown(line: EditorLine): string {
   const stripped = stripAllHeadingMarkers(rawText)
   const headingLevel = fmt.headingLevel
   const lineStrike = Boolean(fmt.strikethrough || (fmt.hasCheckbox && fmt.checkboxChecked))
+  const structuralBold = Boolean(fmt.sectionTitle) || headingUsesStructuralBold(headingLevel)
   const inner = formatInlineMarkdown(stripped, line.spans, {
-    structuralBold: headingUsesStructuralBold(headingLevel),
+    structuralBold,
     lineStrike
   })
 
   if (fmt.hasCheckbox) {
     const mark = fmt.checkboxChecked ? 'x' : ' '
     return `${indent}- [${mark}] ${inner}`
+  }
+
+  /** 섹션 타이틀은 MD H1으로 매핑 (텍스트 유형 최상위) */
+  if (fmt.sectionTitle) {
+    return `${indent}# ${inner}`
   }
 
   if (headingLevel != null && headingLevel >= 1 && headingLevel <= 6) {

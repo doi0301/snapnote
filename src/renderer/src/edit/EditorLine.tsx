@@ -12,6 +12,7 @@ import type { EditorLine as EditorLineModel } from '@shared/types'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
+import { IconChevronDown, IconChevronUp } from './toolbarIcons'
 import './editor-line.css'
 import './keycap-badge.css'
 
@@ -47,6 +48,8 @@ export interface EditorLineViewProps {
   onCut?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onCheckboxToggle?: () => void
   onToggleLineCollapsed?: () => void
+  /** 섹션 타이틀 아래 줄 접기/펼치기 */
+  onToggleSectionCollapsed?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -75,6 +78,7 @@ export const EditorLineView = memo(
       onCut,
       onCheckboxToggle,
       onToggleLineCollapsed,
+      onToggleSectionCollapsed,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -84,6 +88,9 @@ export const EditorLineView = memo(
     const marginW = level * INDENT_PX
     const headingLevel = line.formatting?.headingLevel
     const headingClass = headingLevel ? ` editor-line--heading-${headingLevel}` : ''
+    const isSectionTitle = Boolean(line.formatting?.sectionTitle)
+    const sectionClass = isSectionTitle ? ' editor-line--section-title' : ''
+    const isSectionCollapsed = isSectionTitle && Boolean(line.formatting?.sectionCollapsed)
 
     const accent = line.formatting?.accentBar
     const accentClass =
@@ -156,7 +163,7 @@ export const EditorLineView = memo(
       <>
         {isStickyTitle && <div ref={sentinelRef} className="editor-sticky-sentinel" />}
         <div
-          className={`editor-line editor-line--level-${level}${headingClass}${stickyClass}${stuckClass}${collapsedClass}`}
+          className={`editor-line editor-line--level-${level}${headingClass}${sectionClass}${stickyClass}${stuckClass}${collapsedClass}`}
           style={{ '--indent-level': level } as React.CSSProperties}
         >
           <div
@@ -192,7 +199,7 @@ export const EditorLineView = memo(
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onToggleLineCollapsed}
               >
-                {isLineCollapsed ? '▸' : '▾'}
+                {isLineCollapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
               </button>
             ) : null}
             {isStuck ? (
@@ -241,6 +248,19 @@ export const EditorLineView = memo(
               spellCheck={false}
               tabIndex={isLineCollapsed ? -1 : undefined}
             />
+            {isSectionTitle && onToggleSectionCollapsed ? (
+              <button
+                type="button"
+                className="editor-section-fold-btn"
+                title={isSectionCollapsed ? '섹션 펼치기' : '섹션 접기'}
+                aria-label={isSectionCollapsed ? '섹션 펼치기' : '섹션 접기'}
+                aria-expanded={!isSectionCollapsed}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onToggleSectionCollapsed}
+              >
+                {isSectionCollapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              </button>
+            ) : null}
           </div>
           {line.formatting?.hasDivider ? <div className="editor-line-divider" aria-hidden /> : null}
         </div>

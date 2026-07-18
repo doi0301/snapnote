@@ -376,6 +376,9 @@ export class DataService {
     ipcMain.handle(IPC_CHANNELS.MEMO_OPEN_EDIT, (_e, id: MemoId) => {
       this.windowManager.openEditWindow(id)
     })
+    ipcMain.handle(IPC_CHANNELS.WINDOWS_LIST_OPEN, () => {
+      return this.windowManager.listOpenEditWindows()
+    })
     ipcMain.handle(IPC_CHANNELS.MEMO_CLOSE_EDIT_WINDOW, async (_e, id: MemoId) => {
       await this.windowManager.closeEditWindow(id)
     })

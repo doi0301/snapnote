@@ -84,6 +84,8 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
     getState: (): Promise<AppState> => ipcRenderer.invoke(IPC_CHANNELS.APP_STATE_GET),
     hideFoldedPanel: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FOLDED_PANEL_HIDE),
     openHistory: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_OPEN_HISTORY),
+    listOpenEditWindows: (): Promise<Array<{ memoId: MemoId; title: string }>> =>
+      ipcRenderer.invoke(IPC_CHANNELS.WINDOWS_LIST_OPEN),
     setFoldedPanelContentHeight: (heightPx: number): Promise<void> =>
       ipcRenderer.invoke(IPC_CHANNELS.FOLDED_PANEL_SET_CONTENT_HEIGHT, heightPx),
     moveEditWindowByDelta: (dx: number, dy: number): void => {

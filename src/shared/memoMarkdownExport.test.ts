@@ -78,6 +78,17 @@ describe('editorLineToMarkdown', () => {
     ).toBe('#### 소제목')
   })
 
+  it('exports section title as H1 with structural bold', () => {
+    expect(
+      editorLineToMarkdown(
+        line({
+          text: '섹션 제목',
+          formatting: { sectionTitle: true, accentBar: 'blue' }
+        })
+      )
+    ).toBe('# **섹션 제목**')
+  })
+
   it('exports inline bold and strikethrough spans', () => {
     expect(
       editorLineToMarkdown(

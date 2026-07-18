@@ -661,6 +661,27 @@ export class WindowManager {
     this.editWindows.delete(memoId)
   }
 
+  /** 현재 열린 편집 창 목록 (MRU 순, 제목 = 첫 줄 미리보기) */
+  listOpenEditWindows(): Array<{ memoId: MemoId; title: string }> {
+    const ids = [...this.editWindows.keys()].filter((id) => {
+      const w = this.editWindows.get(id)
+      return w && !w.isDestroyed()
+    })
+    ids.sort((a, b) => {
+      const ia = this.editFocusOrder.indexOf(a)
+      const ib = this.editFocusOrder.indexOf(b)
+      const ra = ia < 0 ? -1 : ia
+      const rb = ib < 0 ? -1 : ib
+      return rb - ra
+    })
+    return ids.map((memoId) => {
+      const memo = this.deps.memos.getMemo(memoId)
+      const raw = (memo?.content[0]?.text ?? '').replace(/\n/g, ' ').trim()
+      const title = !raw.length ? '(제목 없음)' : raw.length > 40 ? `${raw.slice(0, 40)}…` : raw
+      return { memoId, title }
+    })
+  }
+
   /** 상단 ━ 접기: 작업표시줄로 최소화 (폴디드 스택으로 옮기지 않음). */
   async minimizeEditWindow(memoId: MemoId): Promise<void> {
     await this.flushEditMemoDraftFromDom(memoId)

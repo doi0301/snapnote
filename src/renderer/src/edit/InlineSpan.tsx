@@ -30,6 +30,22 @@ function addEmojiBreakpoints(text: string, set: Set<number>): void {
   }
 }
 
+/** 본문 #키워드 뱃지 — 공백 단위로 1개 (#\S+) */
+const KEYWORD_BADGE_RE = /#[^\s#]+/g
+
+function addKeywordBreakpoints(text: string, set: Set<number>): void {
+  KEYWORD_BADGE_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = KEYWORD_BADGE_RE.exec(text)) !== null) {
+    set.add(m.index)
+    set.add(m.index + m[0].length)
+  }
+}
+
+function isKeywordBadge(slice: string): boolean {
+  return /^#[^\s#]+$/.test(slice)
+}
+
 function isEmojiOnly(slice: string): boolean {
   return EMOJI_ONLY_RE.test(slice)
 }
@@ -144,6 +160,7 @@ export function SpannedLineMirror({
   }
   const snapped = new Set(bp.map((i) => snapBreakpoint(text, i)))
   addEmojiBreakpoints(text, snapped)
+  addKeywordBreakpoints(text, snapped)
   const uniq = [...snapped].sort((a, b) => a - b)
   const parts: React.JSX.Element[] = []
   for (let k = 0; k < uniq.length - 1; k++) {
@@ -158,6 +175,7 @@ export function SpannedLineMirror({
       if (inSearch) cls = cls ? cls + ' editor-search-highlight' : 'editor-search-highlight'
     }
     if (isEmojiOnly(slice)) cls = cls ? cls + ' inline-emoji' : 'inline-emoji'
+    if (isKeywordBadge(slice)) cls = cls ? cls + ' inline-keyword-badge' : 'inline-keyword-badge'
     const hasKeycap = cls.includes('snapnote-keycap-badge')
     if (hasKeycap && variant === 'inline') {
       parts.push(
