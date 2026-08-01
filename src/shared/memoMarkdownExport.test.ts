@@ -18,10 +18,20 @@ function line(partial: Partial<EditorLine> & Pick<EditorLine, 'text'>): EditorLi
 }
 
 describe('stripAllHeadingMarkers', () => {
-  it('strips bracket and prefix markers', () => {
-    expect(stripAllHeadingMarkers('[제목]')).toBe('제목')
-    expect(stripAllHeadingMarkers('- 항목')).toBe('항목')
-    expect(stripAllHeadingMarkers('\u25B8 하위')).toBe('하위')
+  it('strips the marker matching the given heading level', () => {
+    expect(stripAllHeadingMarkers('[제목]', 1)).toBe('제목')
+    expect(stripAllHeadingMarkers('- 항목', 4)).toBe('항목')
+    expect(stripAllHeadingMarkers('\u25B8 하위', 5)).toBe('하위')
+  })
+
+  it('does not touch plain body text with no heading level', () => {
+    expect(stripAllHeadingMarkers('[제목]')).toBe('[제목]')
+    expect(stripAllHeadingMarkers('(초안) 검토 부탁드립니다')).toBe('(초안) 검토 부탁드립니다')
+    expect(stripAllHeadingMarkers('[TODO] 확인 필요')).toBe('[TODO] 확인 필요')
+  })
+
+  it('does not strip a marker for a mismatched heading level', () => {
+    expect(stripAllHeadingMarkers('(괄호로 시작)', 1)).toBe('(괄호로 시작)')
   })
 })
 
@@ -147,9 +157,15 @@ describe('memoContentToMarkdown', () => {
 })
 
 describe('memoTitleFromContent', () => {
-  it('strips heading markers from first line', () => {
-    expect(memoTitleFromContent([line({ text: '[회의록]' })])).toBe('회의록')
+  it('strips heading markers from first line when it is an actual heading', () => {
+    expect(
+      memoTitleFromContent([line({ text: '[회의록]', formatting: { headingLevel: 1 } })])
+    ).toBe('회의록')
     expect(memoTitleFromContent([])).toBe('(제목 없음)')
+  })
+
+  it('keeps a leading bracket/paren that is not an actual heading marker', () => {
+    expect(memoTitleFromContent([line({ text: '(초안) 회의록' })])).toBe('(초안) 회의록')
   })
 })
 

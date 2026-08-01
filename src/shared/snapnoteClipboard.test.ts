@@ -78,6 +78,11 @@ describe('linesToPlainText', () => {
     ])
     expect(text).toBe('회의록')
   })
+
+  it('keeps a leading bracket/paren on a plain (non-heading) line', () => {
+    const text = linesToPlainText([line({ text: '(초안) 검토 부탁드립니다' })])
+    expect(text).toBe('(초안) 검토 부탁드립니다')
+  })
 })
 
 describe('sliceEditorLine', () => {

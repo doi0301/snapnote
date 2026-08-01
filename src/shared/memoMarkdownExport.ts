@@ -16,29 +16,20 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
 }
 
-/** 에디터 본문에서 SnapNote 위계 마커 제거 */
-export function stripAllHeadingMarkers(text: string): string {
+/**
+ * 에디터 본문에서 SnapNote 위계 마커 제거.
+ * 실제로 해당 줄에 적용된 headingLevel의 마커만 제거한다 — 레벨을 지정하지 않으면
+ * 일반 본문(제목이 아닌 줄)의 `[`/`(`/`<` 등 문자를 헤딩 마커로 오인해 지워버리는 것을 방지한다.
+ */
+export function stripAllHeadingMarkers(text: string, headingLevel?: number | null): string {
+  if (headingLevel == null) return text
+  const m = HEADING_MARKERS[headingLevel]
+  if (!m) return text
   let t = text
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const m of Object.values(HEADING_MARKERS)) {
-      if (m.close) {
-        if (t.startsWith(m.open)) {
-          t = t.slice(m.open.length)
-          changed = true
-        }
-        if (t.endsWith(m.close)) {
-          t = t.slice(0, t.length - m.close.length)
-          changed = true
-        }
-      } else if (t.startsWith(m.open)) {
-        t = t.slice(m.open.length)
-        changed = true
-      }
-    }
-  }
-  return t.replace(/^(\s*)• /, '$1')
+  if (t.startsWith(m.open)) t = t.slice(m.open.length)
+  if (m.close && t.endsWith(m.close)) t = t.slice(0, t.length - m.close.length)
+  if (headingLevel >= 4 && headingLevel <= 6) t = t.replace(/^(\s*)• /, '$1')
+  return t
 }
 
 function indentPrefix(level: number): string {
@@ -137,8 +128,8 @@ export function editorLineToMarkdown(line: EditorLine): string {
   }
 
   const rawText = line.text ?? ''
-  const stripped = stripAllHeadingMarkers(rawText)
   const headingLevel = fmt.headingLevel
+  const stripped = stripAllHeadingMarkers(rawText, headingLevel)
   const lineStrike = Boolean(fmt.strikethrough || (fmt.hasCheckbox && fmt.checkboxChecked))
   const structuralBold = Boolean(fmt.sectionTitle) || headingUsesStructuralBold(headingLevel)
   const inner = formatInlineMarkdown(stripped, line.spans, {
@@ -174,6 +165,6 @@ export function memoContentToMarkdown(content: EditorLine[]): string {
 export function memoTitleFromContent(content: EditorLine[]): string {
   const first = content[0]
   if (!first) return '(제목 없음)'
-  const stripped = stripAllHeadingMarkers(first.text ?? '').trim()
+  const stripped = stripAllHeadingMarkers(first.text ?? '', first.formatting?.headingLevel).trim()
   return stripped || '(제목 없음)'
 }

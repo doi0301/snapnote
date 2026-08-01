@@ -93,7 +93,7 @@ export function linesToPlainText(lines: EditorLine[]): string {
       if (l.formatting?.isTable && l.formatting.tableRows?.length) {
         return tableRowsToPlainTsv(l.formatting.tableRows)
       }
-      return plainTextFromString(stripAllHeadingMarkers(l.text ?? ''))
+      return plainTextFromString(stripAllHeadingMarkers(l.text ?? '', l.formatting?.headingLevel))
     })
     .join('\n')
 }
