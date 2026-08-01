@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { normalizeHighlightColor } from '@shared/highlight'
 import { keycapDisplayChar } from '@shared/keycapChar'
 import type { HighlightColor, LineFormatting, TextSpan } from '@shared/types'
@@ -134,7 +135,12 @@ export interface SpannedLineMirrorProps {
   variant?: 'mirror' | 'inline'
 }
 
-export function SpannedLineMirror({
+/**
+ * 문서 내 모든 줄 컴포넌트가 매 키 입력마다 리렌더되므로(부모 콜백 prop이 매번 새로 생성됨),
+ * 편집 중이 아닌 줄들의 정규식 스캔·span 재계산 비용을 건너뛰도록 별도로 memo 처리한다.
+ * text/spans/formatting은 변경되지 않은 줄에서 참조가 그대로 유지되므로 얕은 비교로 충분하다.
+ */
+export const SpannedLineMirror = memo(function SpannedLineMirror({
   text,
   spans,
   lineFormatting,
@@ -202,4 +208,4 @@ export function SpannedLineMirror({
     }
   }
   return <span className="editor-line-mirror-parts">{parts}</span>
-}
+})

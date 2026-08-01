@@ -11,6 +11,7 @@ import {
 } from 'react'
 import type {
   AccentBarKind,
+  Category,
   EditorLine as EditorLineModel,
   HighlightColor,
   Memo,
@@ -33,6 +34,7 @@ import { ClipboardHistoryControl } from './ClipboardPanel'
 import { FormatToolbar } from './FormatToolbar'
 import { TableEditorRow } from './TableLineView'
 import { TagInput } from './TagInput'
+import { CategoryPicker } from './CategoryPicker'
 import { MAX_INDENT, normalizeEditorLines } from './editorLines'
 import {
   addBoldOnRange,
@@ -79,6 +81,8 @@ interface EditorProps {
   tagRaw: string
   onTagRawChange: (raw: string) => void
   tagSuggestions: string[]
+  categories: Category[]
+  onCategoryChange: (categoryId: string | null) => void
 }
 
 interface MultiLineSelection {
@@ -472,7 +476,16 @@ function getSegmentForNormalizedLine(norm: NormSel, lineIndex: number, lineText:
 }
 
 export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
-  { memo, onMemoUpdated, onHeadLineChange, tagRaw, onTagRawChange, tagSuggestions },
+  {
+    memo,
+    onMemoUpdated,
+    onHeadLineChange,
+    tagRaw,
+    onTagRawChange,
+    tagSuggestions,
+    categories,
+    onCategoryChange
+  },
   imperativeRef
 ) {
   const isDev = import.meta.env.DEV
@@ -766,6 +779,17 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     el.style.height = `${Math.max(28, el.scrollHeight)}px`
   }, [])
 
+  /** 줄이 커져 뷰포트 하단을 벗어나면 그만큼만 스크롤을 내려 하단 내용이 가려지지 않게 한다 */
+  const scrollLineBottomIntoView = useCallback((index: number, baseScrollTop: number): void => {
+    const scrollEl = editorScrollRef.current
+    if (!scrollEl) return
+    const lineEl = textareaRefs.current[index]?.closest('.editor-line') as HTMLElement | null
+    const overflowBottom = lineEl
+      ? lineEl.getBoundingClientRect().bottom - scrollEl.getBoundingClientRect().bottom
+      : 0
+    scrollEl.scrollTop = overflowBottom > 0 ? baseScrollTop + overflowBottom + 4 : baseScrollTop
+  }, [])
+
   const handleLineCompositionStart = useCallback((index: number) => {
     composingLineRef.current = index
   }, [])
@@ -773,10 +797,14 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const handleLineCompositionEnd = useCallback(
     (index: number) => {
       if (composingLineRef.current === index) composingLineRef.current = null
-      /** 조합이 끝난 뒤 한 번만 높이 재계산 */
-      requestAnimationFrame(() => resizeOneLineTextarea(textareaRefs.current[index] ?? null, index))
+      const prevScrollTop = editorScrollRef.current?.scrollTop ?? 0
+      /** 조합이 끝난 뒤 한 번만 높이 재계산 + 하단 가림 보정 */
+      requestAnimationFrame(() => {
+        resizeOneLineTextarea(textareaRefs.current[index] ?? null, index)
+        scrollLineBottomIntoView(index, prevScrollTop)
+      })
     },
-    [resizeOneLineTextarea]
+    [resizeOneLineTextarea, scrollLineBottomIntoView]
   )
 
   const handleTitleStickyStuckChange = useCallback(
@@ -831,6 +859,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   useLayoutEffect(() => {
     const scrollEl = editorScrollRef.current
     const prevScrollTop = scrollEl?.scrollTop ?? 0
+    /** 타이핑/붙여넣기로 커진 줄이 포커스 중인 줄이면, scrollTop을 그대로 복원하는 대신
+     *  그 줄이 뷰포트 하단을 벗어난 만큼 스크롤을 따라가게 한다 (하단 내용 가림 방지). */
+    let grownFocusedIndex: number | null = null
     try {
       const t0 = perfEnabledRef.current ? performance.now() : 0
       const prevTexts = prevLineTextsForResizeRef.current
@@ -851,15 +882,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         const text = lines[i]?.text ?? ''
         nextTexts[i] = text
         if (prevTexts[i] === text) continue
-        resizeOneLineTextarea(textareaRefs.current[i] ?? null, i)
+        const el = textareaRefs.current[i] ?? null
+        resizeOneLineTextarea(el, i)
         resizedCount++
+        if (el && el === document.activeElement) grownFocusedIndex = i
       }
       prevLineTextsForResizeRef.current = nextTexts
       if (perfEnabledRef.current) logPerf(`resizeTextareas(${resizedCount})`, performance.now() - t0, getPerfWarnMs('resizeTextareas'))
     } finally {
-      if (scrollEl) scrollEl.scrollTop = prevScrollTop
+      if (scrollEl) {
+        if (grownFocusedIndex != null) {
+          scrollLineBottomIntoView(grownFocusedIndex, prevScrollTop)
+        } else {
+          scrollEl.scrollTop = prevScrollTop
+        }
+      }
     }
-  }, [lines, logPerf, getPerfWarnMs, resizeOneLineTextarea])
+  }, [lines, logPerf, getPerfWarnMs, resizeOneLineTextarea, scrollLineBottomIntoView])
 
   /** 창·패널 너비만 바뀌어도 줄바꿈이 늘어나므로 전 줄 textarea 높이를 다시 맞춤 (lines 변경 없이도 scrollHeight 갱신) */
   useLayoutEffect(() => {
@@ -2934,8 +2973,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     ta.focus()
     lastFocusIndex.current = index
     setFocusLineIndex(index)
+    /**
+     * 클릭한 줄 하나만 리사이즈한다. 과거엔 전체 줄을 리사이즈했는데, 문서 전체를
+     * height:auto↔scrollHeight로 왕복시키면 총 높이가 미세하게 달라져 아래 scrollTop
+     * 복원 로직이 어긋난 위치로 스크롤을 되돌려 "클릭 시 스크롤이 튀는" 버그가 있었다.
+     */
     requestAnimationFrame(() => {
-      resizeAllLineTextareaHeights()
+      resizeOneLineTextarea(textareaRefs.current[index] ?? null, index)
     })
     /**
      * mousedown 직후에는 브라우저가 아직 캐럿/선택을 갱신하지 않아 selectionStart/End 가 이전 줄 전체 선택 등
@@ -3256,7 +3300,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                     }
                     if (!draggingSelectionRef.current) setMultiLineSelection(null)
                     requestAnimationFrame(() => {
-                      resizeAllLineTextareaHeights()
+                      resizeOneLineTextarea(textareaRefs.current[index] ?? null, index)
                     })
                   }}
                   onPaste={(e) => handleLinePaste(index, e)}
@@ -3306,6 +3350,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             variant="bottom"
           />
         </div>
+        <CategoryPicker categories={categories} value={memo.categoryId} onChange={onCategoryChange} />
         <div className="editor-toolbar-stack" ref={toolbarStackRef}>
           <ClipboardHistoryControl />
           <button
