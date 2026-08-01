@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Settings, SettingsUpdatePatch, UpdateEventPayload } from '@shared/types'
+import type { Category, Settings, SettingsUpdatePatch, UpdateEventPayload } from '@shared/types'
 import './settings-window.css'
 
 const DEFAULT_SHORTCUT = 'CommandOrControl+Shift+M'
@@ -15,6 +15,9 @@ export function SettingsWindow(): React.JSX.Element {
   )
   const [remoteVersion, setRemoteVersion] = useState<string | null>(null)
   const [updateProgress, setUpdateProgress] = useState<number | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, string>>({})
 
   const refresh = useCallback(async (): Promise<void> => {
     const s = await window.snapnote.settings.get()
@@ -55,6 +58,62 @@ export function SettingsWindow(): React.JSX.Element {
         setUpdateProgress(null)
       }
     })
+  }, [])
+
+  useEffect(() => {
+    void window.snapnote.category.list().then(setCategories)
+    return window.snapnote.on.categoryChanged((list) => setCategories(list))
+  }, [])
+
+  const onAddCategory = useCallback(async (): Promise<void> => {
+    const name = newCategoryName.trim()
+    if (!name) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const list = await window.snapnote.category.create({ name })
+      setCategories(list)
+      setNewCategoryName('')
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '카테고리 추가에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }, [newCategoryName])
+
+  const onRenameCategory = useCallback(async (id: string): Promise<void> => {
+    const name = (categoryDrafts[id] ?? '').trim()
+    if (!name) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const list = await window.snapnote.category.update({ id, patch: { name } })
+      setCategories(list)
+      setCategoryDrafts((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '카테고리 이름 변경에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }, [categoryDrafts])
+
+  const onDeleteCategory = useCallback(async (id: string, name: string): Promise<void> => {
+    const ok = window.confirm(`"${name}" 카테고리를 삭제할까요?\n이 카테고리로 지정된 메모는 미지정 상태가 됩니다.`)
+    if (!ok) return
+    setSaving(true)
+    setMessage(null)
+    try {
+      const list = await window.snapnote.category.delete(id)
+      setCategories(list)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '카테고리 삭제에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
   }, [])
 
   const patch = useCallback(async (p: SettingsUpdatePatch): Promise<void> => {
@@ -248,6 +307,76 @@ export function SettingsWindow(): React.JSX.Element {
         <p className="settings-hint" id="settings-clipboard-hint">
           끄면 시스템 클립보드를 읽지 않으며 히스토리에 쌓이지 않습니다. 최초 실행 시 안내 창은 한 번만 표시됩니다.
         </p>
+      </section>
+
+      <section className="settings-section" aria-labelledby="settings-categories">
+        <h2 id="settings-categories" className="settings-section-title">
+          카테고리
+        </h2>
+        <p className="settings-hint">
+          자유롭게 붙이는 태그(#태그)와 별개로, 여기서 미리 등록해두면 편집 창 하단 드롭다운에서 메모마다 하나씩 선택할 수 있습니다.
+        </p>
+        {categories.length > 0 ? (
+          <ul className="settings-category-list">
+            {categories.map((c) => (
+              <li key={c.id} className="settings-category-row">
+                <input
+                  type="text"
+                  className="settings-category-input"
+                  value={categoryDrafts[c.id] ?? c.name}
+                  disabled={saving}
+                  onChange={(e) =>
+                    setCategoryDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void onRenameCategory(c.id)
+                  }}
+                  aria-label={`${c.name} 카테고리 이름`}
+                />
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={saving || (categoryDrafts[c.id] ?? c.name).trim() === c.name}
+                  onClick={() => void onRenameCategory(c.id)}
+                >
+                  저장
+                </button>
+                <button
+                  type="button"
+                  className="settings-btn settings-btn--danger"
+                  disabled={saving}
+                  onClick={() => void onDeleteCategory(c.id, c.name)}
+                >
+                  삭제
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="settings-hint">등록된 카테고리가 없습니다.</p>
+        )}
+        <div className="settings-category-add-row">
+          <input
+            type="text"
+            className="settings-category-input"
+            placeholder="새 카테고리 이름"
+            value={newCategoryName}
+            disabled={saving}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void onAddCategory()
+            }}
+            aria-label="새 카테고리 이름"
+          />
+          <button
+            type="button"
+            className="settings-btn settings-btn--primary"
+            disabled={saving || !newCategoryName.trim()}
+            onClick={() => void onAddCategory()}
+          >
+            추가
+          </button>
+        </div>
       </section>
 
       <section className="settings-section" aria-labelledby="settings-appearance">

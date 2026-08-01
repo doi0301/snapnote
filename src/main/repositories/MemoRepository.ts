@@ -17,6 +17,7 @@ function rowToMemo(row: SqlRow): Memo {
     id: String(row.id),
     content: JSON.parse(String(row.content)) as EditorLine[],
     tags: JSON.parse(String(row.tags)) as string[],
+    categoryId: row.category_id === null || row.category_id === undefined ? null : String(row.category_id),
     color: String(row.color),
     isPinned: Number(row.is_pinned) === 1,
     pinnedAt: pa === null || pa === undefined ? null : Number(pa),
@@ -76,12 +77,12 @@ export class MemoRepository {
     run(
       db,
       `INSERT INTO memos (
-        id, content, tags, color, is_pinned, pinned_at,
+        id, content, tags, category_id, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
         is_done, is_favorite,
         created_at, updated_at,
         deleted_at
-      ) VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?, ?, 0, 0, ?, ?, NULL)`,
+      ) VALUES (?, ?, ?, NULL, ?, 0, NULL, NULL, NULL, ?, ?, 0, 0, ?, ?, NULL)`,
       [id, JSON.stringify(emptyContent), JSON.stringify([]), color, ww, wh, now, now]
     )
     this.persist()
@@ -166,6 +167,7 @@ export class MemoRepository {
       ...patch,
       content: patch.content ?? existing.content,
       tags: patch.tags ?? existing.tags,
+      categoryId: patch.categoryId !== undefined ? patch.categoryId : existing.categoryId,
       color: patch.color ?? existing.color,
       isPinned: nextIsPinned,
       pinnedAt: nextPinnedAt,
@@ -180,7 +182,7 @@ export class MemoRepository {
     run(
       this.getDb(),
       `UPDATE memos SET
-        content = ?, tags = ?, color = ?, is_pinned = ?, pinned_at = ?,
+        content = ?, tags = ?, category_id = ?, color = ?, is_pinned = ?, pinned_at = ?,
         window_x = ?, window_y = ?, window_width = ?, window_height = ?,
         is_done = ?, is_favorite = ?,
         updated_at = ?
@@ -188,6 +190,7 @@ export class MemoRepository {
       [
         JSON.stringify(next.content),
         JSON.stringify(next.tags),
+        next.categoryId,
         next.color,
         next.isPinned ? 1 : 0,
         next.pinnedAt,
@@ -249,16 +252,17 @@ export class MemoRepository {
     run(
       this.getDb(),
       `INSERT INTO memos (
-        id, content, tags, color, is_pinned, pinned_at,
+        id, content, tags, category_id, color, is_pinned, pinned_at,
         window_x, window_y, window_width, window_height,
         is_done, is_favorite,
         created_at, updated_at,
         deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         m.id,
         JSON.stringify(m.content),
         JSON.stringify(m.tags),
+        m.categoryId ?? null,
         m.color,
         m.isPinned ? 1 : 0,
         m.pinnedAt ?? null,

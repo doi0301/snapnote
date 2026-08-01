@@ -12,12 +12,16 @@ import type {
   MemoOpenPreviewPayload,
   MemoUpdatePatch,
   AppState,
-  SettingsUpdatePatch
+  SettingsUpdatePatch,
+  Category,
+  CategoryCreatePayload,
+  CategoryUpdatePatch
 } from '@shared/types'
 import { getDatabase, persistDatabase } from './database/db'
 import { ClipboardRepository, isSafeClipboardImageFileName } from './repositories/ClipboardRepository'
 import { MemoRepository, TRASH_RETENTION_DAYS } from './repositories/MemoRepository'
 import { SettingsRepository } from './repositories/SettingsRepository'
+import { CategoryRepository } from './repositories/CategoryRepository'
 import { GlobalShortcutService } from './globalShortcutService'
 import { WindowManager } from './WindowManager'
 import { registerUpdaterIpcHandlers } from './autoUpdate'
@@ -30,11 +34,14 @@ interface ExportFile {
   version: string
   exportedAt: string
   memos: Memo[]
+  /** 구버전 내보내기 파일에는 없을 수 있음 */
+  categories?: Category[]
 }
 
 export class DataService {
   private readonly memos: MemoRepository
   private readonly settings: SettingsRepository
+  private readonly categories: CategoryRepository
   private readonly clipboard: ClipboardRepository
   private readonly clipboardService: ClipboardService
   private readonly globalShortcutService: GlobalShortcutService
@@ -47,6 +54,7 @@ export class DataService {
     const db = (): ReturnType<typeof getDatabase> => getDatabase()
     this.memos = new MemoRepository(db, persistDatabase)
     this.settings = new SettingsRepository(db, persistDatabase)
+    this.categories = new CategoryRepository(db, persistDatabase)
     this.clipboard = new ClipboardRepository(db, persistDatabase, () =>
       join(app.getPath('userData'), 'clipboard-images')
     )
@@ -288,6 +296,34 @@ export class DataService {
       return s
     })
 
+    ipcMain.handle(IPC_CHANNELS.CATEGORY_LIST, () => this.categories.listCategories())
+
+    ipcMain.handle(IPC_CHANNELS.CATEGORY_CREATE, (_e, payload: CategoryCreatePayload) => {
+      this.categories.createCategory(payload)
+      const list = this.categories.listCategories()
+      this.broadcast(IPC_CHANNELS.CATEGORY_CHANGED, list)
+      return list
+    })
+
+    ipcMain.handle(
+      IPC_CHANNELS.CATEGORY_UPDATE,
+      (_e, payload: { id: string; patch: CategoryUpdatePatch }) => {
+        this.categories.updateCategory(payload.id, payload.patch)
+        const list = this.categories.listCategories()
+        this.broadcast(IPC_CHANNELS.CATEGORY_CHANGED, list)
+        return list
+      }
+    )
+
+    ipcMain.handle(IPC_CHANNELS.CATEGORY_DELETE, (_e, id: string) => {
+      this.categories.deleteCategory(id)
+      const list = this.categories.listCategories()
+      this.broadcast(IPC_CHANNELS.CATEGORY_CHANGED, list)
+      /** 삭제된 카테고리를 참조하던 메모들이 미지정으로 바뀌었으므로 갱신 */
+      this.broadcast(IPC_CHANNELS.MEMOS_DATA_RESET)
+      return list
+    })
+
     ipcMain.handle(IPC_CHANNELS.CLIPBOARD_GET_HISTORY, () => this.clipboard.getItems())
 
     ipcMain.handle(IPC_CHANNELS.CLIPBOARD_INSERT, async (_e, payload: ClipboardInsertPayload) => {
@@ -505,7 +541,8 @@ export class DataService {
       const payload: ExportFile = {
         version: '1',
         exportedAt: new Date().toISOString(),
-        memos
+        memos,
+        categories: this.categories.listCategories()
       }
       const saveOpts = {
         title: 'Export memos',
@@ -544,9 +581,33 @@ export class DataService {
       if (!data.memos || !Array.isArray(data.memos)) {
         throw new Error('Invalid export file: missing memos array')
       }
+
+      /** 가져온 카테고리를 이름 기준으로 병합하고, 옛 categoryId → 현재 DB의 id로 다시 매핑 */
+      const categoryIdRemap = new Map<string, string>()
+      if (Array.isArray(data.categories)) {
+        const existing = this.categories.listCategories()
+        const byName = new Map(existing.map((c) => [c.name.toLowerCase(), c]))
+        for (const c of data.categories) {
+          if (!c?.id || !c.name) continue
+          const found = byName.get(c.name.toLowerCase())
+          if (found) {
+            categoryIdRemap.set(c.id, found.id)
+          } else {
+            const created = this.categories.createCategory({ name: c.name, color: c.color ?? null })
+            byName.set(created.name.toLowerCase(), created)
+            categoryIdRemap.set(c.id, created.id)
+          }
+        }
+        this.broadcast(IPC_CHANNELS.CATEGORY_CHANGED, this.categories.listCategories())
+      }
+
       for (const m of data.memos) {
         if (!m?.id) continue
-        if (this.memos.importMemo(m as Memo)) {
+        const remapped: Memo = {
+          ...(m as Memo),
+          categoryId: m.categoryId ? categoryIdRemap.get(m.categoryId) ?? null : null
+        }
+        if (this.memos.importMemo(remapped)) {
           const saved = this.memos.getMemo(m.id)
           if (saved) this.broadcast(IPC_CHANNELS.MEMO_UPDATED, saved)
         }

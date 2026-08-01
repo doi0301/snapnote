@@ -3,6 +3,9 @@
  */
 import type {
   AppState,
+  Category,
+  CategoryCreatePayload,
+  CategoryUpdatePatch,
   ClipboardInsertPayload,
   ClipboardItem,
   Memo,
@@ -68,6 +71,12 @@ export interface SnapnotePreloadAPI {
     get: () => Promise<Settings>
     update: (patch: SettingsUpdatePatch) => Promise<Settings>
   }
+  category: {
+    list: () => Promise<Category[]>
+    create: (payload: CategoryCreatePayload) => Promise<Category[]>
+    update: (payload: { id: string; patch: CategoryUpdatePatch }) => Promise<Category[]>
+    delete: (id: string) => Promise<Category[]>
+  }
   app: {
     exportMemos: () => Promise<void>
     exportMemosAsFile: (payload: ExportMemosAsFilePayload) => Promise<ExportMemosAsFileResult>
@@ -100,6 +109,8 @@ export interface SnapnotePreloadAPI {
     settingsChanged: (cb: (settings: Settings) => void) => () => void
     /** 메모 전체 삭제 등 — 목록 갱신 */
     memosDataReset: (cb: () => void) => () => void
+    /** 카테고리 목록 추가·수정·삭제 — 모든 창 동기화 */
+    categoryChanged: (cb: (categories: Category[]) => void) => () => void
     /** 편집 창에서만 사용 (클립보드 삽입 IPC) */
     clipboardPasteText: (cb: (text: string) => void) => () => void
     /** 자동 업데이트 진행 (설정 창 등) */

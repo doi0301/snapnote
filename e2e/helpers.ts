@@ -73,6 +73,13 @@ export async function e2eToggleFoldedFromMain(app: ElectronApplication): Promise
   })
 }
 
+export async function e2eOpenSettingsFromMain(app: ElectronApplication): Promise<void> {
+  await app.evaluate(() => {
+    const g = globalThis as unknown as { __snapnoteE2E?: { openSettings: () => void } }
+    g.__snapnoteE2E?.openSettings()
+  })
+}
+
 /** 토글 후 `visible` 이 될 때까지 폴링 */
 export async function expectFoldedVisibility(
   app: ElectronApplication,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Memo, Settings } from '@shared/types'
+import type { Category, Memo, Settings } from '@shared/types'
 import { useWindowPersist } from '@renderer/hooks/useWindowPersist'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
 import { TopBar } from './TopBar'
@@ -20,6 +20,7 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
   const [pinned, setPinned] = useState(false)
   const [tagRaw, setTagRaw] = useState('')
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
   /** 서버에서 태그 입력값을 채우기 전에는 자동 저장으로 태그를 덮어쓰지 않음 */
   const tagsHydratedRef = useRef(false)
@@ -69,6 +70,19 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
     void window.snapnote.settings.get().then(setSettings)
     return window.snapnote.on.settingsChanged((s) => setSettings(s))
   }, [])
+
+  useEffect(() => {
+    void window.snapnote.category.list().then(setCategories)
+    return window.snapnote.on.categoryChanged((list) => setCategories(list))
+  }, [])
+
+  const onCategoryChange = useCallback(
+    async (categoryId: string | null) => {
+      const updated = await window.snapnote.memo.update({ id: memoId, patch: { categoryId } })
+      setMemo(updated)
+    },
+    [memoId]
+  )
 
   const saveTags = useCallback(async () => {
     if (!memoId || !tagsHydratedRef.current) return
@@ -136,6 +150,8 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
           tagRaw={tagRaw}
           onTagRawChange={setTagRaw}
           tagSuggestions={tagSuggestions}
+          categories={categories}
+          onCategoryChange={onCategoryChange}
         />
       </div>
     </div>

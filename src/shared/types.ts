@@ -64,6 +64,8 @@ export interface Memo {
   id: MemoId
   content: EditorLine[]
   tags: string[]
+  /** 태그와 별개인 상위 분류. 미리 등록해둔 카테고리 목록에서 하나만 선택 (CategoryRepository) */
+  categoryId: string | null
   color: MemoColorKey
   isPinned: boolean
   /** 상단 고정한 시각(ms). 고정 해제 시 null. 최근 고정이 더 큰 값 */
@@ -88,6 +90,7 @@ export type MemoUpdatePatch = Partial<
     Memo,
     | 'content'
     | 'tags'
+    | 'categoryId'
     | 'color'
     | 'isPinned'
     | 'pinnedAt'
@@ -99,6 +102,23 @@ export type MemoUpdatePatch = Partial<
     | 'isFavorite'
   >
 >
+
+/** 미리 등록해두는 상위 분류 목록 (자유 입력 태그와 별개) */
+export interface Category {
+  id: string
+  name: string
+  /** 미지정 시 목록에서 기본 색 순환 표시 */
+  color: string | null
+  sortOrder: number
+  createdAt: string
+}
+
+export interface CategoryCreatePayload {
+  name: string
+  color?: string | null
+}
+
+export type CategoryUpdatePatch = Partial<Pick<Category, 'name' | 'color' | 'sortOrder'>>
 
 export interface Settings {
   launchOnStartup: boolean

@@ -6,6 +6,9 @@ import type { SnapnotePreloadAPI, UpdateCheckResult } from '@shared/snapnote-api
 import type { UpdateEventPayload } from '@shared/types'
 import type {
   AppState,
+  Category,
+  CategoryCreatePayload,
+  CategoryUpdatePatch,
   ClipboardInsertPayload,
   ClipboardItem,
   Memo,
@@ -75,6 +78,15 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
       ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_UPDATE, patch)
   }
 
+  const category = {
+    list: (): Promise<Category[]> => ipcRenderer.invoke(IPC_CHANNELS.CATEGORY_LIST),
+    create: (payload: CategoryCreatePayload): Promise<Category[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CATEGORY_CREATE, payload),
+    update: (payload: { id: string; patch: CategoryUpdatePatch }): Promise<Category[]> =>
+      ipcRenderer.invoke(IPC_CHANNELS.CATEGORY_UPDATE, payload),
+    delete: (id: string): Promise<Category[]> => ipcRenderer.invoke(IPC_CHANNELS.CATEGORY_DELETE, id)
+  }
+
   const app = {
     exportMemos: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.APP_EXPORT_MEMOS),
     exportMemosAsFile: (payload: { ids: string[] }): Promise<{ ok: boolean; reason?: string }> =>
@@ -133,6 +145,11 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
       ipcRenderer.on(IPC_CHANNELS.MEMOS_DATA_RESET, listener)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.MEMOS_DATA_RESET, listener)
     },
+    categoryChanged: (cb: (categories: Category[]) => void): (() => void) => {
+      const listener = (_e: Electron.IpcRendererEvent, categories: Category[]): void => cb(categories)
+      ipcRenderer.on(IPC_CHANNELS.CATEGORY_CHANGED, listener)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CATEGORY_CHANGED, listener)
+    },
     clipboardPasteText: (cb: (text: string) => void): (() => void) => {
       const listener = (_e: Electron.IpcRendererEvent, text: string): void => cb(text)
       ipcRenderer.on(IPC_CHANNELS.CLIPBOARD_PASTE_TEXT, listener)
@@ -145,7 +162,7 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
     }
   }
 
-  return { memo, clipboard, settings, app, on }
+  return { memo, clipboard, settings, category, app, on }
 }
 
 const snapnote = createSnapnoteApi()

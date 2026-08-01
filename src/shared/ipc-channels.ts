@@ -12,6 +12,8 @@ export const IPC_CHANNELS = {
   SETTINGS_CHANGED: 'settings:changed',
   /** 메모 전체 삭제 등 — 목록 화면 갱신용 */
   MEMOS_DATA_RESET: 'memos:data-reset',
+  /** 카테고리 목록 추가·수정·삭제 — 모든 창(에디터·설정) 동기화 */
+  CATEGORY_CHANGED: 'category:changed',
 
   /** Renderer → Main (invoke) */
   MEMO_CREATE: 'memo:create',
@@ -54,6 +56,11 @@ export const IPC_CHANNELS = {
 
   SETTINGS_GET: 'settings:get',
   SETTINGS_UPDATE: 'settings:update',
+
+  CATEGORY_LIST: 'category:list',
+  CATEGORY_CREATE: 'category:create',
+  CATEGORY_UPDATE: 'category:update',
+  CATEGORY_DELETE: 'category:delete',
 
   APP_EXPORT_MEMOS: 'app:export-memos',
   /** 선택 메모를 Markdown 또는 CSV로 저장 */
@@ -98,6 +105,7 @@ export type IpcEventChannel =
   | typeof IPC_CHANNELS.MEMOS_DATA_RESET
   | typeof IPC_CHANNELS.CLIPBOARD_PASTE_TEXT
   | typeof IPC_CHANNELS.UPDATE_EVENT
+  | typeof IPC_CHANNELS.CATEGORY_CHANGED
 
 /** Renderer → Main invoke 채널 */
 export type IpcInvokeChannel = Exclude<

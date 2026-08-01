@@ -153,9 +153,16 @@ if (!hasMainInstanceLock) {
 
       /** E2E: OS 전역 단축키와 동일한 `toggleFoldedPanel` 경로를 메인에서 직접 호출 */
       if (isE2E) {
-        ;(globalThis as unknown as { __snapnoteE2E: { toggleFolded: () => void } }).__snapnoteE2E = {
+        ;(
+          globalThis as unknown as {
+            __snapnoteE2E: { toggleFolded: () => void; openSettings: () => void }
+          }
+        ).__snapnoteE2E = {
           toggleFolded: (): void => {
             dataService?.windowManager.toggleFoldedPanel()
+          },
+          openSettings: (): void => {
+            dataService?.windowManager.openSettingsWindow()
           }
         }
       }

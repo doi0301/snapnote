@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Memo, MemoId } from '@shared/types'
+import type { Category, Memo, MemoId } from '@shared/types'
 import { memoHasTextContent } from '@shared/memoContent'
 import { filterHistoryMemos } from '@shared/historyFilter'
 import { collectAllTags } from '@renderer/edit/tagUtils'
@@ -8,6 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { MemoList } from './MemoList'
 import { SearchBar } from './SearchBar'
 import { TagFilterBar } from './TagFilterBar'
+import { CategoryFilterBar } from './CategoryFilterBar'
 import './history-modal.css'
 
 const LIST_CAP = 50
@@ -31,6 +32,8 @@ export function HistoryModal(): React.JSX.Element {
   const [trashMemos, setTrashMemos] = useState<Memo[]>([])
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set())
+  const [categories, setCategories] = useState<Category[]>([])
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(() => new Set())
   const [selectedIds, setSelectedIds] = useState<Set<MemoId>>(() => new Set())
   const [sortBy, setSortBy] = useState<SortKey>('created')
   const [confirmDelete, setConfirmDelete] = useState<
@@ -67,6 +70,11 @@ export function HistoryModal(): React.JSX.Element {
   }, [load])
 
   useEffect(() => {
+    void window.snapnote.category.list().then(setCategories)
+    return window.snapnote.on.categoryChanged((list) => setCategories(list))
+  }, [])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -82,8 +90,8 @@ export function HistoryModal(): React.JSX.Element {
   const allTags = useMemo(() => collectAllTags(substantiveMemos), [substantiveMemos])
 
   const filtered = useMemo(
-    () => filterHistoryMemos(substantiveMemos, debouncedQuery, selectedTags),
-    [substantiveMemos, selectedTags, debouncedQuery]
+    () => filterHistoryMemos(substantiveMemos, debouncedQuery, selectedTags, selectedCategoryIds),
+    [substantiveMemos, selectedTags, selectedCategoryIds, debouncedQuery]
   )
 
   const sorted = useMemo(() => {
@@ -186,13 +194,13 @@ export function HistoryModal(): React.JSX.Element {
 
   const confirmMessage =
     confirmDelete?.kind === 'one'
-      ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n휴지통으로 이동할까요? 7일 후 자동으로 영구 삭제됩니다.`
+      ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n휴지통으로 이동합니다.`
       : confirmDelete?.kind === 'bulk'
-        ? `선택한 ${confirmDelete.ids.length}개 메모를 휴지통으로 이동할까요? 7일 후 자동으로 영구 삭제됩니다.`
+        ? `선택한 ${confirmDelete.ids.length}개 메모를 휴지통으로 이동합니다.`
         : confirmDelete?.kind === 'permanent'
-          ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n영구 삭제할까요? 복원할 수 없습니다.`
+          ? `"${(confirmDelete.memo.content[0]?.text ?? '').trim().slice(0, 80) || '(제목 없음)'}"\n\n영구 삭제합니다. 복원할 수 없습니다.`
           : confirmDelete?.kind === 'emptyTrash'
-            ? `휴지통의 ${trashMemos.length}개 메모를 모두 영구 삭제할까요? 복원할 수 없습니다.`
+            ? `휴지통의 메모 ${trashMemos.length}개를 모두 영구 삭제합니다. 복원할 수 없습니다.`
             : ''
 
   const confirmLabel =
@@ -258,6 +266,12 @@ export function HistoryModal(): React.JSX.Element {
 
       <TagFilterBar allTags={allTags} selectedTags={selectedTags} onChange={setSelectedTags} />
 
+      <CategoryFilterBar
+        categories={categories}
+        selectedCategoryIds={selectedCategoryIds}
+        onChange={setSelectedCategoryIds}
+      />
+
       {/* 정렬 드롭다운 */}
       <div className="history-sort-bar">
         <label className="history-sort-label" htmlFor="history-sort-select">정렬:</label>
@@ -286,7 +300,11 @@ export function HistoryModal(): React.JSX.Element {
           </div>
         ) : emptyFiltered ? (
           <div className="history-empty">
-            <p>{hasQuery || selectedTags.size > 0 ? '검색 결과가 없습니다.' : '표시할 메모가 없습니다.'}</p>
+            <p>
+              {hasQuery || selectedTags.size > 0 || selectedCategoryIds.size > 0
+                ? '검색 결과가 없습니다.'
+                : '표시할 메모가 없습니다.'}
+            </p>
           </div>
         ) : (
           <MemoList

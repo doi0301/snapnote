@@ -22,15 +22,25 @@ export function matchesTagOr(m: Memo, selected: Set<string>): boolean {
   )
 }
 
+/** 태그와 달리 메모당 카테고리는 하나뿐 — 선택된 카테고리 중 하나와 일치하면 통과(OR) */
+export function matchesCategory(m: Memo, selected: Set<string>): boolean {
+  if (selected.size === 0) return true
+  return m.categoryId !== null && selected.has(m.categoryId)
+}
+
 /**
  * `memoHasTextContent` 로 걸러진 목록만 넣는다 (HistoryModal `substantiveMemos` 와 동일 전제).
  */
 export function filterHistoryMemos(
   substantiveMemos: Memo[],
   debouncedQuery: string,
-  selectedTags: Set<string>
+  selectedTags: Set<string>,
+  selectedCategoryIds: Set<string> = new Set()
 ): Memo[] {
   return substantiveMemos.filter(
-    (m) => matchesTagOr(m, selectedTags) && matchesSearch(m, debouncedQuery)
+    (m) =>
+      matchesTagOr(m, selectedTags) &&
+      matchesCategory(m, selectedCategoryIds) &&
+      matchesSearch(m, debouncedQuery)
   )
 }

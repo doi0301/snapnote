@@ -103,7 +103,7 @@ export function TagInput({ value, onChange, suggestions, variant = 'default' }: 
         type="text"
         className="tag-input-field"
         value={value}
-        placeholder="카테고리를 설정하세요. 예: #업무 #계획"
+        placeholder="태그를 입력하세요. 예: #업무 #계획"
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
         onClick={refreshCtx}
