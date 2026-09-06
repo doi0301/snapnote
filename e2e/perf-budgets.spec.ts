@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 import { _electron as electron } from 'playwright'
-import { launchSnapNote, mainScript, waitForPage } from './helpers'
+import { e2eLaunchEnv, launchSnapNote, mainScript, waitForPage } from './helpers'
 
 /**
  * TASK-S5-07 Playwright 측정.
@@ -31,7 +31,7 @@ test.describe('TASK-S5-07 성능 예산', () => {
     const app = await electron.launch({
       args: [mainScript],
       cwd: process.cwd(),
-      env: { ...process.env, SNAPNOTE_E2E: '1' }
+      env: e2eLaunchEnv()
     })
     try {
       const folded = await waitForPage(app, 'folded.html')

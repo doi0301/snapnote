@@ -1344,24 +1344,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           return
         }
 
-        if (
-          (newT.startsWith('- ') || newT.startsWith('+ ')) &&
-          lines[index]?.formatting?.headingLevel !== 4 &&
-          !oldT.startsWith('- ') &&
-          !oldT.startsWith('+ ') &&
-          !oldT.startsWith('• ')
-        ) {
-          const rest = newT.slice(2)
-          const replaced = '• ' + rest
-          pendingFocusRef.current = { index, cursor: replaced.length }
-          setLines((prev) => {
-            const cur = prev[index]
-            if (!cur) return prev
-            const spans = remapSpansAfterEdit(cur.text, replaced, cur.spans)
-            return prev.map((l, i) => (i === index ? { ...l, text: replaced, spans } : l))
-          })
-          return
-        }
       }
 
       setLines((prev) => {
@@ -2618,19 +2600,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         start === end
       ) {
         const val = ta.value
-        if (start === 1 && (val === '-' || val === '+')) {
-          e.preventDefault()
-          pendingFocusRef.current = { index, cursor: 2 }
-          setLines((prev) => {
-            const cur = prev[index]
-            if (!cur) return prev
-            const oldT = cur.text
-            const newT = '• '
-            const spans = remapSpansAfterEdit(oldT, newT, cur.spans)
-            return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
-          })
-          return
-        }
         if (start === 2 && val === '[]') {
           e.preventDefault()
           pushUndoSnapshot(lines, index, start)
@@ -2721,6 +2690,30 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
          * DOM 값을 진실로 삼아야 글자 유실·엉뚱한 위치 분할이 생기지 않는다.
          */
         const sourceText = ta.value
+
+        /**
+         * `---` + Enter → 그 칸에 구분선을 단다.
+         * 구분선은 칸 아래에 그려지므로 칸 자체는 비운 채 계속 편집할 수 있게 두고,
+         * 새 줄도 만들지 않는다.
+         */
+        if (sourceText === '---') {
+          pushUndoSnapshot(lines, index, start)
+          pendingFocusRef.current = { index, cursor: 0 }
+          setLines((prev) =>
+            prev.map((l, i) =>
+              i === index
+                ? {
+                    ...l,
+                    text: '',
+                    spans: undefined,
+                    formatting: { ...(l.formatting ?? {}), hasDivider: true }
+                  }
+                : l
+            )
+          )
+          return
+        }
+
         const sourceSpans =
           sourceText === line.text
             ? line.spans

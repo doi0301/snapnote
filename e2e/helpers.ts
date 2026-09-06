@@ -6,26 +6,28 @@ import { _electron as electron } from 'playwright'
 const rootDir = process.cwd()
 export const mainScript = path.join(rootDir, 'out/main/index.js')
 
+/**
+ * Electron 기동용 환경 변수.
+ *
+ * VSCode 통합 터미널 등 Electron 안에서 실행된 셸은 `ELECTRON_RUN_AS_NODE=1` 을 물려준다.
+ * 그대로 상속하면 앱이 순수 Node 로 떠서 `electron.app` 이 undefined 가 되고
+ * "Process failed to launch!" 로만 보인다. 항상 제거한다.
+ */
+export function e2eLaunchEnv(
+  overrides: Record<string, string> = {}
+): Record<string, string | undefined> {
+  const parentEnv = { ...process.env }
+  delete parentEnv.ELECTRON_RUN_AS_NODE
+  return { ...parentEnv, SNAPNOTE_E2E: '1', ...overrides }
+}
+
 export async function launchSnapNote(
   envOverrides: Record<string, string> = {}
 ): Promise<ElectronApplication> {
-  /**
-   * VSCode 통합 터미널 등 Electron 안에서 실행된 셸은 `ELECTRON_RUN_AS_NODE=1` 을 물려준다.
-   * 그대로 상속하면 앱이 순수 Node 로 떠서 `electron.app` 이 undefined 가 되고
-   * "Process failed to launch!" 로만 보인다. 항상 제거한다.
-   */
-  const parentEnv = { ...process.env }
-  delete parentEnv.ELECTRON_RUN_AS_NODE
-
   return electron.launch({
     args: [mainScript],
     cwd: rootDir,
-    env: {
-      ...parentEnv,
-      SNAPNOTE_E2E: '1',
-      SNAPNOTE_DISABLE_AUTO_UPDATE: '1',
-      ...envOverrides
-    }
+    env: e2eLaunchEnv({ SNAPNOTE_DISABLE_AUTO_UPDATE: '1', ...envOverrides })
   })
 }
 
