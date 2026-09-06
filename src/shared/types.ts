@@ -9,6 +9,9 @@ export type HighlightColor = 'yellow' | 'green' | 'pink' | 'gray' | 'blue' | 'or
 /** 거터 단축키 강조 바 (자동 계층 없음) */
 export type AccentBarKind = 'blue' | 'teal' | 'orange'
 
+/** 클로드 블록 진행상태 (P5) */
+export type ClaudeBlockStatus = 'draft' | 'sent' | 'review' | 'followup' | 'done'
+
 /** 인라인 서식 구간 */
 export interface TextSpan {
   start: number
@@ -42,6 +45,10 @@ export interface LineFormatting {
   sectionCollapsed?: boolean
   /** 섹션 타이틀 행 배경색 — 하이라이트 팔레트 재사용. 미지정 시 기본(파랑 톤) */
   sectionColor?: HighlightColor
+  /** 클로드 블록 헤더 (P5) — 섹션과 동일한 들여쓰기 기반 소속 판정을 공유한다 */
+  claudeBlock?: { templateId: string; status: ClaudeBlockStatus }
+  /** 클로드 블록 슬롯 라벨 줄 — 값은 중괄호 없는 라벨 이름 (예: "첨부") */
+  claudeSlot?: string
   /** 이 줄 전체가 표 셀 편집 모드일 때 */
   isTable?: boolean
   /** 행 × 열 (열 최대 5, 빈 문자열 허용) */

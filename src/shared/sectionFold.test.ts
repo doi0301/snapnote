@@ -5,6 +5,7 @@ import {
   computeSectionBlockRange,
   computeSectionHiddenIndices,
   findEnclosingSectionTitleIndex,
+  isBlockHeader,
   moveSectionBlock,
   nextVisibleLineIndex
 } from './sectionFold'
@@ -146,5 +147,59 @@ describe('section fold (들여쓰기 기반)', () => {
     expect(clampDropIndexOutsideBlock(3, 0, 3)).toBe(4)
     expect(clampDropIndexOutsideBlock(0, 0, 3)).toBe(0)
     expect(clampDropIndexOutsideBlock(5, 0, 3)).toBe(5)
+  })
+
+  describe('클로드 블록 (isBlockHeader 일반화 — 섹션과 완전히 같은 알고리즘)', () => {
+    it('isBlockHeader recognizes both sectionTitle and claudeBlock', () => {
+      expect(isBlockHeader(line('a', 'Sec', { sectionTitle: true }))).toBe(true)
+      expect(
+        isBlockHeader(line('b', 'Block', { claudeBlock: { templateId: 'blank', status: 'draft' } }))
+      ).toBe(true)
+      expect(isBlockHeader(line('c', 'plain'))).toBe(false)
+    })
+
+    it('computeSectionBlockRange treats claudeSlot lines as plain deeper-indented body', () => {
+      const lines = [
+        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
+        line('c1', '파일 A', {}, 2),
+        line('s2', '{명령}', { claudeSlot: '명령' }, 1),
+        line('c2', '요약해줘', {}, 2)
+      ]
+      expect(computeSectionBlockRange(lines, 0)).toEqual([0, 4])
+    })
+
+    it('a claude block always stops at the next header (section title or another claude block), no nesting', () => {
+      const lines = [
+        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
+        line('sec', 'Sec B (더 깊게 들여씀)', { sectionTitle: true }, 2)
+      ]
+      expect(computeSectionBlockRange(lines, 0)).toEqual([0, 1])
+    })
+
+    it('collapsing a claude block hides its slots and content via the shared sectionCollapsed field', () => {
+      const lines = [
+        line(
+          'h',
+          '클로드 블록',
+          { claudeBlock: { templateId: 'blank', status: 'draft' }, sectionCollapsed: true },
+          0
+        ),
+        line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
+        line('c1', '파일 A', {}, 2)
+      ]
+      expect([...computeSectionHiddenIndices(lines)].sort()).toEqual([1, 2])
+    })
+
+    it('findEnclosingSectionTitleIndex finds the owning claude block header', () => {
+      const lines = [
+        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
+        line('c1', '파일 A', {}, 2)
+      ]
+      expect(findEnclosingSectionTitleIndex(lines, 1)).toBe(0)
+      expect(findEnclosingSectionTitleIndex(lines, 2)).toBe(0)
+    })
   })
 })

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "description",
+    "label": "디스크립션 작성",
+    "slots": ["화면코드", "첨부", "명령"]
+  },
+  {
+    "id": "consistency-check",
+    "label": "정합성 검토",
+    "slots": ["첨부", "대조기준", "명령"]
+  },
+  {
+    "id": "revise-guide",
+    "label": "수정가이드 요청",
+    "slots": ["프로젝트", "첨부", "명령", "산출물형식"]
+  },
+  {
+    "id": "summarize",
+    "label": "원문 요약·항목화",
+    "slots": ["첨부", "명령"]
+  },
+  {
+    "id": "blank",
+    "label": "빈 블록",
+    "slots": ["첨부", "명령"]
+  }
+]

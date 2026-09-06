@@ -24,17 +24,38 @@ function normalizeAccentBar(line: EditorLineModel): EditorLineModel {
   return { ...line, formatting }
 }
 
-/** 섹션 타이틀: sectionCollapsed는 타이틀일 때만 유지. 폐기된 sectionScope 필드는 정리 */
+const VALID_CLAUDE_STATUSES = new Set(['draft', 'sent', 'review', 'followup', 'done'])
+
+/** 알 수 없는 status/templateId 는 draft/blank 로 폴백 (P5) */
+function normalizeClaudeBlock(formatting: Record<string, unknown>): void {
+  const cb = formatting.claudeBlock as { templateId?: unknown; status?: unknown } | undefined
+  if (!cb || typeof cb !== 'object') {
+    delete formatting.claudeBlock
+    return
+  }
+  const status = typeof cb.status === 'string' && VALID_CLAUDE_STATUSES.has(cb.status) ? cb.status : 'draft'
+  const templateId = typeof cb.templateId === 'string' && cb.templateId ? cb.templateId : 'blank'
+  formatting.claudeBlock = { templateId, status }
+}
+
+function normalizeClaudeSlot(formatting: Record<string, unknown>): void {
+  if (typeof formatting.claudeSlot !== 'string' || !formatting.claudeSlot) {
+    delete formatting.claudeSlot
+  }
+}
+
+/**
+ * 섹션 타이틀 · 클로드 블록 헤더 (P5, 같은 `sectionCollapsed` 필드를 공유):
+ * `sectionCollapsed` 는 둘 중 하나라도 참일 때만 유지. 폐기된 sectionScope 필드는 정리
+ */
 function normalizeSectionTitle(line: EditorLineModel): EditorLineModel {
   const formatting = { ...(line.formatting ?? {}) } as Record<string, unknown>
   delete formatting.sectionScope
-  if (!formatting.sectionTitle) {
-    delete formatting.sectionTitle
-    delete formatting.sectionCollapsed
-    return { ...line, formatting }
-  }
-  formatting.sectionTitle = true
-  if (!formatting.sectionCollapsed) delete formatting.sectionCollapsed
+  if (!formatting.sectionTitle) delete formatting.sectionTitle
+  normalizeClaudeBlock(formatting)
+  normalizeClaudeSlot(formatting)
+  const isHeader = Boolean(formatting.sectionTitle) || Boolean(formatting.claudeBlock)
+  if (!isHeader || !formatting.sectionCollapsed) delete formatting.sectionCollapsed
   return { ...line, formatting }
 }
 

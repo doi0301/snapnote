@@ -8,11 +8,13 @@ import {
   useState,
   type RefObject
 } from 'react'
-import type { EditorLine as EditorLineModel, HighlightColor } from '@shared/types'
+import type { ClaudeBlockStatus, EditorLine as EditorLineModel, HighlightColor } from '@shared/types'
+import { isBlockHeader } from '@shared/sectionFold'
+import { CLAUDE_BLOCK_TEMPLATES, CLAUDE_STATUS_META, CLAUDE_STATUS_ORDER } from '@shared/claudeBlock'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
-import { IconChevronDown, IconChevronUp, IconDragHandle } from './toolbarIcons'
+import { IconChevronDown, IconChevronUp, IconCopyAll, IconDragHandle, IconToolbarRobot } from './toolbarIcons'
 import './editor-line.css'
 import './keycap-badge.css'
 import './format-toolbar.css'
@@ -91,6 +93,117 @@ function SectionColorPicker(props: {
   )
 }
 
+/** 클로드 블록 진행상태 배지 + 드롭다운 (P5) */
+function ClaudeStatusBadge(props: {
+  status: ClaudeBlockStatus
+  onPick: (status: ClaudeBlockStatus) => void
+}): React.JSX.Element {
+  const { status, onPick } = props
+  const [open, setOpen] = useState(false)
+  const meta = CLAUDE_STATUS_META[status]
+
+  useEffect(() => {
+    if (!open) return
+    const onDocDown = (ev: MouseEvent): void => {
+      const el = ev.target as Element | null
+      if (el?.closest('.editor-claude-status-popover') || el?.closest('.editor-claude-status-btn')) {
+        return
+      }
+      setOpen(false)
+    }
+    const id = window.setTimeout(() => document.addEventListener('mousedown', onDocDown), 0)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener('mousedown', onDocDown)
+    }
+  }, [open])
+
+  return (
+    <div className="editor-claude-status-wrap">
+      <button
+        type="button"
+        className="editor-claude-status-btn"
+        title="진행상태"
+        aria-label={`진행상태: ${meta.label}`}
+        aria-expanded={open}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {meta.emoji} {meta.label} <span aria-hidden>▾</span>
+      </button>
+      {open ? (
+        <div className="editor-claude-status-popover" role="menu" aria-label="진행상태 선택">
+          {CLAUDE_STATUS_ORDER.map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="menuitem"
+              className={`editor-claude-status-option${s === status ? ' editor-claude-status-option--current' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onPick(s)
+                setOpen(false)
+              }}
+            >
+              {CLAUDE_STATUS_META[s].emoji} {CLAUDE_STATUS_META[s].label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * `/클로드` 입력 직후 자동으로 열리는 템플릿 선택 드롭다운 (P5).
+ * 이미 빈 템플릿으로 블록이 만들어진 상태이므로, 여기서는 "다른 템플릿 고르기"만
+ * 담당한다 — 바깥을 클릭하거나 Esc 를 누르면 그냥 닫히고 빈 블록이 그대로 남는다
+ * (기획서 3-3 "Esc → 빈 블록"과 동일한 결과).
+ */
+function ClaudeTemplatePicker(props: {
+  onPick: (templateId: string) => void
+  onClose: () => void
+}): React.JSX.Element {
+  const { onPick, onClose } = props
+
+  useEffect(() => {
+    const onDocDown = (ev: MouseEvent): void => {
+      const el = ev.target as Element | null
+      if (el?.closest('.editor-claude-template-popover')) return
+      onClose()
+    }
+    const onKeyDown = (ev: KeyboardEvent): void => {
+      if (ev.key === 'Escape') onClose()
+    }
+    const id = window.setTimeout(() => {
+      document.addEventListener('mousedown', onDocDown)
+      document.addEventListener('keydown', onKeyDown)
+    }, 0)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener('mousedown', onDocDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onClose])
+
+  return (
+    <div className="editor-claude-template-popover" role="menu" aria-label="클로드 블록 템플릿 선택">
+      {CLAUDE_BLOCK_TEMPLATES.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          role="menuitem"
+          className="editor-claude-template-option"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onPick(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** stuck 바에 표시할 제목 (첫 줄만, 줄바꿈은 공백) */
 function stickyTitlePreviewText(text: string): string {
   const first = text.split(/\n/)[0] ?? ''
@@ -125,6 +238,14 @@ export interface EditorLineViewProps {
   onSectionDragStart?: (e: React.PointerEvent<HTMLButtonElement>) => void
   /** 섹션 타이틀 배경색 선택 */
   onPickSectionColor?: (color: HighlightColor) => void
+  /** 클로드 블록 진행상태 선택 (P5) */
+  onPickClaudeStatus?: (status: ClaudeBlockStatus) => void
+  /** 클로드 블록 [복사] */
+  onCopyClaudeBlock?: () => void
+  /** `/클로드` 입력 직후 템플릿 선택 드롭다운을 보여줄지 */
+  showClaudeTemplatePicker?: boolean
+  onPickClaudeTemplate?: (templateId: string) => void
+  onCloseClaudeTemplatePicker?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -156,6 +277,11 @@ export const EditorLineView = memo(
       onToggleSectionCollapsed,
       onSectionDragStart,
       onPickSectionColor,
+      onPickClaudeStatus,
+      onCopyClaudeBlock,
+      showClaudeTemplatePicker,
+      onPickClaudeTemplate,
+      onCloseClaudeTemplatePicker,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -166,10 +292,21 @@ export const EditorLineView = memo(
     const headingLevel = line.formatting?.headingLevel
     const headingClass = headingLevel ? ` editor-line--heading-${headingLevel}` : ''
     const isSectionTitle = Boolean(line.formatting?.sectionTitle)
+    const claudeBlock = line.formatting?.claudeBlock
+    const isClaudeBlockHeader = Boolean(claudeBlock)
+    const isClaudeSlot = Boolean(line.formatting?.claudeSlot)
+    /** 섹션 타이틀·클로드 블록 헤더 공용 — 들여쓰기 기반 소속 판정을 공유하는 두 헤더 종류 */
+    const isHeader = isBlockHeader(line)
     const sectionColorClass =
       isSectionTitle && line.formatting?.sectionColor ? ` editor-line--section-${line.formatting.sectionColor}` : ''
-    const sectionClass = isSectionTitle ? ` editor-line--section-title${sectionColorClass}` : ''
-    const isSectionCollapsed = isSectionTitle && Boolean(line.formatting?.sectionCollapsed)
+    const sectionClass = isSectionTitle
+      ? ` editor-line--section-title${sectionColorClass}`
+      : isClaudeSlot
+        ? ' editor-line--claude-slot'
+        : isClaudeBlockHeader
+          ? ' editor-line--claude-block'
+          : ''
+    const isSectionCollapsed = isHeader && Boolean(line.formatting?.sectionCollapsed)
 
     const accent = line.formatting?.accentBar
     const accentClass =
@@ -233,8 +370,8 @@ export const EditorLineView = memo(
     const stickyClass = isStickyTitle ? ' editor-line--sticky-title' : ''
     const stuckClass = isStuck ? ' editor-line--stuck' : ''
     const isMultiLine = line.text.includes('\n')
-    /** 섹션 접기 버튼과 accent 줄내 접기가 겹치지 않도록 섹션이면 줄내 접기 UI 숨김 */
-    const canCollapse = !isSectionTitle && Boolean(accent) && isMultiLine
+    /** 헤더(섹션 타이틀·클로드 블록) 접기 버튼과 accent 줄내 접기가 겹치지 않도록 헤더면 줄내 접기 UI 숨김 */
+    const canCollapse = !isHeader && Boolean(accent) && isMultiLine
     const isLineCollapsed = canCollapse && Boolean(line.formatting?.lineCollapsed)
     const collapsedClass = isLineCollapsed ? ' editor-line--collapsed' : ''
     const firstLinePreview = stickyTitlePreviewText(line.text)
@@ -297,6 +434,14 @@ export const EditorLineView = memo(
             {isSectionTitle && onPickSectionColor ? (
               <SectionColorPicker color={line.formatting?.sectionColor} onPick={onPickSectionColor} />
             ) : null}
+            {isClaudeBlockHeader ? (
+              <span className="editor-claude-block-icon" aria-hidden>
+                <IconToolbarRobot size={15} />
+              </span>
+            ) : null}
+            {isClaudeBlockHeader && showClaudeTemplatePicker && onPickClaudeTemplate && onCloseClaudeTemplatePicker ? (
+              <ClaudeTemplatePicker onPick={onPickClaudeTemplate} onClose={onCloseClaudeTemplatePicker} />
+            ) : null}
             {isStuck ? (
               <div className="editor-sticky-title-preview" aria-hidden>
                 {firstLinePreview || placeholder || ''}
@@ -343,12 +488,27 @@ export const EditorLineView = memo(
               spellCheck={false}
               tabIndex={isLineCollapsed ? -1 : undefined}
             />
-            {isSectionTitle && onToggleSectionCollapsed ? (
+            {isClaudeBlockHeader && claudeBlock && onPickClaudeStatus ? (
+              <ClaudeStatusBadge status={claudeBlock.status} onPick={onPickClaudeStatus} />
+            ) : null}
+            {isClaudeBlockHeader && onCopyClaudeBlock ? (
+              <button
+                type="button"
+                className="editor-claude-copy-btn"
+                title="프롬프트로 복사"
+                aria-label="프롬프트로 복사"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onCopyClaudeBlock}
+              >
+                <IconCopyAll size={14} />
+              </button>
+            ) : null}
+            {isHeader && onToggleSectionCollapsed ? (
               <button
                 type="button"
                 className="editor-section-fold-btn"
-                title={isSectionCollapsed ? '섹션 펼치기' : '섹션 접기'}
-                aria-label={isSectionCollapsed ? '섹션 펼치기' : '섹션 접기'}
+                title={isSectionCollapsed ? '펼치기' : '접기'}
+                aria-label={isSectionCollapsed ? '펼치기' : '접기'}
                 aria-expanded={!isSectionCollapsed}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onToggleSectionCollapsed}

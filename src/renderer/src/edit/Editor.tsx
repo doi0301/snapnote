@@ -12,6 +12,7 @@ import {
 import type {
   AccentBarKind,
   Category,
+  ClaudeBlockStatus,
   EditorLine as EditorLineModel,
   HighlightColor,
   Memo,
@@ -20,6 +21,13 @@ import type {
 } from '@shared/types'
 import { tryExpandTodayMacro } from '@shared/dateMacro'
 import { keycapDisplayChar } from '@shared/keycapChar'
+import {
+  CLAUDE_BLOCK_BLANK_TEMPLATE_ID,
+  CLAUDE_FOLLOWUP_SLOT_NAME,
+  findClaudeBlockTemplate,
+  slotLabelText
+} from '@shared/claudeBlock'
+import { exportClaudeBlockToText } from '@shared/claudeBlockExport'
 import { looksLikeMarkdown, parseMarkdownToEditorLines } from '@shared/memoMarkdownImport'
 import {
   deserializeSnapnoteClipboard,
@@ -67,6 +75,7 @@ import {
   computeSectionBlockRange,
   computeSectionHiddenIndices,
   findEnclosingSectionTitleIndex,
+  isBlockHeader,
   moveSectionBlock,
   nextVisibleLineIndex
 } from '@shared/sectionFold'
@@ -178,6 +187,41 @@ function isBlockMarkdownLine(line: EditorLineModel): boolean {
   return Boolean(
     f.hasCheckbox || f.headingLevel || f.hasDivider || f.isTable || line.indentLevel > 0
   )
+}
+
+/** 클로드 블록 헤더 한 줄 + 템플릿 슬롯(라벨+빈 내용 줄) 쌍들을 만든다 (P5) */
+function buildClaudeBlockLines(
+  headerText: string,
+  headerIndent: number,
+  templateId: string
+): EditorLineModel[] {
+  const template = findClaudeBlockTemplate(templateId)
+  const slots = template?.slots ?? []
+  const header: EditorLineModel = {
+    id: crypto.randomUUID(),
+    text: headerText,
+    indentLevel: headerIndent,
+    formatting: {
+      claudeBlock: { templateId: template?.id ?? CLAUDE_BLOCK_BLANK_TEMPLATE_ID, status: 'draft' },
+      accentBar: 'blue'
+    }
+  }
+  const rest: EditorLineModel[] = []
+  for (const slotName of slots) {
+    rest.push({
+      id: crypto.randomUUID(),
+      text: slotLabelText(slotName),
+      indentLevel: Math.min(MAX_INDENT, headerIndent + 1),
+      formatting: { claudeSlot: slotName }
+    })
+    rest.push({
+      id: crypto.randomUUID(),
+      text: '',
+      indentLevel: Math.min(MAX_INDENT, headerIndent + 2),
+      formatting: {}
+    })
+  }
+  return [header, ...rest]
 }
 
 function mergeSpanLists(...lists: Array<TextSpan[] | undefined>): TextSpan[] | undefined {
@@ -533,6 +577,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const titleLineStuckRef = useRef(false)
   /** 섹션 블록 드래그 재정렬 — hover 손잡이에서만 시작, 텍스트 선택 드래그와 격리 */
   const [sectionDrag, setSectionDrag] = useState<SectionDragState | null>(null)
+  /** `/클로드` 입력 직후 열리는 템플릿 선택 드롭다운 — 그 줄(헤더)의 인덱스 */
+  const [claudeTemplatePickerIndex, setClaudeTemplatePickerIndex] = useState<number | null>(null)
   const [toolbarTick, setToolbarTick] = useState(0)
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
@@ -1386,6 +1432,31 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                 : l
             )
           )
+          return
+        }
+
+        /**
+         * `/클로드` 만 입력하면 그 칸을 클로드 블록 헤더로 바꾸고 빈 템플릿(첨부·명령)
+         * 슬롯을 깐 뒤, 다른 템플릿을 고를 수 있는 드롭다운을 연다. 블록 안에서는
+         * 중첩을 막기 위해 트리거하지 않는다 (기획서 9-2).
+         */
+        const cur = lines[index]
+        if (
+          newT === '/클로드' &&
+          oldT !== '/클로드' &&
+          cur &&
+          !isBlockHeader(cur) &&
+          !cur.formatting?.claudeSlot &&
+          findEnclosingSectionTitleIndex(lines, index) === null
+        ) {
+          const built = buildClaudeBlockLines('', cur.indentLevel, CLAUDE_BLOCK_BLANK_TEMPLATE_ID)
+          pendingFocusRef.current = { index: index + 2, cursor: 0 }
+          setLines((prev) => {
+            const next = [...prev]
+            next.splice(index, 1, ...built)
+            return next
+          })
+          setClaudeTemplatePickerIndex(index)
           return
         }
       }
@@ -2253,18 +2324,81 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [lines, pushUndoSnapshot]
   )
 
+  /** 섹션 타이틀·클로드 블록 헤더 공용 접기 토글 (같은 sectionCollapsed 필드를 공유) */
   const handleSectionCollapsedToggle = useCallback(
     (index: number) => {
       pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
       setLines((prev) =>
         prev.map((l, i) => {
           if (i !== index) return l
-          if (!l.formatting?.sectionTitle) return l
+          if (!isBlockHeader(l)) return l
           const f = { ...(l.formatting ?? {}) }
           f.sectionCollapsed = !f.sectionCollapsed
           return { ...l, formatting: f }
         })
       )
+    },
+    [lines, pushUndoSnapshot]
+  )
+
+  /** 템플릿 드롭다운에서 다른 템플릿을 고르면, 방금 만든 슬롯들을 새 템플릿 것으로 통째로 교체한다 */
+  const onPickClaudeTemplate = useCallback(
+    (headerIndex: number, templateId: string) => {
+      pushUndoSnapshot(lines, headerIndex, 0)
+      setLines((prev) => {
+        const header = prev[headerIndex]
+        if (!header) return prev
+        const [, end] = computeSectionBlockRange(prev, headerIndex)
+        const rebuilt = buildClaudeBlockLines(header.text, header.indentLevel, templateId)
+        const next = [...prev]
+        next.splice(headerIndex, end - headerIndex + 1, ...rebuilt)
+        return next
+      })
+      setClaudeTemplatePickerIndex(null)
+      pendingFocusRef.current = { index: headerIndex + 2, cursor: 0 }
+    },
+    [lines, pushUndoSnapshot]
+  )
+
+  const onCloseClaudeTemplatePicker = useCallback(() => {
+    setClaudeTemplatePickerIndex(null)
+  }, [])
+
+  /**
+   * 진행상태 변경. `followup` 을 고르면 블록 끝에 `{추가질문}` 슬롯 + 빈 내용 줄을
+   * 자동으로 덧붙인다(새 블록을 만들지 않음 — 기획서 5번).
+   */
+  const onPickClaudeStatus = useCallback(
+    (headerIndex: number, status: ClaudeBlockStatus) => {
+      pushUndoSnapshot(lines, headerIndex, 0)
+      setLines((prev) => {
+        const header = prev[headerIndex]
+        if (!header?.formatting?.claudeBlock) return prev
+        const next = prev.map((l, i) =>
+          i === headerIndex
+            ? { ...l, formatting: { ...l.formatting, claudeBlock: { ...l.formatting!.claudeBlock!, status } } }
+            : l
+        )
+        if (status !== 'followup') return next
+        const [, end] = computeSectionBlockRange(next, headerIndex)
+        const slotIndent = Math.min(MAX_INDENT, header.indentLevel + 1)
+        const contentIndent = Math.min(MAX_INDENT, header.indentLevel + 2)
+        const followupSlot: EditorLineModel = {
+          id: crypto.randomUUID(),
+          text: slotLabelText(CLAUDE_FOLLOWUP_SLOT_NAME),
+          indentLevel: slotIndent,
+          formatting: { claudeSlot: CLAUDE_FOLLOWUP_SLOT_NAME }
+        }
+        const followupContent: EditorLineModel = {
+          id: crypto.randomUUID(),
+          text: '',
+          indentLevel: contentIndent,
+          formatting: {}
+        }
+        next.splice(end + 1, 0, followupSlot, followupContent)
+        pendingFocusRef.current = { index: end + 2, cursor: 0 }
+        return next
+      })
     },
     [lines, pushUndoSnapshot]
   )
@@ -2347,6 +2481,33 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       setCopyToastVisible(false)
     }, 2200)
   }, [])
+
+  /** `[복사]` — 프롬프트 텍스트 조립 후 시스템 클립보드에 기록, draft 일 때만 sent 로 전환 */
+  const onCopyClaudeBlock = useCallback(
+    (headerIndex: number) => {
+      const text = exportClaudeBlockToText(linesRef.current, headerIndex)
+      void (async () => {
+        try {
+          await window.snapnote.clipboard.writeSystem(text, { skipHistory: true })
+          showCopyToastBrief()
+          const header = linesRef.current[headerIndex]
+          if (header?.formatting?.claudeBlock?.status === 'draft') {
+            pushUndoSnapshot(linesRef.current, headerIndex, 0)
+            setLines((prev) =>
+              prev.map((l, i) =>
+                i === headerIndex && l.formatting?.claudeBlock
+                  ? { ...l, formatting: { ...l.formatting, claudeBlock: { ...l.formatting.claudeBlock, status: 'sent' } } }
+                  : l
+              )
+            )
+          }
+        } catch {
+          /* 클립보드 실패 시 조용히 무시 */
+        }
+      })()
+    },
+    [pushUndoSnapshot, showCopyToastBrief]
+  )
 
   const handleTableRowsChange = useCallback(
     (lineIndex: number, rows: string[][], tableCols: number) => {
@@ -2886,13 +3047,15 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
 
         /**
-         * 셀(칸) 입력 모델의 섹션: 타이틀에서 Shift+Enter 로 만든 새 칸은 자동으로
-         * 한 단계 더 들여써져서 시작한다 — 그래야 처음부터 그 섹션에 속한다.
-         * 이미 섹션 본문(다른 줄)에서 만든 새 칸은 평소처럼 현재 들여쓰기를 물려받는다.
+         * 셀(칸) 입력 모델의 섹션/클로드 블록: 헤더(섹션 타이틀·클로드 블록)나 클로드
+         * 슬롯 라벨에서 Shift+Enter 로 만든 새 칸은 자동으로 한 단계 더 들여써져서
+         * 시작한다 — 그래야 처음부터 그 헤더/슬롯에 속한다. 이미 본문(다른 줄)에서
+         * 만든 새 칸은 평소처럼 현재 들여쓰기를 물려받는다.
          */
-        const newLineIndent = line.formatting?.sectionTitle
-          ? Math.min(MAX_INDENT, line.indentLevel + 1)
-          : line.indentLevel
+        const newLineIndent =
+          isBlockHeader(line) || line.formatting?.claudeSlot
+            ? Math.min(MAX_INDENT, line.indentLevel + 1)
+            : line.indentLevel
 
         const newLine: EditorLineModel = {
           id: crypto.randomUUID(),
@@ -3502,8 +3665,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       : undefined
                   }
                   onToggleSectionCollapsed={
-                    line.formatting?.sectionTitle &&
-                    computeSectionBlockRange(lines, index)[1] > index
+                    isBlockHeader(line) && computeSectionBlockRange(lines, index)[1] > index
                       ? () => handleSectionCollapsedToggle(index)
                       : undefined
                   }
@@ -3517,6 +3679,21 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       ? (color) => onPickSectionColor(index, color)
                       : undefined
                   }
+                  onPickClaudeStatus={
+                    line.formatting?.claudeBlock
+                      ? (status) => onPickClaudeStatus(index, status)
+                      : undefined
+                  }
+                  onCopyClaudeBlock={
+                    line.formatting?.claudeBlock ? () => onCopyClaudeBlock(index) : undefined
+                  }
+                  showClaudeTemplatePicker={claudeTemplatePickerIndex === index}
+                  onPickClaudeTemplate={
+                    line.formatting?.claudeBlock
+                      ? (templateId) => onPickClaudeTemplate(index, templateId)
+                      : undefined
+                  }
+                  onCloseClaudeTemplatePicker={onCloseClaudeTemplatePicker}
                 />
               )
             return (
