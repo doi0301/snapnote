@@ -158,6 +158,7 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
           tagSuggestions={tagSuggestions}
           categories={categories}
           onCategoryChange={onCategoryChange}
+          autoMarkdownPaste={settings?.autoMarkdownPaste ?? false}
         />
       </div>
     </div>

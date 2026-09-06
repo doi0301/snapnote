@@ -132,6 +132,9 @@ export interface Settings {
   defaultWindowHeight: number
   windowOpacity: number
   globalShortcut: string
+  /** 붙여넣기·클립보드 삽입 시 마크다운(#, **, ---, 표 등)을 자동으로 서식으로 분해할지.
+   *  기본은 꺼짐 — 셀(칸) 입력 모델에서는 한 칸에 여러 줄을 그대로 붙여넣는 것이 기본 동작 */
+  autoMarkdownPaste: boolean
 }
 
 export type SettingsUpdatePatch = Partial<Settings>

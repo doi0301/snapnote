@@ -18,13 +18,13 @@ async function newEditWindow(app): Promise<Page> {
   return waitForPage(app, 'edit.html')
 }
 
-/** 제목 줄 아래 빈 본문 줄을 만들고 그 줄에 포커스를 둔다 */
+/** 제목 줄 아래 빈 본문 줄(칸)을 만들고 그 칸에 포커스를 둔다 — Shift+Enter = 다음 칸 */
 async function focusEmptyBodyLine(page: Page): Promise<void> {
   const first = page.locator('.editor-line-textarea').first()
   await first.click()
   await first.fill('제목')
   await page.keyboard.press('End')
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Enter')
   await page.waitForTimeout(200)
 }
 
@@ -44,7 +44,7 @@ test.describe('편집창 입력 단축키', () => {
     }
   })
 
-  test('"---" 뒤 Enter 는 그 칸에 구분선을 달고 칸은 계속 편집할 수 있다', async () => {
+  test('"---" 만 입력하면 Enter 없이 그 칸에 구분선을 달고 칸은 계속 편집할 수 있다', async () => {
     const app = await launchSnapNote()
     try {
       const edit = await newEditWindow(app)
@@ -52,7 +52,6 @@ test.describe('편집창 입력 단축키', () => {
       const before = await edit.locator('.editor-line-textarea').count()
 
       await edit.keyboard.type('---')
-      await edit.keyboard.press('Enter')
       await edit.waitForTimeout(400)
 
       // 구분선이 생기고, `---` 텍스트는 남지 않는다

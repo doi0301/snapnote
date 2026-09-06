@@ -61,7 +61,7 @@ test('제목이 sticky 상태로 잘린 채 접혔다 다시 열려도 스크롤
     // 제목을 여러 줄로 만들고, 본문에 긴 내용을 붙여 자동 스크롤을 유도한다
     await pasteMultiline(edit, 0, '제목줄A\n제목줄B\n제목줄C\n제목줄D\n제목줄E')
     await edit.keyboard.press('End')
-    await edit.keyboard.press('Enter')
+    await edit.keyboard.press('Shift+Enter')
     await edit.waitForTimeout(150)
     const manyLines = Array.from({ length: 60 }, (_, i) => `본문줄${i}`).join('\n')
     await pasteMultiline(edit, 1, manyLines)

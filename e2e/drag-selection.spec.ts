@@ -27,9 +27,9 @@ async function setupThreeLines(edit: Page): Promise<void> {
   const first = edit.locator('.editor-line-textarea').first()
   await first.click()
   await edit.keyboard.type('alpha bravo charlie delta')
-  await edit.keyboard.press('Enter')
+  await edit.keyboard.press('Shift+Enter')
   await edit.keyboard.type('echo foxtrot golf hotel')
-  await edit.keyboard.press('Enter')
+  await edit.keyboard.press('Shift+Enter')
   await edit.keyboard.type('india juliet kilo lima')
   await expect(edit.locator('.editor-line-textarea')).toHaveCount(3)
 }

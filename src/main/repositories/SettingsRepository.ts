@@ -21,7 +21,8 @@ function rowToSettings(row: SqlRow): Settings {
     defaultWindowWidth: Number(row.default_window_width),
     defaultWindowHeight: Number(row.default_window_height),
     windowOpacity: Number(row.window_opacity),
-    globalShortcut: String(row.global_shortcut)
+    globalShortcut: String(row.global_shortcut),
+    autoMarkdownPaste: Number(row.auto_markdown_paste) === 1
   }
 }
 
@@ -65,7 +66,8 @@ export class SettingsRepository {
         default_window_width = ?,
         default_window_height = ?,
         window_opacity = ?,
-        global_shortcut = ?
+        global_shortcut = ?,
+        auto_markdown_paste = ?
       WHERE id = 'singleton'`,
       [
         next.launchOnStartup ? 1 : 0,
@@ -77,7 +79,8 @@ export class SettingsRepository {
         next.defaultWindowWidth,
         next.defaultWindowHeight,
         next.windowOpacity,
-        next.globalShortcut
+        next.globalShortcut,
+        next.autoMarkdownPaste ? 1 : 0
       ]
     )
     this.persist()

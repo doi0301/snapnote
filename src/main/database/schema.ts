@@ -2,7 +2,7 @@ import type { Database } from 'sql.js'
 import { selectAll, selectOne, run } from '../repositories/sqlRun'
 
 /** 스키마 버전 (PRAGMA user_version) */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 /** TRD §3.1 + DESIGN_SYSTEM 슬롯 기본색 */
 const DEFAULT_COLOR_SLOT_1 = '#F28B74'
@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS settings (
   default_window_height INTEGER NOT NULL DEFAULT 500,
   window_opacity REAL NOT NULL DEFAULT 1.0,
   global_shortcut TEXT NOT NULL DEFAULT 'CommandOrControl+Shift+M',
-  clipboard_notice_shown INTEGER NOT NULL DEFAULT 0
+  clipboard_notice_shown INTEGER NOT NULL DEFAULT 0,
+  auto_markdown_paste INTEGER NOT NULL DEFAULT 0
 );
 `
 
@@ -178,6 +179,21 @@ function migrateMemosCategoryId(db: Database): void {
   run(db, 'PRAGMA user_version = 9')
 }
 
+/** 셀(칸) 입력 모델 전환 — 붙여넣기 시 마크다운 자동 서식 변환을 기본 끔으로,
+ *  원하는 사용자는 설정에서 다시 켤 수 있게 남겨둔다 */
+function migrateSettingsAutoMarkdownPaste(db: Database): void {
+  const verRow = selectOne(db, 'PRAGMA user_version', [])
+  const ver = verRow ? Number(verRow.user_version) : 0
+  if (ver >= 10) return
+
+  const cols = selectAll(db, 'PRAGMA table_info(settings)', [])
+  const has = cols.some((c) => String(c.name) === 'auto_markdown_paste')
+  if (!has) {
+    run(db, 'ALTER TABLE settings ADD COLUMN auto_markdown_paste INTEGER NOT NULL DEFAULT 0')
+  }
+  run(db, 'PRAGMA user_version = 10')
+}
+
 /** 테이블 생성 */
 export function applySchema(db: Database): void {
   db.run(CREATE_MEMOS)
@@ -194,6 +210,7 @@ export function applySchema(db: Database): void {
   migrateMemosDeletedAt(db)
   migrateMemosIsFavorite(db)
   migrateMemosCategoryId(db)
+  migrateSettingsAutoMarkdownPaste(db)
 
   db.run(
     `INSERT OR IGNORE INTO app_state (id, folded_stack, folded_panel_x, folded_panel_y)
@@ -205,8 +222,8 @@ export function applySchema(db: Database): void {
       id, launch_on_startup, clipboard_monitoring,
       color_slot_1, color_slot_2, color_slot_3,
       default_window_width, default_window_height, window_opacity, global_shortcut,
-      clipboard_notice_shown
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      clipboard_notice_shown, auto_markdown_paste
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       'singleton',
       0,
@@ -218,6 +235,7 @@ export function applySchema(db: Database): void {
       500,
       1.0,
       'CommandOrControl+Shift+M',
+      0,
       0
     ]
   )

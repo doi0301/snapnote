@@ -307,6 +307,20 @@ export function SettingsWindow(): React.JSX.Element {
         <p className="settings-hint" id="settings-clipboard-hint">
           끄면 시스템 클립보드를 읽지 않으며 히스토리에 쌓이지 않습니다. 최초 실행 시 안내 창은 한 번만 표시됩니다.
         </p>
+        <label className="settings-row">
+          <input
+            type="checkbox"
+            checked={settings.autoMarkdownPaste}
+            disabled={saving}
+            aria-describedby="settings-automarkdown-hint"
+            onChange={(e) => void patch({ autoMarkdownPaste: e.target.checked })}
+          />
+          <span>붙여넣기 시 마크다운 자동 서식 변환</span>
+        </label>
+        <p className="settings-hint" id="settings-automarkdown-hint">
+          켜면 <code>#</code>, <code>**굵게**</code>, <code>---</code>, 표, 체크박스 등을 감지해 여러 칸으로 나눕니다. 기본은 꺼짐 —
+          붙여넣은 텍스트는 줄바꿈까지 그대로 한 칸에 들어갑니다.
+        </p>
       </section>
 
       <section className="settings-section" aria-labelledby="settings-categories">

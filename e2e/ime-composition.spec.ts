@@ -50,13 +50,13 @@ async function newEditWindow(app): Promise<Page> {
   return waitForPage(app, 'edit.html')
 }
 
-/** 제목 줄 아래에 본문 줄 하나를 만들고 그 줄에 포커스를 둔다 */
+/** 제목 줄 아래에 본문 칸 하나를 만들고 그 칸에 포커스를 둔다 — Shift+Enter = 다음 칸 */
 async function focusBodyLine(page: Page): Promise<void> {
   const first = page.locator('.editor-line-textarea').first()
   await first.click()
   await first.fill('제목')
   await page.keyboard.press('End')
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Enter')
   await page.waitForTimeout(200)
 }
 
@@ -102,7 +102,7 @@ test.describe('IME 조합 중 편집', () => {
     }
   })
 
-  test('조합 중 Enter 는 본문에 개행을 흘리지 않고 줄을 분할한다', async () => {
+  test('조합 중 Enter 는 칸을 나누지 않고 그 칸 안에 줄바꿈을 남긴다 (셀 입력 모델)', async () => {
     const app = await launchSnapNote()
     try {
       const edit = await newEditWindow(app)
@@ -116,6 +116,32 @@ test.describe('IME 조합 중 편집', () => {
       await startComposing(cdp, '라')
       await edit.keyboard.press('End')
       await edit.keyboard.press('Enter')
+      await edit.waitForTimeout(500)
+
+      const after = await edit.locator('.editor-line-textarea').count()
+      const m = await lineMetrics(edit, 1)
+
+      expect(m.value).toContain('\n')
+      expect(after).toBe(before)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('조합 중 Shift+Enter 는 본문에 개행을 흘리지 않고 다음 칸으로 분할한다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      const cdp = await edit.context().newCDPSession(edit)
+      await focusBodyLine(edit)
+      await typeComposed(edit, cdp, ['가', '나', '다'])
+
+      const before = await edit.locator('.editor-line-textarea').count()
+
+      // 조합을 열어둔 채 Shift+Enter
+      await startComposing(cdp, '라')
+      await edit.keyboard.press('End')
+      await edit.keyboard.press('Shift+Enter')
       await edit.waitForTimeout(500)
 
       const after = await edit.locator('.editor-line-textarea').count()

@@ -24,13 +24,13 @@ async function newEditWindow(app): Promise<Page> {
   return waitForPage(app, 'edit.html')
 }
 
-/** 제목 줄 아래에 본문 줄을 만들고 그 줄에 텍스트를 넣는다 (index 1) */
+/** 제목 줄 아래에 본문 줄(칸)을 만들고 그 칸에 텍스트를 넣는다 (index 1) — Shift+Enter = 다음 칸 */
 async function bodyLineWithText(page: Page, text: string): Promise<void> {
   const first = page.locator('.editor-line-textarea').first()
   await first.click()
   await first.fill('제목')
   await page.keyboard.press('End')
-  await page.keyboard.press('Enter')
+  await page.keyboard.press('Shift+Enter')
   await page.keyboard.type(text)
   await page.waitForTimeout(300)
 }
@@ -98,7 +98,7 @@ test.describe('구분선', () => {
       await toggleDivider(edit)
 
       await edit.keyboard.press('End')
-      await edit.keyboard.press('Enter')
+      await edit.keyboard.press('Shift+Enter')
       await edit.keyboard.type('아랫줄 내용')
       await edit.waitForTimeout(400)
 
@@ -138,7 +138,7 @@ test.describe('구분선', () => {
       await toggleDivider(edit)
 
       await edit.keyboard.press('End')
-      await edit.keyboard.press('Enter')
+      await edit.keyboard.press('Shift+Enter')
       await edit.keyboard.type('아랫줄 내용')
       await edit.waitForTimeout(300)
       await expect(edit.locator('.editor-line-divider')).toHaveCount(1)

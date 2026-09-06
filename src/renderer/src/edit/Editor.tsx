@@ -84,6 +84,8 @@ interface EditorProps {
   tagSuggestions: string[]
   categories: Category[]
   onCategoryChange: (categoryId: string | null) => void
+  /** 붙여넣기·클립보드 삽입 시 마크다운을 자동으로 서식으로 분해할지 (기본 꺼짐 — 셀 입력 모델) */
+  autoMarkdownPaste: boolean
 }
 
 interface MultiLineSelection {
@@ -485,7 +487,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     onTagRawChange,
     tagSuggestions,
     categories,
-    onCategoryChange
+    onCategoryChange,
+    autoMarkdownPaste
   },
   imperativeRef
 ) {
@@ -1345,6 +1348,26 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           return
         }
 
+        /**
+         * `---` 만 입력하면 그 칸을 구분선으로 바꾼다. Enter 를 누를 필요 없이
+         * 세 번째 `-` 를 치는 순간 바로 적용되고, 칸 자체는 비운 채 계속 편집할 수 있다.
+         */
+        if (newT === '---' && oldT !== '---') {
+          pendingFocusRef.current = { index, cursor: 0 }
+          setLines((prev) =>
+            prev.map((l, i) =>
+              i === index
+                ? {
+                    ...l,
+                    text: '',
+                    spans: undefined,
+                    formatting: { ...(l.formatting ?? {}), hasDivider: true }
+                  }
+                : l
+            )
+          )
+          return
+        }
       }
 
       setLines((prev) => {
@@ -2685,35 +2708,24 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       }
 
       if (e.key === 'Enter' && !e.shiftKey) {
+        /**
+         * 셀(칸) 입력 모델: 기본 입력 단위는 한 칸이다. Enter 는 칸을 나누지 않고
+         * 칸 안에서 줄바꿈만 한다 — preventDefault 하지 않고 textarea 기본 동작
+         * (칸 안에 `\n` 삽입)에 맡긴다. `handleLineChange` 가 그 값을 그대로 반영하고,
+         * undo 스냅샷은 `handleBeforeLineInput` 이 `beforeinput`(insertLineBreak) 에서
+         * 이미 찍는다. 다음 칸으로 넘어가려면 Shift+Enter.
+         * (`---` 구분선 매크로는 Enter 없이 입력 즉시 `handleLineChange` 에서 처리한다.)
+         */
+        return
+      }
+
+      if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault()
         /**
          * 조합을 방금 확정한 경우 React 상태(`line.text`)가 아직 마지막 글자를 반영하지 못한다.
          * DOM 값을 진실로 삼아야 글자 유실·엉뚱한 위치 분할이 생기지 않는다.
          */
         const sourceText = ta.value
-
-        /**
-         * `---` + Enter → 그 칸에 구분선을 단다.
-         * 구분선은 칸 아래에 그려지므로 칸 자체는 비운 채 계속 편집할 수 있게 두고,
-         * 새 줄도 만들지 않는다.
-         */
-        if (sourceText === '---') {
-          pushUndoSnapshot(lines, index, start)
-          pendingFocusRef.current = { index, cursor: 0 }
-          setLines((prev) =>
-            prev.map((l, i) =>
-              i === index
-                ? {
-                    ...l,
-                    text: '',
-                    spans: undefined,
-                    formatting: { ...(l.formatting ?? {}), hasDivider: true }
-                  }
-                : l
-            )
-          )
-          return
-        }
 
         const sourceSpans =
           sourceText === line.text
@@ -2901,7 +2913,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           insertImportedLines(index, start, end, imported)
           return
         }
-        if (text && looksLikeMarkdown(text)) {
+        if (autoMarkdownPaste && text && looksLikeMarkdown(text)) {
           const imported = parseMarkdownToEditorLines(text)
           insertImportedLines(index, start, end, imported)
           return
@@ -2920,7 +2932,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         pendingFocusRef.current = { index, cursor: start + text.length }
       })()
     },
-    [endComposition, insertImportedLines, pushUndoSnapshot]
+    [autoMarkdownPaste, endComposition, insertImportedLines, pushUndoSnapshot]
   )
 
   useImperativeHandle(
@@ -2939,7 +2951,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             insertImportedLines(i, start, end, imported)
             return
           }
-          if (looksLikeMarkdown(text)) {
+          if (autoMarkdownPaste && looksLikeMarkdown(text)) {
             const imported = parseMarkdownToEditorLines(text)
             insertImportedLines(i, start, end, imported)
             return
@@ -2965,7 +2977,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         if (scrollEl) scrollEl.scrollTop = 0
       }
     }),
-    [pushUndoSnapshot, copyAllMemoTextToClipboard, insertImportedLines]
+    [autoMarkdownPaste, pushUndoSnapshot, copyAllMemoTextToClipboard, insertImportedLines]
   )
 
   const serialized = useMemo(() => JSON.stringify(lines), [lines])
