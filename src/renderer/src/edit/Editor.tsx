@@ -501,6 +501,12 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const pendingBoldLineIdsRef = useRef<Set<string>>(new Set())
   /** IME(한글) 조합 중인 줄 — 조합 중에는 해당 textarea 레이아웃을 건드리지 않는다 */
   const composingLineRef = useRef<number | null>(null)
+  /**
+   * 조합 중이라 건너뛴 높이 재계산 — 조합이 끝나면 반드시 실행한다.
+   * 붙여넣기·Enter 는 조합을 취소시켜 `compositionend` 가 오지 않으므로,
+   * 이 큐가 없으면 해당 줄은 영구히 1줄 높이에 갇혀 내용이 잘려 보인다.
+   */
+  const pendingResizeRef = useRef<Set<number>>(new Set())
   /** sticky 제목이 상단에 붙었을 때 — 한 줄 높이로 고정 */
   const titleLineStuckRef = useRef(false)
   const [toolbarTick, setToolbarTick] = useState(0)
@@ -768,7 +774,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
      * IME(한글) 조합 중인 줄은 height='auto'↔scrollHeight 재설정이 조합을 강제 종료시키고
      * 캐럿이 튀게 만든다. 조합이 끝난 뒤(onCompositionEnd) 한 번만 다시 맞춘다.
      */
-    if (lineIndex != null && lineIndex === composingLineRef.current) return
+    if (lineIndex != null && lineIndex === composingLineRef.current) {
+      pendingResizeRef.current.add(lineIndex)
+      return
+    }
     if (lineIndex === 0 && titleLineStuckRef.current) {
       el.style.height = 'calc(1.38em + 10px)'
       el.style.overflow = 'hidden'
@@ -794,9 +803,26 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     composingLineRef.current = index
   }, [])
 
+  /**
+   * 조합 상태를 해제하고, 조합 중이라 미뤄둔 높이 재계산을 실행한다.
+   * `compositionend` 뿐 아니라 조합을 취소시키는 붙여넣기·Enter 에서도 호출해야
+   * 그 줄이 조합 상태에 갇혀 높이가 멈추는 일이 없다.
+   */
+  const endComposition = useCallback(
+    (index: number): void => {
+      if (composingLineRef.current === index) composingLineRef.current = null
+      const pending = pendingResizeRef.current
+      if (!pending.size) return
+      const indices = [...pending]
+      pending.clear()
+      for (const i of indices) resizeOneLineTextarea(textareaRefs.current[i] ?? null, i)
+    },
+    [resizeOneLineTextarea]
+  )
+
   const handleLineCompositionEnd = useCallback(
     (index: number) => {
-      if (composingLineRef.current === index) composingLineRef.current = null
+      endComposition(index)
       const prevScrollTop = editorScrollRef.current?.scrollTop ?? 0
       /** 조합이 끝난 뒤 한 번만 높이 재계산 + 하단 가림 보정 */
       requestAnimationFrame(() => {
@@ -804,7 +830,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         scrollLineBottomIntoView(index, prevScrollTop)
       })
     },
-    [resizeOneLineTextarea, scrollLineBottomIntoView]
+    [endComposition, resizeOneLineTextarea, scrollLineBottomIntoView]
   )
 
   const handleTitleStickyStuckChange = useCallback(
@@ -2405,7 +2431,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.nativeEvent.isComposing || e.key === 'Process') return
+      const composing = e.nativeEvent.isComposing || e.key === 'Process'
+      /**
+       * 조합 중 Enter 를 그냥 흘려보내면 textarea 기본 동작으로 `\n` 이 본문에 박히고
+       * 줄 분할은 일어나지 않는다. 조합을 확정한 뒤 정상 분할 경로로 넘긴다.
+       */
+      if (composing && e.key !== 'Enter') return
+      if (composing) endComposition(index)
 
       const line = lines[index]
       if (!line) return
@@ -2684,14 +2716,23 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
+        /**
+         * 조합을 방금 확정한 경우 React 상태(`line.text`)가 아직 마지막 글자를 반영하지 못한다.
+         * DOM 값을 진실로 삼아야 글자 유실·엉뚱한 위치 분할이 생기지 않는다.
+         */
+        const sourceText = ta.value
+        const sourceSpans =
+          sourceText === line.text
+            ? line.spans
+            : remapSpansAfterEdit(line.text, sourceText, line.spans)
         pushUndoSnapshot(lines, index, start)
-        const before = line.text.slice(0, start)
-        const after = line.text.slice(end)
-        const [leftSpans, rightSpans] = splitSpansAt(line.spans, start)
+        const before = sourceText.slice(0, start)
+        const after = sourceText.slice(end)
+        const [leftSpans, rightSpans] = splitSpansAt(sourceSpans, start)
 
-        const listPrefixMatch = line.text.match(/^(\s*(?:[-+•]\s|>\s))/)
+        const listPrefixMatch = sourceText.match(/^(\s*(?:[-+•]\s|>\s))/)
         const listPrefix = listPrefixMatch?.[1] ?? ''
-        const isEmptyListLine = listPrefix && line.text.trim() === listPrefix.trim()
+        const isEmptyListLine = listPrefix && sourceText.trim() === listPrefix.trim()
 
         let newText = after
         let newCursor = 0
@@ -2777,6 +2818,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       cloneLines,
       deleteMultiLineSelection,
       deleteTableLineAbove,
+      endComposition,
       lines,
       mergeWithPrevious,
       moveFocusToLine,
@@ -2851,6 +2893,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const handleLinePaste = useCallback(
     (index: number, e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       e.preventDefault()
+      /** 붙여넣기는 조합을 취소시키지만 `compositionend` 가 오지 않는다 */
+      endComposition(index)
       const start = e.currentTarget.selectionStart
       const end = e.currentTarget.selectionEnd
       const text = e.clipboardData.getData('text/plain')
@@ -2880,7 +2924,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         pendingFocusRef.current = { index, cursor: start + text.length }
       })()
     },
-    [insertImportedLines, pushUndoSnapshot]
+    [endComposition, insertImportedLines, pushUndoSnapshot]
   )
 
   useImperativeHandle(
