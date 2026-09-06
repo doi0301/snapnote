@@ -15,6 +15,7 @@ import { SpannedLineMirror } from './InlineSpan'
 import {
   IconChevronDown,
   IconChevronUp,
+  IconDragHandle,
   IconSectionScopeLinked,
   IconSectionScopeSelf
 } from './toolbarIcons'
@@ -57,6 +58,8 @@ export interface EditorLineViewProps {
   onToggleSectionCollapsed?: () => void
   /** 섹션 범위 전환 (아래 줄 거느림 ↔ 이 줄만) */
   onToggleSectionScope?: () => void
+  /** 섹션 블록 드래그 재정렬 시작 (hover 손잡이) */
+  onSectionDragStart?: (e: React.PointerEvent<HTMLButtonElement>) => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -87,6 +90,7 @@ export const EditorLineView = memo(
       onToggleLineCollapsed,
       onToggleSectionCollapsed,
       onToggleSectionScope,
+      onSectionDragStart,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -213,6 +217,18 @@ export const EditorLineView = memo(
                 onClick={onToggleLineCollapsed}
               >
                 {isLineCollapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+              </button>
+            ) : null}
+            {isSectionTitle && onSectionDragStart ? (
+              <button
+                type="button"
+                className="editor-section-drag-handle"
+                title="드래그해서 섹션 순서 바꾸기"
+                aria-label="드래그해서 섹션 순서 바꾸기"
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={onSectionDragStart}
+              >
+                <IconDragHandle size={13} />
               </button>
             ) : null}
             {isSectionTitle && onToggleSectionScope ? (

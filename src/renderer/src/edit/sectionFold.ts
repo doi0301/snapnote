@@ -34,6 +34,36 @@ export function computeSectionBlockRange(lines: EditorLine[], titleIndex: number
   return [titleIndex, end]
 }
 
+/**
+ * `[blockStart, blockEnd]` 블록을 통째로 들어내 `dropIndex` 앞에 다시 끼워 넣는다.
+ * `dropIndex` 는 원본 배열 기준 인덱스. 블록 자기 자신의 범위(`blockStart`~`blockEnd+1`)로
+ * 떨어지면 이동 없이 원본을 그대로 반환한다.
+ */
+export function moveSectionBlock<T>(
+  lines: T[],
+  blockStart: number,
+  blockEnd: number,
+  dropIndex: number
+): T[] {
+  if (dropIndex >= blockStart && dropIndex <= blockEnd + 1) return lines
+  const block = lines.slice(blockStart, blockEnd + 1)
+  const rest = [...lines.slice(0, blockStart), ...lines.slice(blockEnd + 1)]
+  const adjustedDropIndex = dropIndex > blockEnd ? dropIndex - block.length : dropIndex
+  return [...rest.slice(0, adjustedDropIndex), ...block, ...rest.slice(adjustedDropIndex)]
+}
+
+/** 드롭 목표 인덱스가 블록 내부(이동 없음)에 해당하면, 더 가까운 경계로 스냅한다 */
+export function clampDropIndexOutsideBlock(
+  dropIndex: number,
+  blockStart: number,
+  blockEnd: number
+): number {
+  if (dropIndex <= blockStart || dropIndex > blockEnd) return dropIndex
+  const distToStart = dropIndex - blockStart
+  const distToEnd = blockEnd + 1 - dropIndex
+  return distToStart <= distToEnd ? blockStart : blockEnd + 1
+}
+
 /** 숨겨진 줄을 건너뛰며 위/아래로 이동할 다음 인덱스 */
 export function nextVisibleLineIndex(
   from: number,

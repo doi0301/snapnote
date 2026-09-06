@@ -62,7 +62,13 @@ import {
   getCaretOffsetFromPointInTextarea,
   nativeAnchorOffsetFromTextarea
 } from './editorCaretFromPoint'
-import { computeSectionHiddenIndices, nextVisibleLineIndex } from './sectionFold'
+import {
+  clampDropIndexOutsideBlock,
+  computeSectionBlockRange,
+  computeSectionHiddenIndices,
+  moveSectionBlock,
+  nextVisibleLineIndex
+} from './sectionFold'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
 
@@ -93,6 +99,17 @@ interface MultiLineSelection {
   anchorOffset: number
   focusLine: number
   focusOffset: number
+}
+
+/** 섹션 블록 드래그 재정렬 진행 상태 (hover 손잡이에서 시작) */
+interface SectionDragState {
+  blockStart: number
+  blockEnd: number
+  dropIndex: number
+  pointerX: number
+  pointerY: number
+  titleText: string
+  lineCount: number
 }
 
 interface EditorSnapshot {
@@ -513,6 +530,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   const pendingResizeRef = useRef<Set<number>>(new Set())
   /** sticky 제목이 상단에 붙었을 때 — 한 줄 높이로 고정 */
   const titleLineStuckRef = useRef(false)
+  /** 섹션 블록 드래그 재정렬 — hover 손잡이에서만 시작, 텍스트 선택 드래그와 격리 */
+  const [sectionDrag, setSectionDrag] = useState<SectionDragState | null>(null)
   const [toolbarTick, setToolbarTick] = useState(0)
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
@@ -2283,6 +2302,76 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     [lines, pushUndoSnapshot]
   )
 
+  /**
+   * pointerY 아래에 렌더된 `.editor-line` 행들 중 가장 가까운 경계를 찾아 원본 `lines` 배열
+   * 기준 삽입 인덱스로 변환한다. DOM 순서 = 숨김(접힌 섹션 하위) 줄을 제외한 순서와 같다.
+   */
+  const computeDropIndexFromY = useCallback((clientY: number): number => {
+    const linesEl = editorScrollRef.current?.querySelector('.editor-lines')
+    const rowEls = linesEl
+      ? (Array.from(linesEl.children).filter((el) =>
+          el.classList.contains('editor-line')
+        ) as HTMLElement[])
+      : []
+    const hidden = computeSectionHiddenIndices(linesRef.current)
+    const visibleIndices: number[] = []
+    for (let i = 0; i < linesRef.current.length; i++) {
+      if (!hidden.has(i)) visibleIndices.push(i)
+    }
+    for (let k = 0; k < rowEls.length; k++) {
+      const r = rowEls[k]!.getBoundingClientRect()
+      if (clientY < (r.top + r.bottom) / 2) return visibleIndices[k] ?? linesRef.current.length
+    }
+    return linesRef.current.length
+  }, [])
+
+  /** 섹션 타이틀 hover 손잡이 — 텍스트 선택 드래그와 격리된 별도 포인터 세션으로 블록을 재정렬 */
+  const onSectionDragHandlePointerDown = useCallback(
+    (titleIndex: number, e: React.PointerEvent) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      const [blockStart, blockEnd] = computeSectionBlockRange(linesRef.current, titleIndex)
+      const titleText = linesRef.current[titleIndex]?.text ?? ''
+      let dropIndex = blockStart
+
+      setSectionDrag({
+        blockStart,
+        blockEnd,
+        dropIndex,
+        pointerX: e.clientX,
+        pointerY: e.clientY,
+        titleText,
+        lineCount: blockEnd - blockStart + 1
+      })
+
+      const move = (ev: PointerEvent): void => {
+        const raw = computeDropIndexFromY(ev.clientY)
+        dropIndex = clampDropIndexOutsideBlock(raw, blockStart, blockEnd)
+        setSectionDrag((prev) =>
+          prev ? { ...prev, dropIndex, pointerX: ev.clientX, pointerY: ev.clientY } : prev
+        )
+      }
+      const finish = (apply: boolean): void => {
+        document.removeEventListener('pointermove', move)
+        document.removeEventListener('pointerup', up)
+        document.removeEventListener('pointercancel', cancel)
+        setSectionDrag(null)
+        if (apply && dropIndex !== blockStart) {
+          pushUndoSnapshot(linesRef.current, Math.min(dropIndex, blockStart), 0)
+          setLines((prev) => moveSectionBlock(prev, blockStart, blockEnd, dropIndex))
+        }
+      }
+      const up = (): void => finish(true)
+      const cancel = (): void => finish(false)
+
+      document.addEventListener('pointermove', move)
+      document.addEventListener('pointerup', up)
+      document.addEventListener('pointercancel', cancel)
+    },
+    [computeDropIndexFromY, pushUndoSnapshot]
+  )
+
   const showCopyToastBrief = useCallback(() => {
     if (copyToastTimeoutRef.current) clearTimeout(copyToastTimeoutRef.current)
     setCopyToastVisible(true)
@@ -3435,10 +3524,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       ? () => handleSectionScopeToggle(index)
                       : undefined
                   }
+                  onSectionDragStart={
+                    line.formatting?.sectionTitle
+                      ? (e) => onSectionDragHandlePointerDown(index, e)
+                      : undefined
+                  }
                 />
               )
             return (
               <Fragment key={line.id}>
+                {sectionDrag && sectionDrag.dropIndex === index ? (
+                  <div className="editor-section-drop-indicator" aria-hidden />
+                ) : null}
                 {row}
                 {needsLineBelowPad ? (
                   <EditorBlockAfterPad onActivate={() => insertEmptyLineBelow(index)} />
@@ -3446,6 +3543,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
               </Fragment>
             )
           })}
+          {sectionDrag && sectionDrag.dropIndex >= lines.length ? (
+            <div className="editor-section-drop-indicator" aria-hidden />
+          ) : null}
         </div>
         <textarea
           className="edit-serialized-content"
@@ -3456,6 +3556,18 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           onChange={() => {}}
         />
       </div>
+      {sectionDrag ? (
+        <div
+          className="editor-section-drag-chip"
+          style={{ left: sectionDrag.pointerX, top: sectionDrag.pointerY }}
+          aria-hidden
+        >
+          <span>{sectionDrag.titleText || '(제목 없음)'}</span>
+          {sectionDrag.lineCount > 1 ? (
+            <span className="editor-section-drag-chip-count">{sectionDrag.lineCount}줄</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="editor-bottom-bar">
         <div className="editor-bottom-bar-tags">
           <TagInput
