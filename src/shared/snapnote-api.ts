@@ -115,5 +115,7 @@ export interface SnapnotePreloadAPI {
     clipboardPasteText: (cb: (text: string) => void) => () => void
     /** 자동 업데이트 진행 (설정 창 등) */
     updateEvent: (cb: (payload: UpdateEventPayload) => void) => () => void
+    /** 편집 창에서만 사용 — 최소화됐던 창이 다시 보일 때 (스크롤 리셋용) */
+    editWindowRestored: (cb: () => void) => () => void
   }
 }

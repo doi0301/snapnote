@@ -443,6 +443,8 @@ export class WindowManager {
     if (existing && !existing.isDestroyed()) {
       existing.show()
       existing.focus()
+      /** 접기(최소화) 전 스크롤 위치가 그대로 남아 제목이 sticky 상태로 잘려 보일 수 있어 리셋 */
+      existing.webContents.send(IPC_CHANNELS.EDIT_WINDOW_RESTORED)
       return
     }
 

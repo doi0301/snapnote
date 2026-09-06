@@ -59,6 +59,12 @@ export function EditWindow({ memoId }: EditWindowProps): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    return window.snapnote.on.editWindowRestored(() => {
+      editorRef.current?.resetScrollToTop()
+    })
+  }, [])
+
+  useEffect(() => {
     const refreshSuggestions = (): void => {
       void window.snapnote.memo.getAll().then((memos) => setTagSuggestions(collectAllTags(memos)))
     }

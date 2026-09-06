@@ -71,6 +71,7 @@ export { normalizeEditorLines } from './editorLines'
 export interface EditorHandle {
   appendTextFromClipboard: (text: string) => void
   copyAllToClipboard: () => void
+  resetScrollToTop: () => void
 }
 
 interface EditorProps {
@@ -2958,6 +2959,10 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
       },
       copyAllToClipboard: () => {
         void copyAllMemoTextToClipboard()
+      },
+      resetScrollToTop: () => {
+        const scrollEl = editorScrollRef.current
+        if (scrollEl) scrollEl.scrollTop = 0
       }
     }),
     [pushUndoSnapshot, copyAllMemoTextToClipboard, insertImportedLines]

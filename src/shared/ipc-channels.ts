@@ -92,7 +92,10 @@ export const IPC_CHANNELS = {
   EDIT_WINDOW_DRAG_END: 'edit-window:drag-end',
 
   /** Main → 편집 창: 클립보드 삽입 텍스트 (preload `on.clipboardPasteText`) */
-  CLIPBOARD_PASTE_TEXT: 'clipboard:paste-text'
+  CLIPBOARD_PASTE_TEXT: 'clipboard:paste-text',
+  /** Main → 편집 창: 최소화됐던 창을 다시 보여줄 때 — 접기 전 스크롤 위치가 그대로 남아
+   *  제목이 sticky 상태로 잘려 보이는 문제 방지용 (스크롤 최상단 리셋) */
+  EDIT_WINDOW_RESTORED: 'edit-window:restored'
 } as const
 
 /** Main → Renderer 구독용 채널 */
@@ -106,6 +109,7 @@ export type IpcEventChannel =
   | typeof IPC_CHANNELS.CLIPBOARD_PASTE_TEXT
   | typeof IPC_CHANNELS.UPDATE_EVENT
   | typeof IPC_CHANNELS.CATEGORY_CHANGED
+  | typeof IPC_CHANNELS.EDIT_WINDOW_RESTORED
 
 /** Renderer → Main invoke 채널 */
 export type IpcInvokeChannel = Exclude<

@@ -159,6 +159,11 @@ function createSnapnoteApi(): SnapnotePreloadAPI {
       const listener = (_e: Electron.IpcRendererEvent, payload: UpdateEventPayload): void => cb(payload)
       ipcRenderer.on(IPC_CHANNELS.UPDATE_EVENT, listener)
       return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_EVENT, listener)
+    },
+    editWindowRestored: (cb: () => void): (() => void) => {
+      const listener = (): void => cb()
+      ipcRenderer.on(IPC_CHANNELS.EDIT_WINDOW_RESTORED, listener)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.EDIT_WINDOW_RESTORED, listener)
     }
   }
 
