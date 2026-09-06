@@ -109,6 +109,27 @@ test.describe('구분선', () => {
     }
   })
 
+  test('구분선이 가로 스크롤을 만들지 않는다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await bodyLineWithText(edit, '윗줄 내용')
+      const overflowX = (): Promise<number> =>
+        edit.evaluate(() => {
+          const sc = document.querySelector('.editor-scroll') as HTMLElement
+          return sc.scrollWidth - sc.clientWidth
+        })
+      expect(await overflowX()).toBe(0)
+
+      await toggleDivider(edit)
+
+      // flex-basis 100% 에 좌우 margin 이 더해지면 줄이 컨테이너보다 넓어진다
+      expect(await overflowX()).toBe(0)
+    } finally {
+      await app.close()
+    }
+  })
+
   test('구분선 아래 칸 맨 앞에서 Backspace 하면 구분선이 지워진다', async () => {
     const app = await launchSnapNote()
     try {

@@ -289,8 +289,9 @@
 .editor-line--heading-6 .editor-line-mirror { font-weight: 400; }
 
 .editor-line-divider {
-  /* 같은 행에 눌러 앉으면 편집 영역이 폭 0 으로 짓눌려 글자가 세로로 쌓인다 */
-  flex: 0 0 100%;
+  /* 같은 행에 눌러 앉으면 편집 영역이 폭 0 으로 짓눌려 글자가 세로로 쌓인다.
+     좌우 margin(8px×2)을 basis 에서 빼지 않으면 줄이 컨테이너보다 넓어져 가로 스크롤이 생긴다. */
+  flex: 0 0 calc(100% - 16px);
   height: 2px;
   background: #F28B74;
   margin: 2px 8px 0;
