@@ -397,36 +397,6 @@ export function SettingsWindow(): React.JSX.Element {
         <h2 id="settings-appearance" className="settings-section-title">
           모양
         </h2>
-        <p className="settings-hint">폴디드 슬롯 왼쪽 색(메모 색상 슬롯 1·2·3에 대응)</p>
-        <div className="settings-color-row">
-          <label className="settings-color-label">
-            슬롯 1
-            <input
-              type="color"
-              value={normalizeHex(settings.colorSlot1)}
-              disabled={saving}
-              onChange={(e) => void patch({ colorSlot1: e.target.value })}
-            />
-          </label>
-          <label className="settings-color-label">
-            슬롯 2
-            <input
-              type="color"
-              value={normalizeHex(settings.colorSlot2)}
-              disabled={saving}
-              onChange={(e) => void patch({ colorSlot2: e.target.value })}
-            />
-          </label>
-          <label className="settings-color-label">
-            슬롯 3
-            <input
-              type="color"
-              value={normalizeHex(settings.colorSlot3)}
-              disabled={saving}
-              onChange={(e) => void patch({ colorSlot3: e.target.value })}
-            />
-          </label>
-        </div>
         <div className="settings-dimensions">
           <label>
             새 메모 기본 창 너비
@@ -530,12 +500,6 @@ export function SettingsWindow(): React.JSX.Element {
       {saving ? <p className="settings-saving">처리 중…</p> : null}
     </div>
   )
-}
-
-function normalizeHex(hex: string): string {
-  const h = hex.trim()
-  if (/^#[0-9a-fA-F]{6}$/.test(h)) return h
-  return '#888888'
 }
 
 function clamp(n: number, lo: number, hi: number): number {

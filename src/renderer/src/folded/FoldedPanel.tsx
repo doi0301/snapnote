@@ -1,22 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Memo, MemoId } from '@shared/types'
 import { EmptyState } from './EmptyState'
-import { MemoSlot, type SlotColorMap } from './MemoSlot'
+import { MemoSlot } from './MemoSlot'
 import { useFoldedPanelContentHeight } from './useFoldedPanelContentHeight'
 import './folded.css'
-
-function settingsToSlotColors(s: {
-  colorSlot1: string
-  colorSlot2: string
-  colorSlot3: string
-}): SlotColorMap {
-  return { coral: s.colorSlot1, green: s.colorSlot2, blue: s.colorSlot3 }
-}
 
 export function FoldedPanel(): React.JSX.Element {
   const [stack, setStack] = useState<MemoId[]>([])
   const [memos, setMemos] = useState<Memo[]>([])
-  const [slotColors, setSlotColors] = useState<SlotColorMap | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const previewEnterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -25,11 +16,6 @@ export function FoldedPanel(): React.JSX.Element {
   useEffect(() => {
     void window.snapnote.app.getState().then((s) => setStack(s.foldedStack))
     return window.snapnote.on.stackChanged(setStack)
-  }, [])
-
-  useEffect(() => {
-    void window.snapnote.settings.get().then((s) => setSlotColors(settingsToSlotColors(s)))
-    return window.snapnote.on.settingsChanged((s) => setSlotColors(settingsToSlotColors(s)))
   }, [])
 
   useEffect(() => {
@@ -170,7 +156,6 @@ export function FoldedPanel(): React.JSX.Element {
               <MemoSlot
                 key={memo.id}
                 memo={memo}
-                slotColors={slotColors}
                 onMouseEnter={(el) => onPreviewEnter(memo.id, el)}
                 onMouseLeave={onPreviewLeave}
                 onOpenEdit={() => void onOpenEditFromSlot(memo.id)}

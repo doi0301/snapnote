@@ -127,9 +127,6 @@ export interface Settings {
   clipboardMonitoring: boolean
   /** 클립보드 모니터링 최초 안내 메시지 표시 여부 (1회만) */
   clipboardNoticeShown: boolean
-  colorSlot1: string
-  colorSlot2: string
-  colorSlot3: string
   defaultWindowWidth: number
   defaultWindowHeight: number
   windowOpacity: number

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { Database } from 'sql.js'
 import type { EditorLine, Memo, MemoId, MemoUpdatePatch } from '@shared/types'
+import { pickRandomMemoColor } from '@shared/memoColors'
 import { run, selectAll, selectOne, type SqlRow } from './sqlRun'
 
-const COLOR_ROTATION = ['coral', 'green', 'blue'] as const
 const MAX_MEMOS = 50
 /** 휴지통 보관 기간 (일) */
 export const TRASH_RETENTION_DAYS = 7
@@ -58,12 +58,15 @@ export class MemoRepository {
     }
   }
 
-  createMemo(): Memo {
+  /**
+   * `color` 미지정 시 팔레트 전체에서 무작위로 고른다. "현재 열린 창이 안 쓰는 색
+   * 우선" 로직은 창 목록을 아는 상위 계층(DataService)이 계산해 넘겨준다 — 예전엔
+   * 여기서 활성 메모 개수 % 3 으로 색을 골라, 활성 개수가 항상 같은 값에 머무는
+   * 워크플로(만들고 바로 지우는 식)에서 매번 같은 색만 나오는 버그가 있었다.
+   */
+  createMemo(color: string = pickRandomMemoColor([])): Memo {
     this.enforceMemoLimit()
     const db = this.getDb()
-    const row = selectOne(db, 'SELECT COUNT(*) AS c FROM memos WHERE deleted_at IS NULL', [])
-    const n = row ? Number(row.c) : 0
-    const color = COLOR_ROTATION[n % COLOR_ROTATION.length]
     const id = randomUUID()
     const now = new Date().toISOString()
     const emptyContent: EditorLine[] = []

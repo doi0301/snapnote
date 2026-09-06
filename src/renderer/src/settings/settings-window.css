@@ -114,31 +114,6 @@ body {
   color: #18181b;
 }
 
-.settings-color-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.settings-color-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #52525b;
-}
-
-.settings-color-label input[type='color'] {
-  width: 48px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid #d4d4d8;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
 .settings-dimensions {
   display: flex;
   flex-wrap: wrap;

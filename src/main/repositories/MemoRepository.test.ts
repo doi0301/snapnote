@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import type { Database } from 'sql.js'
 import initSqlJs from 'sql.js'
 import { applySchema } from '../database/schema'
+import { MEMO_COLOR_PALETTE } from '@shared/memoColors'
 import { MemoRepository, TRASH_RETENTION_DAYS } from './MemoRepository'
 
 const require = createRequire(import.meta.url)
@@ -25,13 +26,14 @@ describe('MemoRepository', () => {
     repo = new MemoRepository(() => db, () => {})
   })
 
-  it('creates memo with coral/green/blue rotation', () => {
-    const a = repo.createMemo()
-    const b = repo.createMemo()
-    const c = repo.createMemo()
-    expect(a.color).toBe('coral')
-    expect(b.color).toBe('green')
-    expect(c.color).toBe('blue')
+  it('creates a memo with an explicit color when given one', () => {
+    const m = repo.createMemo('purple')
+    expect(m.color).toBe('purple')
+  })
+
+  it('creates a memo with a random palette color when none is given', () => {
+    const m = repo.createMemo()
+    expect(MEMO_COLOR_PALETTE).toContain(m.color)
   })
 
   it('enforces 50 memo limit by deleting oldest', async () => {

@@ -1,6 +1,6 @@
 /**
  * 접힌 패널 슬롯 — 메모별 면색 배경·테두리 (그라데이션 없음, 명도는 본문 가독성 우선)
- * 색값은 MemoRepository COLOR_ROTATION과 동일 계열
+ * 색값은 @shared/memoColors 팔레트와 동일 계열
  */
 .memo-slot--coral {
   background: #fdf4f1;
@@ -20,13 +20,62 @@
   border-left: 5px solid #5b8fd4;
 }
 
+.memo-slot--purple {
+  background: #f5f2fb;
+  border-color: rgba(155, 127, 212, 0.45);
+  border-left: 5px solid #9b7fd4;
+}
+
+.memo-slot--pink {
+  background: #fbf1f6;
+  border-color: rgba(227, 127, 168, 0.45);
+  border-left: 5px solid #e37fa8;
+}
+
+.memo-slot--yellow {
+  background: #fbf7ec;
+  border-color: rgba(212, 181, 74, 0.45);
+  border-left: 5px solid #d4b54a;
+}
+
+.memo-slot--teal {
+  background: #eff9f8;
+  border-color: rgba(79, 184, 176, 0.45);
+  border-left: 5px solid #4fb8b0;
+}
+
+.memo-slot--indigo {
+  background: #f0f1fb;
+  border-color: rgba(110, 127, 212, 0.45);
+  border-left: 5px solid #6e7fd4;
+}
+
+.memo-slot--orange {
+  background: #fdf3ea;
+  border-color: rgba(227, 147, 74, 0.45);
+  border-left: 5px solid #e3934a;
+}
+
+.memo-slot--mint {
+  background: #eefaf3;
+  border-color: rgba(111, 207, 158, 0.45);
+  border-left: 5px solid #6fcf9e;
+}
+
+.memo-slot--gray {
+  background: #f3f4f6;
+  border-color: rgba(139, 149, 161, 0.45);
+  border-left: 5px solid #8b95a1;
+}
+
+.memo-slot--rose {
+  background: #fbeff1;
+  border-color: rgba(212, 110, 127, 0.45);
+  border-left: 5px solid #d46e7f;
+}
+
 .memo-slot--default {
   background: #f8fafc;
   border-color: #e4e4e7;
   border-left: 5px solid #94a3b8;
-}
-
-/* 설정 colorSlot1~3 — 왼쪽·배경은 MemoSlot 인라인 스타일 */
-.memo-slot--custom {
-  border-color: #e4e4e7;
 }

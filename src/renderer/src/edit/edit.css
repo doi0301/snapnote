@@ -242,113 +242,49 @@ body {
   background: #eff6ff;
 }
 
-/* 메모별 루트 면색 = 상·하단 바와 동일 → 측면·모서리 틈이 포인트색으로 채워짐 (@shared/memoChrome 동기화) */
-.edit-root--memo-coral {
+/*
+ * 메모별 루트 면색 = 상단 바와 동일 → 측면·모서리 틈이 포인트색으로 채워짐.
+ * 아이콘·본문 배경 등 색과 무관한 규칙은 hue 클래스 공통이라 한 번만 정의하고,
+ * 실제로 색상마다 달라지는 값(상단 바 배경)만 12색 + default 로 나열한다.
+ */
+[class*='edit-root--memo-'] {
   background: transparent;
 }
 
-.edit-root--memo-green {
-  background: transparent;
-}
-
-.edit-root--memo-blue {
-  background: transparent;
-}
-
-.edit-root--memo-default {
-  background: transparent;
-}
-
-/* 펼친 편집 창 — 본문은 연한 틴트, 포인트 색은 상단·하단 바 배경 (왼쪽 라인 없음) */
-.edit-root--memo-coral .edit-body {
-  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
-}
-
-.edit-root--memo-green .edit-body {
-  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
-}
-
-.edit-root--memo-blue .edit-body {
-  background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
-}
-
-.edit-root--memo-default .edit-body {
+/* 펼친 편집 창 — 본문은 연한 틴트, 포인트 색은 상단 바 배경 (왼쪽 라인 없음) */
+[class*='edit-root--memo-'] .edit-body {
   background: rgba(255, 255, 255, var(--window-bg-alpha, 1));
 }
 
 /* 상단 탭: 포인트 면색 + 밝은 아이콘/텍스트 (명도 대비) */
-.edit-root--memo-coral .edit-topbar {
-  background: #b84a38;
+[class*='edit-root--memo-'] .edit-topbar {
   border-bottom: 1px solid rgba(0, 0, 0, 0.14);
 }
 
-.edit-root--memo-coral .edit-icon-btn {
+[class*='edit-root--memo-'] .edit-icon-btn {
   color: rgba(255, 255, 255, 0.92);
 }
 
-.edit-root--memo-coral .edit-icon-btn:hover {
+[class*='edit-root--memo-'] .edit-icon-btn:hover {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
-.edit-root--memo-coral .edit-icon-btn[data-active='true'] {
+[class*='edit-root--memo-'] .edit-icon-btn[data-active='true'] {
   color: #fff;
   background: rgba(255, 255, 255, 0.24);
 }
 
-.edit-root--memo-green .edit-topbar {
-  background: #2a7d4d;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
-}
-
-.edit-root--memo-green .edit-icon-btn {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.edit-root--memo-green .edit-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.edit-root--memo-green .edit-icon-btn[data-active='true'] {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.24);
-}
-
-.edit-root--memo-blue .edit-topbar {
-  background: #3569a8;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
-}
-
-.edit-root--memo-blue .edit-icon-btn {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.edit-root--memo-blue .edit-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.edit-root--memo-blue .edit-icon-btn[data-active='true'] {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.24);
-}
-
-.edit-root--memo-default .edit-topbar {
-  background: #556376;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.14);
-}
-
-.edit-root--memo-default .edit-icon-btn {
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.edit-root--memo-default .edit-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.edit-root--memo-default .edit-icon-btn[data-active='true'] {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.24);
-}
+.edit-root--memo-coral .edit-topbar { background: #b84a38; }
+.edit-root--memo-green .edit-topbar { background: #2a7d4d; }
+.edit-root--memo-blue .edit-topbar { background: #3569a8; }
+.edit-root--memo-purple .edit-topbar { background: #6b4fa0; }
+.edit-root--memo-pink .edit-topbar { background: #b14a73; }
+.edit-root--memo-yellow .edit-topbar { background: #96791a; }
+.edit-root--memo-teal .edit-topbar { background: #2a7a73; }
+.edit-root--memo-indigo .edit-topbar { background: #3f4fa0; }
+.edit-root--memo-orange .edit-topbar { background: #b0611a; }
+.edit-root--memo-mint .edit-topbar { background: #2f8f63; }
+.edit-root--memo-gray .edit-topbar { background: #55606d; }
+.edit-root--memo-rose .edit-topbar { background: #a03b4d; }
+.edit-root--memo-default .edit-topbar { background: #556376; }

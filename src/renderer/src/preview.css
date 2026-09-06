@@ -76,6 +76,51 @@ body,
   background: #f2f7fd;
 }
 
+.preview-root--memo-purple {
+  border-left: 4px solid #9b7fd4;
+  background: #f5f2fb;
+}
+
+.preview-root--memo-pink {
+  border-left: 4px solid #e37fa8;
+  background: #fbf1f6;
+}
+
+.preview-root--memo-yellow {
+  border-left: 4px solid #d4b54a;
+  background: #fbf7ec;
+}
+
+.preview-root--memo-teal {
+  border-left: 4px solid #4fb8b0;
+  background: #eff9f8;
+}
+
+.preview-root--memo-indigo {
+  border-left: 4px solid #6e7fd4;
+  background: #f0f1fb;
+}
+
+.preview-root--memo-orange {
+  border-left: 4px solid #e3934a;
+  background: #fdf3ea;
+}
+
+.preview-root--memo-mint {
+  border-left: 4px solid #6fcf9e;
+  background: #eefaf3;
+}
+
+.preview-root--memo-gray {
+  border-left: 4px solid #8b95a1;
+  background: #f3f4f6;
+}
+
+.preview-root--memo-rose {
+  border-left: 4px solid #d46e7f;
+  background: #fbeff1;
+}
+
 .preview-root--memo-default {
   border-left: 4px solid #cbd5e1;
   background: #fff;

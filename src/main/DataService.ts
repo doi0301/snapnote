@@ -4,6 +4,7 @@ import { join, isAbsolute, relative } from 'path'
 import { BrowserWindow, Menu, app, clipboard, dialog, ipcMain, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import { ClipboardService } from './ClipboardService'
 import { IPC_CHANNELS } from '@shared/ipc-channels'
+import { pickRandomMemoColor } from '@shared/memoColors'
 import type {
   ClipboardInsertPayload,
   EditorLine,
@@ -139,9 +140,18 @@ export class DataService {
     }
   }
 
+  /** 현재 열린 편집 창들이 쓰는 색 — 새 메모 색 배정 시 겹치지 않게 피하는 용도 */
+  private colorsInUseByOpenWindows(): string[] {
+    return this.windowManager
+      .listOpenEditWindows()
+      .map(({ memoId }) => this.memos.getMemo(memoId)?.color)
+      .filter((c): c is string => Boolean(c))
+  }
+
   /** 트레이·메인에서 새 메모 + 스택 선두 (IPC `memo:create`와 동일 로직) */
   createMemoWithStack(): Memo {
-    const memo = this.memos.createMemo()
+    const color = pickRandomMemoColor(this.colorsInUseByOpenWindows())
+    const memo = this.memos.createMemo(color)
     this.settings.prependMemoToFoldedStack(memo.id)
     this.broadcast(IPC_CHANNELS.MEMO_UPDATED, memo)
     this.broadcast(IPC_CHANNELS.STACK_CHANGED, this.settings.getAppState().foldedStack)
