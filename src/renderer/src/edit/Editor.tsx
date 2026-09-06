@@ -3003,6 +3003,36 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
       if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault()
+
+        if (isBlockHeader(line) && line.formatting?.sectionCollapsed) {
+          /**
+           * 접힌 섹션/클로드 블록 헤더에서는 하단 칸이 화면에 보이지 않는다.
+           * Shift+Enter 로 그 숨은 칸 안에 새 줄을 끼워넣으면 사용자가 볼 수 없는
+           * 곳을 편집하게 되므로, 블록 전체를 건너뛰어 섹션에 포함되지 않는
+           * 다음 칸으로 바로 이동한다(없으면 헤더와 같은 들여쓰기로 새로 만든다).
+           */
+          const [, blockEnd] = computeSectionBlockRange(lines, index)
+          const afterIndex = blockEnd + 1
+          if (lines[afterIndex]) {
+            pendingFocusRef.current = { index: afterIndex, cursor: 0 }
+          } else {
+            pushUndoSnapshot(lines, index, start)
+            const newLine: EditorLineModel = {
+              id: crypto.randomUUID(),
+              text: '',
+              indentLevel: line.indentLevel,
+              formatting: {}
+            }
+            pendingFocusRef.current = { index: afterIndex, cursor: 0 }
+            setLines((prev) => {
+              const next = [...prev]
+              next.splice(afterIndex, 0, newLine)
+              return next
+            })
+          }
+          return
+        }
+
         /**
          * 조합을 방금 확정한 경우 React 상태(`line.text`)가 아직 마지막 글자를 반영하지 못한다.
          * DOM 값을 진실로 삼아야 글자 유실·엉뚱한 위치 분할이 생기지 않는다.

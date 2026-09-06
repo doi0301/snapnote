@@ -119,6 +119,34 @@ test.describe('클로드 블록 접기', () => {
       await app.close()
     }
   })
+
+  test('접힌 헤더에서 Shift+Enter 시 숨은 내용이 아니라 블록 밖 다음 칸으로 이동한다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.keyboard.press('Escape')
+      await edit.waitForTimeout(150)
+
+      await edit.locator('.editor-section-fold-btn').click()
+      await edit.waitForTimeout(200)
+      expect(await edit.locator('.editor-line-textarea').count()).toBe(2)
+
+      await edit.locator('.editor-line-textarea').nth(1).click()
+      await edit.keyboard.press('Shift+Enter')
+      await edit.waitForTimeout(200)
+
+      expect(await edit.locator('.editor-line-textarea').count()).toBe(3)
+      expect(await lineValues(edit)).toEqual(['메모', '', ''])
+      const focusedIsLast = await edit.evaluate(() => {
+        const areas = Array.from(document.querySelectorAll('.editor-line-textarea'))
+        return document.activeElement === areas[areas.length - 1]
+      })
+      expect(focusedIsLast).toBe(true)
+    } finally {
+      await app.close()
+    }
+  })
 })
 
 test.describe('진행상태', () => {

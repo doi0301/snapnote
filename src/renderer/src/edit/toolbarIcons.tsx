@@ -237,12 +237,14 @@ export function IconToolbarRobot(props: { size?: number; className?: string }): 
   const s = props.size ?? 18
   return (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
-      <rect x="6" y="7" width="12" height="11" rx="2" stroke="currentColor" strokeWidth={stroke} />
-      <circle cx="9.5" cy="11" r="1.2" fill="currentColor" />
-      <circle cx="14.5" cy="11" r="1.2" fill="currentColor" />
-      <path d="M9 15h6" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
-      <path d="M12 4v3" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
-      <circle cx="12" cy="3" r="1" fill="currentColor" />
+      <rect x="2.5" y="10.5" width="2.6" height="5" rx="1.3" fill="currentColor" />
+      <rect x="18.9" y="10.5" width="2.6" height="5" rx="1.3" fill="currentColor" />
+      <rect x="5" y="6.5" width="14" height="12" rx="3" stroke="currentColor" strokeWidth={stroke} />
+      <rect x="8.2" y="10.5" width="2.8" height="3.2" rx="1" fill="currentColor" />
+      <rect x="13" y="10.5" width="2.8" height="3.2" rx="1" fill="currentColor" />
+      <rect x="9" y="15.2" width="6" height="1.7" rx="0.85" fill="currentColor" />
+      <path d="M12 3.7v2.8" stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" />
+      <circle cx="12" cy="2.7" r="1.1" fill="currentColor" />
     </svg>
   )
 }
