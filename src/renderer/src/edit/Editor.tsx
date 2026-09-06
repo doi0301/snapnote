@@ -2736,10 +2736,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
         /* 불릿/인용 접두(`• `, `- `, `+ `, `> `)는 다음 줄에 자동 이어 붙이지 않음 — 필요하면 직접 입력 */
 
-        const prevHadDivider = Boolean(line.formatting?.hasDivider)
+        /**
+         * 구분선은 그것을 단 칸에 그대로 남는다.
+         * 새 줄로 따라 내려가면 "구분선 아래 칸" 이 성립하지 않아
+         * 그 칸에서 Backspace 로 구분선을 지울 수 없다.
+         */
         const headingAtStart = start === 0 && line.formatting?.headingLevel
         const newLineFormatting: Record<string, unknown> = {}
-        if (prevHadDivider) newLineFormatting.hasDivider = true
         if (headingAtStart) newLineFormatting.headingLevel = line.formatting!.headingLevel
 
         const carryCheckbox = start === 0 && line.formatting?.hasCheckbox
@@ -2759,7 +2762,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         setLines((prev) => {
           const next = [...prev]
           const stripFromCurrent: Record<string, unknown> = {}
-          if (prevHadDivider) stripFromCurrent.hasDivider = false
           if (headingAtStart) stripFromCurrent.headingLevel = undefined
           if (carryCheckbox) { stripFromCurrent.hasCheckbox = false; stripFromCurrent.checkboxChecked = false }
           const updatedCurrent = {
