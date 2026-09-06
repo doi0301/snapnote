@@ -317,3 +317,45 @@ export function IconClipboardInsertToEditor(props: { size?: number; className?: 
     </svg>
   )
 }
+
+/** 섹션 범위: 아래 줄들을 거느림('until-next') — 사슬 고리 */
+export function IconSectionScopeLinked(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 14
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <rect x="4" y="4" width="9" height="6" rx="2" stroke="currentColor" strokeWidth={stroke} />
+      <path
+        d="M8.5 10v2a2 2 0 0 0 2 2H15a2 2 0 0 1 2 2v2"
+        stroke="currentColor"
+        strokeWidth={stroke}
+        strokeLinecap="round"
+      />
+      <rect x="11" y="16" width="9" height="6" rx="2" stroke="currentColor" strokeWidth={stroke} />
+    </svg>
+  )
+}
+
+/** 섹션 범위: 이 줄만('self-only') — 단독 블록 */
+export function IconSectionScopeSelf(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 14
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" className={props.className} aria-hidden>
+      <rect x="5" y="9" width="14" height="6" rx="2" stroke="currentColor" strokeWidth={stroke} />
+    </svg>
+  )
+}
+
+/** 드래그 손잡이 — 세로 점 2열 */
+export function IconDragHandle(props: { size?: number; className?: string }): React.JSX.Element {
+  const s = props.size ?? 14
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" className={props.className} aria-hidden>
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
+    </svg>
+  )
+}

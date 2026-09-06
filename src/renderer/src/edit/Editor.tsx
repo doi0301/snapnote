@@ -2213,6 +2213,37 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     bumpToolbar()
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
+  /** 섹션 타이틀 배경색 — 선택 범위 안의 섹션 타이틀 줄에만 적용. 같은 색을 다시 고르면 기본색으로 되돌린다 */
+  const onPickSectionColor = useCallback(
+    (color: HighlightColor) => {
+      const indices: number[] = []
+      const sel = multiLineSelectionRef.current
+      if (sel && isVirtualRangeSelection(sel)) {
+        const norm = normalizeSelection(sel)
+        for (let li = norm.startLine; li <= norm.endLine; li++) indices.push(li)
+      } else {
+        indices.push(lastFocusIndex.current)
+      }
+      const first = indices[0]
+      if (first === undefined) return
+      pushUndoSnapshot(lines, first, textareaRefs.current[first]?.selectionStart ?? 0)
+      setLines((prev) =>
+        prev.map((l, i) => {
+          if (!indices.includes(i) || !l.formatting?.sectionTitle) return l
+          const formatting = { ...l.formatting }
+          if (formatting.sectionColor === color) {
+            delete formatting.sectionColor
+          } else {
+            formatting.sectionColor = color
+          }
+          return { ...l, formatting }
+        })
+      )
+      bumpToolbar()
+    },
+    [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot]
+  )
+
   const handleSectionCollapsedToggle = useCallback(
     (index: number) => {
       pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
@@ -2222,6 +2253,29 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           if (!l.formatting?.sectionTitle) return l
           const f = { ...(l.formatting ?? {}) }
           f.sectionCollapsed = !f.sectionCollapsed
+          return { ...l, formatting: f }
+        })
+      )
+    },
+    [lines, pushUndoSnapshot]
+  )
+
+  /** 섹션 범위 전환 (아래 줄 거느림 ↔ 이 줄만). self-only 로 바꾸면 접힘 상태도 의미가 없어 해제한다. */
+  const handleSectionScopeToggle = useCallback(
+    (index: number) => {
+      pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
+      setLines((prev) =>
+        prev.map((l, i) => {
+          if (i !== index) return l
+          if (!l.formatting?.sectionTitle) return l
+          const f = { ...(l.formatting ?? {}) }
+          const owning = f.sectionScope !== 'self-only'
+          if (owning) {
+            f.sectionScope = 'self-only'
+            f.sectionCollapsed = false
+          } else {
+            f.sectionScope = 'until-next'
+          }
           return { ...l, formatting: f }
         })
       )
@@ -3376,6 +3430,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       ? () => handleSectionCollapsedToggle(index)
                       : undefined
                   }
+                  onToggleSectionScope={
+                    line.formatting?.sectionTitle
+                      ? () => handleSectionScopeToggle(index)
+                      : undefined
+                  }
                 />
               )
             return (
@@ -3441,6 +3500,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             onHeading={applyHeading}
             sectionTitleActive={Boolean(lines[focusLineIndex]?.formatting?.sectionTitle)}
             onToggleSectionTitle={toggleSectionTitle}
+            sectionColorActive={lines[focusLineIndex]?.formatting?.sectionColor}
+            onPickSectionColor={onPickSectionColor}
             compactActions={compactToolbarActions}
             symbolPaletteOpen={emojiPaletteOpen}
             onToggleSymbolPalette={toggleEmojiPalette}

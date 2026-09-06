@@ -40,6 +40,10 @@ export interface LineFormatting {
   sectionTitle?: boolean
   /** 섹션 타이틀 아래 줄들 접기 (다음 섹션 전까지) */
   sectionCollapsed?: boolean
+  /** 섹션이 아래 줄들을 거느리는 범위. 미지정(undefined) = 'until-next' (기존 문서 호환) */
+  sectionScope?: 'until-next' | 'self-only'
+  /** 섹션 타이틀 행 배경색 — 하이라이트 팔레트 재사용. 미지정 시 기본(파랑 톤) */
+  sectionColor?: HighlightColor
   /** 이 줄 전체가 표 셀 편집 모드일 때 */
   isTable?: boolean
   /** 행 × 열 (열 최대 5, 빈 문자열 허용) */

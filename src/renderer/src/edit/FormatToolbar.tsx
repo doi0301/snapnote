@@ -63,6 +63,9 @@ export interface FormatToolbarProps {
   onHeading: (level: 1 | 2 | 3 | 4 | 5 | 6) => void
   sectionTitleActive?: boolean
   onToggleSectionTitle?: () => void
+  /** 섹션 타이틀의 현재 배경색 (미지정 = 기본색) */
+  sectionColorActive?: HighlightColor
+  onPickSectionColor?: (color: HighlightColor) => void
   compactActions?: boolean
   symbolPaletteOpen: boolean
   onToggleSymbolPalette: () => void
@@ -92,6 +95,8 @@ export function FormatToolbar({
   onHeading,
   sectionTitleActive = false,
   onToggleSectionTitle,
+  sectionColorActive,
+  onPickSectionColor,
   compactActions = false,
   symbolPaletteOpen,
   onToggleSymbolPalette,
@@ -365,6 +370,24 @@ export function FormatToolbar({
               </button>
             ))}
           </div>
+          {sectionTitleActive && onPickSectionColor ? (
+            <div className="format-toolbar-modal-hl" role="group" aria-label="섹션 색상">
+              <p className="format-toolbar-modal-hl-label">섹션 색</p>
+              <div className="format-toolbar-modal-hl-swatches">
+                {HL_SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`format-hl-swatch format-hl-swatch--${c}${sectionColorActive === c ? ' format-hl-swatch--current' : ''}`}
+                    title={HL_LABEL[c]}
+                    aria-label={HL_LABEL[c]}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => onPickSectionColor(c)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

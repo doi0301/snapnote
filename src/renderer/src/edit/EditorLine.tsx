@@ -12,7 +12,12 @@ import type { EditorLine as EditorLineModel } from '@shared/types'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
-import { IconChevronDown, IconChevronUp } from './toolbarIcons'
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconSectionScopeLinked,
+  IconSectionScopeSelf
+} from './toolbarIcons'
 import './editor-line.css'
 import './keycap-badge.css'
 
@@ -50,6 +55,8 @@ export interface EditorLineViewProps {
   onToggleLineCollapsed?: () => void
   /** 섹션 타이틀 아래 줄 접기/펼치기 */
   onToggleSectionCollapsed?: () => void
+  /** 섹션 범위 전환 (아래 줄 거느림 ↔ 이 줄만) */
+  onToggleSectionScope?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -79,6 +86,7 @@ export const EditorLineView = memo(
       onCheckboxToggle,
       onToggleLineCollapsed,
       onToggleSectionCollapsed,
+      onToggleSectionScope,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -89,8 +97,12 @@ export const EditorLineView = memo(
     const headingLevel = line.formatting?.headingLevel
     const headingClass = headingLevel ? ` editor-line--heading-${headingLevel}` : ''
     const isSectionTitle = Boolean(line.formatting?.sectionTitle)
-    const sectionClass = isSectionTitle ? ' editor-line--section-title' : ''
-    const isSectionCollapsed = isSectionTitle && Boolean(line.formatting?.sectionCollapsed)
+    const sectionColorClass =
+      isSectionTitle && line.formatting?.sectionColor ? ` editor-line--section-${line.formatting.sectionColor}` : ''
+    const sectionClass = isSectionTitle ? ` editor-line--section-title${sectionColorClass}` : ''
+    /** 미지정(undefined) = 'until-next' — 기존 문서 호환 */
+    const sectionOwnsFollowing = isSectionTitle && line.formatting?.sectionScope !== 'self-only'
+    const isSectionCollapsed = sectionOwnsFollowing && Boolean(line.formatting?.sectionCollapsed)
 
     const accent = line.formatting?.accentBar
     const accentClass =
@@ -203,6 +215,23 @@ export const EditorLineView = memo(
                 {isLineCollapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
               </button>
             ) : null}
+            {isSectionTitle && onToggleSectionScope ? (
+              <button
+                type="button"
+                className="editor-section-scope-btn"
+                title={
+                  sectionOwnsFollowing
+                    ? '섹션 범위: 아래 줄 포함 — 클릭하면 이 줄만으로 전환'
+                    : '섹션 범위: 이 줄만 — 클릭하면 아래 줄도 포함하도록 전환'
+                }
+                aria-label={sectionOwnsFollowing ? '섹션 범위: 아래 줄 포함' : '섹션 범위: 이 줄만'}
+                aria-pressed={sectionOwnsFollowing}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onToggleSectionScope}
+              >
+                {sectionOwnsFollowing ? <IconSectionScopeLinked size={13} /> : <IconSectionScopeSelf size={13} />}
+              </button>
+            ) : null}
             {isStuck ? (
               <div className="editor-sticky-title-preview" aria-hidden>
                 {firstLinePreview || placeholder || ''}
@@ -249,7 +278,7 @@ export const EditorLineView = memo(
               spellCheck={false}
               tabIndex={isLineCollapsed ? -1 : undefined}
             />
-            {isSectionTitle && onToggleSectionCollapsed ? (
+            {sectionOwnsFollowing && onToggleSectionCollapsed ? (
               <button
                 type="button"
                 className="editor-section-fold-btn"

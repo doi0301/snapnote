@@ -223,10 +223,18 @@
   outline: none;
 }
 
-/* 섹션 컬러바 타이틀 (텍스트 유형 최상위) — 행 전체 배경색 */
+/* 섹션 컬러바 타이틀 (텍스트 유형 최상위) — 행 전체 배경색. 색 미지정 시 기본(파랑 톤) */
 .editor-line--section-title {
   background: rgba(37, 99, 235, 0.12);
 }
+
+.editor-line--section-yellow { background: rgba(254, 240, 138, 0.35); }
+.editor-line--section-green { background: rgba(187, 247, 208, 0.35); }
+.editor-line--section-pink { background: rgba(251, 207, 232, 0.35); }
+.editor-line--section-gray { background: rgba(174, 184, 198, 0.35); }
+.editor-line--section-blue { background: rgba(191, 219, 254, 0.4); }
+.editor-line--section-orange { background: rgba(254, 215, 170, 0.35); }
+.editor-line--section-purple { background: rgba(233, 213, 255, 0.35); }
 
 .editor-line--section-title .editor-line-gutter {
   background-color: transparent;
@@ -244,6 +252,12 @@
 .editor-line-editor--collapsible .editor-line-textarea,
 .editor-line-editor--collapsible .editor-line-mirror {
   padding-right: 32px;
+}
+
+/* 섹션 범위 아이콘 공간 — 좌측 여백 */
+.editor-line--section-title .editor-line-textarea,
+.editor-line--section-title .editor-line-mirror {
+  padding-left: 30px;
 }
 
 /* 섹션 접기 드롭다운 — 테두리 없이 아이콘만, 우측 끝 */
@@ -269,6 +283,33 @@
 }
 
 .editor-section-fold-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #18181b;
+}
+
+/* 섹션 범위 토글 — 좌측 끝, 아이콘만 */
+.editor-section-scope-btn {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #52525b;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.editor-section-scope-btn:hover {
   background: rgba(0, 0, 0, 0.06);
   color: #18181b;
 }
