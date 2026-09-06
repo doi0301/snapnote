@@ -8,23 +8,88 @@ import {
   useState,
   type RefObject
 } from 'react'
-import type { EditorLine as EditorLineModel } from '@shared/types'
+import type { EditorLine as EditorLineModel, HighlightColor } from '@shared/types'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
-import {
-  IconChevronDown,
-  IconChevronUp,
-  IconDragHandle,
-  IconSectionScopeLinked,
-  IconSectionScopeSelf
-} from './toolbarIcons'
+import { IconChevronDown, IconChevronUp, IconDragHandle } from './toolbarIcons'
 import './editor-line.css'
 import './keycap-badge.css'
+import './format-toolbar.css'
 
 export const INDENT_PX = 20
 
 const INDENT_ALPHA = [0.02, 0.06, 0.09, 0.11, 0.13, 0.14, 0.15]
+
+/** 노랑·초록·분홍·회색·파랑·주황·보라 (FormatToolbar 의 하이라이트 팔레트와 동일) */
+const SECTION_COLOR_SWATCHES: HighlightColor[] = ['yellow', 'green', 'pink', 'gray', 'blue', 'orange', 'purple']
+const SECTION_COLOR_LABEL: Record<HighlightColor, string> = {
+  yellow: '노랑',
+  green: '초록',
+  pink: '분홍',
+  gray: '회색',
+  blue: '파랑',
+  orange: '주황',
+  purple: '보라'
+}
+
+/** 섹션 타이틀 색상 아이콘 + 드롭다운 — 공간을 차지하지 않는 작은 원형 버튼 */
+function SectionColorPicker(props: {
+  color?: HighlightColor
+  onPick: (color: HighlightColor) => void
+}): React.JSX.Element {
+  const { color, onPick } = props
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocDown = (ev: MouseEvent): void => {
+      const el = ev.target as Element | null
+      if (el?.closest('.editor-section-color-popover') || el?.closest('.editor-section-color-btn')) {
+        return
+      }
+      setOpen(false)
+    }
+    const id = window.setTimeout(() => document.addEventListener('mousedown', onDocDown), 0)
+    return () => {
+      window.clearTimeout(id)
+      document.removeEventListener('mousedown', onDocDown)
+    }
+  }, [open])
+
+  return (
+    <div className="editor-section-color-wrap">
+      <button
+        type="button"
+        className={`editor-section-color-btn${color ? ` editor-section-color-btn--${color}` : ' editor-section-color-btn--default'}`}
+        title="섹션 색상 선택"
+        aria-label="섹션 색상 선택"
+        aria-expanded={open}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setOpen((v) => !v)}
+      />
+      {open ? (
+        <div className="editor-section-color-popover" role="menu" aria-label="섹션 색상">
+          {SECTION_COLOR_SWATCHES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="menuitem"
+              className={`format-hl-swatch format-hl-swatch--${c}${color === c ? ' format-hl-swatch--current' : ''}`}
+              title={SECTION_COLOR_LABEL[c]}
+              aria-label={SECTION_COLOR_LABEL[c]}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onPick(c)
+                setOpen(false)
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 /** stuck 바에 표시할 제목 (첫 줄만, 줄바꿈은 공백) */
 function stickyTitlePreviewText(text: string): string {
@@ -54,12 +119,12 @@ export interface EditorLineViewProps {
   onCut?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onCheckboxToggle?: () => void
   onToggleLineCollapsed?: () => void
-  /** 섹션 타이틀 아래 줄 접기/펼치기 */
+  /** 섹션 타이틀 아래 줄 접기/펼치기 — 거느린 본문이 있을 때만 전달됨 */
   onToggleSectionCollapsed?: () => void
-  /** 섹션 범위 전환 (아래 줄 거느림 ↔ 이 줄만) */
-  onToggleSectionScope?: () => void
   /** 섹션 블록 드래그 재정렬 시작 (hover 손잡이) */
   onSectionDragStart?: (e: React.PointerEvent<HTMLButtonElement>) => void
+  /** 섹션 타이틀 배경색 선택 */
+  onPickSectionColor?: (color: HighlightColor) => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -89,8 +154,8 @@ export const EditorLineView = memo(
       onCheckboxToggle,
       onToggleLineCollapsed,
       onToggleSectionCollapsed,
-      onToggleSectionScope,
       onSectionDragStart,
+      onPickSectionColor,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -104,9 +169,7 @@ export const EditorLineView = memo(
     const sectionColorClass =
       isSectionTitle && line.formatting?.sectionColor ? ` editor-line--section-${line.formatting.sectionColor}` : ''
     const sectionClass = isSectionTitle ? ` editor-line--section-title${sectionColorClass}` : ''
-    /** 미지정(undefined) = 'until-next' — 기존 문서 호환 */
-    const sectionOwnsFollowing = isSectionTitle && line.formatting?.sectionScope !== 'self-only'
-    const isSectionCollapsed = sectionOwnsFollowing && Boolean(line.formatting?.sectionCollapsed)
+    const isSectionCollapsed = isSectionTitle && Boolean(line.formatting?.sectionCollapsed)
 
     const accent = line.formatting?.accentBar
     const accentClass =
@@ -231,22 +294,8 @@ export const EditorLineView = memo(
                 <IconDragHandle size={13} />
               </button>
             ) : null}
-            {isSectionTitle && onToggleSectionScope ? (
-              <button
-                type="button"
-                className="editor-section-scope-btn"
-                title={
-                  sectionOwnsFollowing
-                    ? '섹션 범위: 아래 줄 포함 — 클릭하면 이 줄만으로 전환'
-                    : '섹션 범위: 이 줄만 — 클릭하면 아래 줄도 포함하도록 전환'
-                }
-                aria-label={sectionOwnsFollowing ? '섹션 범위: 아래 줄 포함' : '섹션 범위: 이 줄만'}
-                aria-pressed={sectionOwnsFollowing}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={onToggleSectionScope}
-              >
-                {sectionOwnsFollowing ? <IconSectionScopeLinked size={13} /> : <IconSectionScopeSelf size={13} />}
-              </button>
+            {isSectionTitle && onPickSectionColor ? (
+              <SectionColorPicker color={line.formatting?.sectionColor} onPick={onPickSectionColor} />
             ) : null}
             {isStuck ? (
               <div className="editor-sticky-title-preview" aria-hidden>
@@ -294,7 +343,7 @@ export const EditorLineView = memo(
               spellCheck={false}
               tabIndex={isLineCollapsed ? -1 : undefined}
             />
-            {sectionOwnsFollowing && onToggleSectionCollapsed ? (
+            {isSectionTitle && onToggleSectionCollapsed ? (
               <button
                 type="button"
                 className="editor-section-fold-btn"

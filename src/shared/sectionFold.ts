@@ -1,8 +1,27 @@
-import type { EditorLine } from '@shared/types'
+import type { EditorLine } from './types'
 
-/** 섹션 타이틀이 아래 줄들을 거느리는지 — 미지정은 기존 문서 호환을 위해 'until-next' */
-function ownsFollowingLines(line: EditorLine | undefined): boolean {
-  return Boolean(line?.formatting?.sectionTitle) && line?.formatting?.sectionScope !== 'self-only'
+/**
+ * 섹션 소속 규칙 (들여쓰기 기반): 타이틀보다 들여쓰기가 깊은 줄들이 연속되는 동안만 그
+ * 섹션에 속한다. 다음 섹션 타이틀을 만나거나(들여쓰기와 무관하게 항상 끊김 — 중첩 없음),
+ * 들여쓰기가 타이틀과 같거나 얕아지면(Shift+Tab 등) 그 줄부터는 소속에서 빠진다.
+ */
+
+/**
+ * 섹션 타이틀 한 줄이 소유하는 블록 범위 [start, end] (둘 다 포함).
+ * 섹션 타이틀이 아니거나 바로 아래에 더 깊게 들여쓴 줄이 없으면 자기 자신만 반환한다.
+ */
+export function computeSectionBlockRange(lines: EditorLine[], titleIndex: number): [number, number] {
+  const title = lines[titleIndex]
+  if (!title?.formatting?.sectionTitle) return [titleIndex, titleIndex]
+  const titleIndent = title.indentLevel
+  let end = titleIndex
+  for (let j = titleIndex + 1; j < lines.length; j++) {
+    const line = lines[j]
+    if (line?.formatting?.sectionTitle) break
+    if ((line?.indentLevel ?? 0) <= titleIndent) break
+    end = j
+  }
+  return [titleIndex, end]
 }
 
 /** 섹션 접힘으로 숨겨져야 하는 줄 인덱스 집합 */
@@ -10,28 +29,22 @@ export function computeSectionHiddenIndices(lines: EditorLine[]): Set<number> {
   const hidden = new Set<number>()
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (!ownsFollowingLines(line) || !line?.formatting?.sectionCollapsed) continue
-    for (let j = i + 1; j < lines.length; j++) {
-      if (lines[j]?.formatting?.sectionTitle) break
-      hidden.add(j)
-    }
+    if (!line?.formatting?.sectionTitle || !line.formatting.sectionCollapsed) continue
+    const [, end] = computeSectionBlockRange(lines, i)
+    for (let j = i + 1; j <= end; j++) hidden.add(j)
   }
   return hidden
 }
 
-/**
- * 섹션 타이틀 한 줄이 소유하는 블록 범위 [start, end] (둘 다 포함, 드래그 재정렬용).
- * `self-only` 이거나 섹션 타이틀이 아니면 자기 자신만 반환한다.
- */
-export function computeSectionBlockRange(lines: EditorLine[], titleIndex: number): [number, number] {
-  const line = lines[titleIndex]
-  if (!ownsFollowingLines(line)) return [titleIndex, titleIndex]
-  let end = titleIndex
-  for (let j = titleIndex + 1; j < lines.length; j++) {
-    if (lines[j]?.formatting?.sectionTitle) break
-    end = j
+/** `index` 가 속한 섹션의 타이틀 줄 인덱스 — 없으면 null (붙여넣기 들여쓰기 보정용) */
+export function findEnclosingSectionTitleIndex(lines: EditorLine[], index: number): number | null {
+  for (let k = index - 1; k >= 0; k--) {
+    if (lines[k]?.formatting?.sectionTitle) {
+      const [, end] = computeSectionBlockRange(lines, k)
+      return index <= end ? k : null
+    }
   }
-  return [titleIndex, end]
+  return null
 }
 
 /**

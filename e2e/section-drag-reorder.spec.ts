@@ -2,7 +2,7 @@
  * P3 (2/2) — 섹션 블록 드래그 재정렬 회귀 테스트.
  *
  * 섹션 타이틀 hover 손잡이(`.editor-section-drag-handle`)에서 드래그를 시작해
- * 섹션 블록(타이틀 + `until-next` 범위의 하위 줄) 전체를 다른 위치로 옮긴다.
+ * 섹션 블록(타이틀 + 타이틀보다 깊게 들여쓴 하위 줄) 전체를 다른 위치로 옮긴다.
  * 텍스트 선택 드래그와 겹치지 않도록 손잡이에서만 시작된다.
  */
 import { existsSync } from 'node:fs'
@@ -127,7 +127,7 @@ test.describe('섹션 드래그 재정렬', () => {
     }
   })
 
-  test('self-only 섹션은 그 줄만 옮겨지고 본문은 남는다', async () => {
+  test('들여쓰지 않은(본문 없는) 섹션은 그 줄만 옮겨지고 아래 내용은 남는다', async () => {
     const app = await launchSnapNote()
     try {
       const edit = await newEditWindow(app)
@@ -138,10 +138,11 @@ test.describe('섹션 드래그 재정렬', () => {
       await edit.keyboard.type('배너')
       await edit.keyboard.press('Control+`')
       await edit.waitForTimeout(150)
-      await edit.locator('.editor-section-scope-btn').click()
-      await edit.waitForTimeout(150)
       await edit.keyboard.press('Shift+Enter')
       await edit.keyboard.type('본문 1')
+      // 타이틀에서 Shift+Enter 로 만든 줄은 자동으로 들여써지므로, 섹션에 포함되지
+      // 않게 하려면 Shift+Tab 으로 다시 타이틀 레벨까지 내어쓴다
+      await edit.keyboard.press('Shift+Tab')
       await edit.keyboard.press('Shift+Enter')
       await edit.keyboard.type('본문 2')
       await edit.waitForTimeout(300)

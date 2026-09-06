@@ -66,9 +66,10 @@ import {
   clampDropIndexOutsideBlock,
   computeSectionBlockRange,
   computeSectionHiddenIndices,
+  findEnclosingSectionTitleIndex,
   moveSectionBlock,
   nextVisibleLineIndex
-} from './sectionFold'
+} from '@shared/sectionFold'
 import { IconCopyAll, IconSearchBarClose, IconSearchBarDown, IconSearchBarUp, IconToolbarHistory } from './toolbarIcons'
 import './editor.css'
 
@@ -2232,23 +2233,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     bumpToolbar()
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
-  /** 섹션 타이틀 배경색 — 선택 범위 안의 섹션 타이틀 줄에만 적용. 같은 색을 다시 고르면 기본색으로 되돌린다 */
+  /** 섹션 타이틀 배경색 — 타이틀 행의 색상 아이콘에서 직접 그 줄에만 적용. 같은 색을 다시 고르면 기본색으로 되돌린다 */
   const onPickSectionColor = useCallback(
-    (color: HighlightColor) => {
-      const indices: number[] = []
-      const sel = multiLineSelectionRef.current
-      if (sel && isVirtualRangeSelection(sel)) {
-        const norm = normalizeSelection(sel)
-        for (let li = norm.startLine; li <= norm.endLine; li++) indices.push(li)
-      } else {
-        indices.push(lastFocusIndex.current)
-      }
-      const first = indices[0]
-      if (first === undefined) return
-      pushUndoSnapshot(lines, first, textareaRefs.current[first]?.selectionStart ?? 0)
+    (index: number, color: HighlightColor) => {
+      pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
       setLines((prev) =>
         prev.map((l, i) => {
-          if (!indices.includes(i) || !l.formatting?.sectionTitle) return l
+          if (i !== index || !l.formatting?.sectionTitle) return l
           const formatting = { ...l.formatting }
           if (formatting.sectionColor === color) {
             delete formatting.sectionColor
@@ -2258,9 +2249,8 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           return { ...l, formatting }
         })
       )
-      bumpToolbar()
     },
-    [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot]
+    [lines, pushUndoSnapshot]
   )
 
   const handleSectionCollapsedToggle = useCallback(
@@ -2272,29 +2262,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           if (!l.formatting?.sectionTitle) return l
           const f = { ...(l.formatting ?? {}) }
           f.sectionCollapsed = !f.sectionCollapsed
-          return { ...l, formatting: f }
-        })
-      )
-    },
-    [lines, pushUndoSnapshot]
-  )
-
-  /** 섹션 범위 전환 (아래 줄 거느림 ↔ 이 줄만). self-only 로 바꾸면 접힘 상태도 의미가 없어 해제한다. */
-  const handleSectionScopeToggle = useCallback(
-    (index: number) => {
-      pushUndoSnapshot(lines, index, textareaRefs.current[index]?.selectionStart ?? 0)
-      setLines((prev) =>
-        prev.map((l, i) => {
-          if (i !== index) return l
-          if (!l.formatting?.sectionTitle) return l
-          const f = { ...(l.formatting ?? {}) }
-          const owning = f.sectionScope !== 'self-only'
-          if (owning) {
-            f.sectionScope = 'self-only'
-            f.sectionCollapsed = false
-          } else {
-            f.sectionScope = 'until-next'
-          }
           return { ...l, formatting: f }
         })
       )
@@ -2409,11 +2376,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     (index: number, start: number, end: number, imported: EditorLineModel[]) => {
       setMultiLineSelection(null)
       pushUndoSnapshot(linesRef.current, index, start)
-      const next = buildLinesFromImportedInsert(linesRef.current, index, start, end, imported)
-      const focusIndex =
-        imported.length === 1 && !isBlockMarkdownLine(imported[0]!)
-          ? index
-          : index + imported.length - 1
+      /** 섹션 본문 중간에 여러 줄을 붙여넣을 때, 새로 들어온 줄이 들여쓰기 0으로 들어와
+       *  그 지점에서 섹션이 조용히 끊기지 않도록 타이틀 기준 들여쓰기로 보정한다 */
+      const enclosingTitleIdx = findEnclosingSectionTitleIndex(linesRef.current, index)
+      const isSingleMerge = imported.length === 1 && !isBlockMarkdownLine(imported[0]!)
+      let next = buildLinesFromImportedInsert(linesRef.current, index, start, end, imported)
+      if (enclosingTitleIdx != null && !isSingleMerge) {
+        const titleIndent = linesRef.current[enclosingTitleIdx]?.indentLevel ?? 0
+        const minIndent = Math.min(MAX_INDENT, titleIndent + 1)
+        const rangeEnd = index + imported.length - 1
+        next = next.map((l, i) =>
+          i >= index && i <= rangeEnd && l.indentLevel <= titleIndent
+            ? { ...l, indentLevel: minIndent }
+            : l
+        )
+      }
+      const focusIndex = isSingleMerge ? index : index + imported.length - 1
       const focusLine = next[focusIndex]
       pendingFocusRef.current = { index: focusIndex, cursor: focusLine?.text.length ?? 0 }
       setLines(next)
@@ -2907,10 +2885,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           newLineFormatting.checkboxChecked = line.formatting!.checkboxChecked
         }
 
+        /**
+         * 셀(칸) 입력 모델의 섹션: 타이틀에서 Shift+Enter 로 만든 새 칸은 자동으로
+         * 한 단계 더 들여써져서 시작한다 — 그래야 처음부터 그 섹션에 속한다.
+         * 이미 섹션 본문(다른 줄)에서 만든 새 칸은 평소처럼 현재 들여쓰기를 물려받는다.
+         */
+        const newLineIndent = line.formatting?.sectionTitle
+          ? Math.min(MAX_INDENT, line.indentLevel + 1)
+          : line.indentLevel
+
         const newLine: EditorLineModel = {
           id: crypto.randomUUID(),
           text: newText,
-          indentLevel: line.indentLevel,
+          indentLevel: newLineIndent,
           formatting: newLineFormatting,
           spans: newText && rightSpans.length ? rightSpans : undefined
         }
@@ -3515,18 +3502,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                       : undefined
                   }
                   onToggleSectionCollapsed={
-                    line.formatting?.sectionTitle
+                    line.formatting?.sectionTitle &&
+                    computeSectionBlockRange(lines, index)[1] > index
                       ? () => handleSectionCollapsedToggle(index)
-                      : undefined
-                  }
-                  onToggleSectionScope={
-                    line.formatting?.sectionTitle
-                      ? () => handleSectionScopeToggle(index)
                       : undefined
                   }
                   onSectionDragStart={
                     line.formatting?.sectionTitle
                       ? (e) => onSectionDragHandlePointerDown(index, e)
+                      : undefined
+                  }
+                  onPickSectionColor={
+                    line.formatting?.sectionTitle
+                      ? (color) => onPickSectionColor(index, color)
                       : undefined
                   }
                 />
@@ -3612,8 +3600,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             onHeading={applyHeading}
             sectionTitleActive={Boolean(lines[focusLineIndex]?.formatting?.sectionTitle)}
             onToggleSectionTitle={toggleSectionTitle}
-            sectionColorActive={lines[focusLineIndex]?.formatting?.sectionColor}
-            onPickSectionColor={onPickSectionColor}
             compactActions={compactToolbarActions}
             symbolPaletteOpen={emojiPaletteOpen}
             onToggleSymbolPalette={toggleEmojiPalette}

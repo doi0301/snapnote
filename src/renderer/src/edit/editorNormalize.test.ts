@@ -20,4 +20,46 @@ describe('normalizeEditorLines', () => {
     ])
     expect(r[0].indentLevel).toBe(6)
   })
+
+  it('구버전 섹션(들여쓰기 0 본문) 을 새 규칙에 맞춰 자동으로 1단 들여쓰기한다', () => {
+    const r = normalizeEditorLines([
+      { id: 'a', text: 'Sec A', indentLevel: 0, formatting: { sectionTitle: true } },
+      { id: 'b', text: 'body 1', indentLevel: 0, formatting: {} },
+      { id: 'c', text: 'body 2', indentLevel: 0, formatting: {} },
+      { id: 'd', text: 'Sec B', indentLevel: 0, formatting: { sectionTitle: true } }
+    ])
+    expect(r.map((l) => l.indentLevel)).toEqual([0, 1, 1, 0])
+  })
+
+  it('마이그레이션은 멱등이다 (이미 들여쓰인 본문은 다시 건드리지 않는다)', () => {
+    const once = normalizeEditorLines([
+      { id: 'a', text: 'Sec A', indentLevel: 0, formatting: { sectionTitle: true } },
+      { id: 'b', text: 'body 1', indentLevel: 0, formatting: {} }
+    ])
+    const twice = normalizeEditorLines(once)
+    expect(twice.map((l) => l.indentLevel)).toEqual(once.map((l) => l.indentLevel))
+  })
+
+  it('구버전 self-only 섹션은 건드리지 않고, sectionScope 필드는 제거한다', () => {
+    const r = normalizeEditorLines([
+      {
+        id: 'a',
+        text: 'Sec A',
+        indentLevel: 0,
+        formatting: { sectionTitle: true, sectionScope: 'self-only' } as never
+      },
+      { id: 'b', text: 'body 1', indentLevel: 0, formatting: {} }
+    ])
+    expect(r[0]!.indentLevel).toBe(0)
+    expect(r[1]!.indentLevel).toBe(0)
+    expect((r[0]!.formatting as Record<string, unknown>).sectionScope).toBeUndefined()
+  })
+
+  it('이미 더 깊게 들여쓴 본문은 그대로 둔다', () => {
+    const r = normalizeEditorLines([
+      { id: 'a', text: 'Sec A', indentLevel: 1, formatting: { sectionTitle: true } },
+      { id: 'b', text: 'body 1', indentLevel: 3, formatting: {} }
+    ])
+    expect(r[1]!.indentLevel).toBe(3)
+  })
 })
