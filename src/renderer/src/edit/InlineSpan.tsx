@@ -31,20 +31,53 @@ function addEmojiBreakpoints(text: string, set: Set<number>): void {
   }
 }
 
-/** 본문 #키워드 뱃지 — 공백 단위로 1개 (#\S+) */
-const KEYWORD_BADGE_RE = /#[^\s#]+/g
+/**
+ * 본문 #키워드 뱃지 범위.
+ * '#' 다음 첫 글자는 반드시 공백이 아니어야 하고(외톨이 '#' 무시), 그 뒤로는
+ * 스페이스 1칸까지는 이어붙여 여러 단어 키워드를 허용한다. 스페이스 2번 연속,
+ * 또 다른 '#', 스페이스 외의 공백(줄바꿈·탭 등)을 만나면 그 지점에서 즉시 끊긴다.
+ */
+export function findKeywordRanges(text: string): Array<{ start: number; end: number }> {
+  /** 스페이스가 아니면서 공백 문자인 것 — 줄바꿈·탭 등. 이런 문자는 항상 즉시 끊는다 */
+  const isOtherWhitespace = (ch: string | undefined): boolean =>
+    ch !== undefined && ch !== ' ' && /\s/.test(ch)
+  const ranges: Array<{ start: number; end: number }> = []
+  let i = 0
+  while (i < text.length) {
+    const first = text[i + 1]
+    const startsBadge =
+      text[i] === '#' && first !== undefined && first !== '#' && first !== ' ' && !isOtherWhitespace(first)
+    if (!startsBadge) {
+      i++
+      continue
+    }
+    let j = i + 1
+    while (j < text.length) {
+      const ch = text[j]!
+      if (ch === '#' || isOtherWhitespace(ch)) break
+      if (ch === ' ') {
+        if (text[j + 1] === ' ') break
+        j++
+        continue
+      }
+      j++
+    }
+    ranges.push({ start: i, end: j })
+    i = j
+  }
+  return ranges
+}
 
 function addKeywordBreakpoints(text: string, set: Set<number>): void {
-  KEYWORD_BADGE_RE.lastIndex = 0
-  let m: RegExpExecArray | null
-  while ((m = KEYWORD_BADGE_RE.exec(text)) !== null) {
-    set.add(m.index)
-    set.add(m.index + m[0].length)
+  for (const r of findKeywordRanges(text)) {
+    set.add(r.start)
+    set.add(r.end)
   }
 }
 
 function isKeywordBadge(slice: string): boolean {
-  return /^#[^\s#]+$/.test(slice)
+  const ranges = findKeywordRanges(slice)
+  return ranges.length === 1 && ranges[0]!.start === 0 && ranges[0]!.end === slice.length
 }
 
 function isEmojiOnly(slice: string): boolean {
