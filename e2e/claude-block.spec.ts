@@ -256,3 +256,52 @@ test.describe('블록 삭제', () => {
     }
   })
 })
+
+test.describe('섹션 하위 중첩 (P6)', () => {
+  test('섹션 하위에서도 /클로드 가 동작하고, 섹션을 접으면 블록이 함께 숨는다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+
+      // 섹션 타이틀을 만들고 그 아래 들여쓴 칸에서 /클로드
+      const first = edit.locator('.editor-line-textarea').first()
+      await first.click()
+      await first.fill('섹션 A')
+      await edit.keyboard.press('Control+`')
+      await edit.keyboard.press('Shift+Enter') // 섹션 타이틀 아래 → 자동 +1 들여쓰기
+      await edit.keyboard.type('/클로드')
+      await edit.waitForTimeout(400)
+
+      await expect(edit.locator('.editor-claude-block-icon')).toHaveCount(1)
+
+      // 섹션 접기 → 클로드 블록 줄들이 DOM 에서 사라진다
+      const beforeFold = (await lineValues(edit)).length
+      await edit.locator('.editor-line--section-title .editor-section-fold-btn').first().click()
+      await edit.waitForTimeout(300)
+      const afterFold = (await lineValues(edit)).length
+      expect(afterFold).toBeLessThan(beforeFold)
+      await expect(edit.locator('.editor-claude-block-icon')).toHaveCount(0)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('클로드 블록 안에서는 /클로드 가 중첩 블록을 만들지 않는다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
+
+      // 블록 안 내용 칸으로 이동해 /클로드 를 다시 친다
+      await edit.locator('.editor-line-textarea').nth(3).click()
+      await edit.keyboard.type('/클로드')
+      await edit.waitForTimeout(300)
+
+      await expect(edit.locator('.editor-claude-block-icon')).toHaveCount(1)
+      expect(await edit.locator('.editor-line-textarea').nth(3).inputValue()).toBe('/클로드')
+    } finally {
+      await app.close()
+    }
+  })
+})

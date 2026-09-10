@@ -46,6 +46,9 @@ async function setupTwoSections(page: Page): Promise<void> {
   await page.keyboard.press('Shift+Enter')
   await page.keyboard.type('A 본문 2')
   await page.keyboard.press('Shift+Enter')
+  // 섹션 본문 아래에서는 Shift+Enter 가 자동으로 들여쓰므로, 형제 섹션으로 만들려면
+  // 들여쓰기를 타이틀과 같은 단계로 되돌린다 (P6 부터 더 깊은 섹션은 자식이 된다)
+  await page.keyboard.press('Shift+Tab')
   await page.keyboard.type('섹션 B')
   await page.keyboard.press('Control+`')
   await page.waitForTimeout(150)

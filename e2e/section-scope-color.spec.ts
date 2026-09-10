@@ -101,7 +101,7 @@ test.describe('섹션 범위 (들여쓰기 기반)', () => {
     }
   })
 
-  test('다음 섹션 타이틀은 들여쓰기와 무관하게 항상 범위를 끊는다 (중첩 없음)', async () => {
+  test('더 깊게 들여쓴 섹션 타이틀은 자식이 되어 함께 접힌다 (P6 중첩)', async () => {
     const app = await launchSnapNote()
     try {
       const edit = await newEditWindow(app)
@@ -110,13 +110,36 @@ test.describe('섹션 범위 (들여쓰기 기반)', () => {
       await edit.keyboard.type('본문 A')
       await edit.keyboard.press('Shift+Enter')
       await edit.keyboard.type('섹션 B')
-      await edit.keyboard.press('Tab') // 일부러 A의 본문보다 더 깊게 들여씀
+      await edit.keyboard.press('Tab') // A 의 본문보다 더 깊게 들여씀 → A 의 자식 섹션
       await edit.keyboard.press('Control+`')
       await edit.waitForTimeout(200)
 
       expect(await indentLevels(edit)).toEqual([0, 1, 2])
 
-      // 섹션 A(index 0)를 접어도 섹션 B 타이틀(index 2)은 숨지 않는다
+      // 섹션 A(index 0)를 접으면 자식 섹션 B(index 2)까지 숨는다
+      await edit.locator('.editor-section-fold-btn').first().click()
+      await edit.waitForTimeout(200)
+      expect(await lineValues(edit)).toEqual(['섹션 A'])
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('같은 들여쓰기의 다음 섹션 타이틀에서는 범위가 끊긴다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await makeSectionTitle(edit)
+      await edit.keyboard.press('Shift+Enter')
+      await edit.keyboard.type('본문 A')
+      await edit.keyboard.press('Shift+Enter')
+      await edit.keyboard.press('Shift+Tab') // 타이틀과 같은 단계로 되돌린다 → 형제 섹션
+      await edit.keyboard.type('섹션 B')
+      await edit.keyboard.press('Control+`')
+      await edit.waitForTimeout(200)
+
+      expect(await indentLevels(edit)).toEqual([0, 1, 0])
+
       await edit.locator('.editor-section-fold-btn').first().click()
       await edit.waitForTimeout(200)
       expect(await lineValues(edit)).toEqual(['섹션 A', '섹션 B'])

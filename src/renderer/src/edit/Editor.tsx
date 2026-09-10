@@ -73,6 +73,7 @@ import {
   clampDropIndexOutsideBlock,
   computeSectionBlockRange,
   computeSectionHiddenIndices,
+  findEnclosingClaudeBlockIndex,
   findEnclosingSectionTitleIndex,
   isBlockHeader,
   moveSectionBlock,
@@ -1428,9 +1429,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         }
 
         /**
-         * `/클로드` 만 입력하면 그 칸을 클로드 블록 헤더로 바꾸고 빈 템플릿(첨부·명령)
-         * 슬롯을 깐 뒤, 다른 템플릿을 고를 수 있는 드롭다운을 연다. 블록 안에서는
-         * 중첩을 막기 위해 트리거하지 않는다 (기획서 9-2).
+         * `/클로드` 만 입력하면 그 칸을 클로드 블록 헤더로 바꾸고 기본 슬롯을 깐다.
+         * 섹션 하위에는 넣을 수 있고(P6), 클로드 블록 안에서만 중첩을 막는다 —
+         * 블록 안에 블록이 있으면 프롬프트 조립이 무의미해지기 때문이다.
          */
         const cur = lines[index]
         if (
@@ -1439,7 +1440,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           cur &&
           !isBlockHeader(cur) &&
           !cur.formatting?.claudeSlot &&
-          findEnclosingSectionTitleIndex(lines, index) === null
+          findEnclosingClaudeBlockIndex(lines, index) === null
         ) {
           const built = buildClaudeBlockLines('', cur.indentLevel)
           pendingFocusRef.current = { index: index + 2, cursor: 0 }
