@@ -2,9 +2,10 @@ import type { EditorLine } from './types'
 
 /**
  * 섹션/클로드 블록 공통 소속 규칙 (들여쓰기 기반): 헤더보다 들여쓰기가 깊은 줄들이
- * 연속되는 동안만 그 헤더에 속한다. 다음 헤더를 만나거나(들여쓰기와 무관하게 항상
- * 끊김 — 중첩 없음), 들여쓰기가 헤더와 같거나 얕아지면(Shift+Tab 등) 그 줄부터는
- * 소속에서 빠진다. "헤더"는 섹션 타이틀(`sectionTitle`)과 클로드 블록(`claudeBlock`)
+ * 연속되는 동안만 그 헤더에 속한다. 나보다 얕거나 같은 들여쓰기의 헤더를 만나거나,
+ * 들여쓰기가 헤더와 같거나 얕아지면(Shift+Tab 등) 그 줄부터는 소속에서 빠진다.
+ * 더 깊게 들여쓴 헤더는 자식으로 품는다 — 섹션 하위 클로드 블록이 이 경우다.
+ * "헤더"는 섹션 타이틀(`sectionTitle`)과 클로드 블록(`claudeBlock`)
  * 둘 다를 가리키며, 둘은 완전히 같은 알고리즘을 공유한다.
  */
 
@@ -24,7 +25,7 @@ export function computeSectionBlockRange(lines: EditorLine[], titleIndex: number
   let end = titleIndex
   for (let j = titleIndex + 1; j < lines.length; j++) {
     const line = lines[j]
-    if (isBlockHeader(line)) break
+    if (isBlockHeader(line) && (line?.indentLevel ?? 0) <= titleIndent) break
     if ((line?.indentLevel ?? 0) <= titleIndent) break
     end = j
   }
@@ -43,13 +44,28 @@ export function computeSectionHiddenIndices(lines: EditorLine[]): Set<number> {
   return hidden
 }
 
-/** `index` 가 속한 헤더(섹션/클로드 블록)의 줄 인덱스 — 없으면 null (붙여넣기 들여쓰기 보정용) */
+/**
+ * `index` 를 감싸는 가장 안쪽 헤더(섹션/클로드 블록)의 줄 인덱스 — 없으면 null.
+ * 범위 밖인 헤더를 만나도 멈추지 않고 바깥으로 계속 스캔한다 (중첩 대응).
+ */
 export function findEnclosingSectionTitleIndex(lines: EditorLine[], index: number): number | null {
   for (let k = index - 1; k >= 0; k--) {
-    if (isBlockHeader(lines[k])) {
-      const [, end] = computeSectionBlockRange(lines, k)
-      return index <= end ? k : null
-    }
+    if (!isBlockHeader(lines[k])) continue
+    const [, end] = computeSectionBlockRange(lines, k)
+    if (index <= end) return k
+  }
+  return null
+}
+
+/**
+ * `index` 를 감싸는 가장 안쪽 **클로드 블록** 헤더의 줄 인덱스 — 없으면 null.
+ * 섹션 헤더는 무시한다. `/클로드` 중첩 금지 판정과 슬롯 승격 판정에 쓴다.
+ */
+export function findEnclosingClaudeBlockIndex(lines: EditorLine[], index: number): number | null {
+  for (let k = index - 1; k >= 0; k--) {
+    if (!lines[k]?.formatting?.claudeBlock) continue
+    const [, end] = computeSectionBlockRange(lines, k)
+    if (index <= end) return k
   }
   return null
 }

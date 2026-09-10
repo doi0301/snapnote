@@ -4,6 +4,7 @@ import {
   clampDropIndexOutsideBlock,
   computeSectionBlockRange,
   computeSectionHiddenIndices,
+  findEnclosingClaudeBlockIndex,
   findEnclosingSectionTitleIndex,
   isBlockHeader,
   moveSectionBlock,
@@ -32,15 +33,16 @@ describe('section fold (들여쓰기 기반)', () => {
     expect([...hidden].sort()).toEqual([1, 2])
   })
 
-  it('always stops at the next section title regardless of its indent (no nesting)', () => {
+  it('더 깊게 들여쓴 헤더는 자식으로 품고, 같거나 얕은 헤더에서 끊긴다', () => {
     const lines = [
       line('a', 'Sec A', { sectionTitle: true, sectionCollapsed: true, accentBar: 'blue' }, 0),
       line('b', 'body 1', {}, 1),
       line('c', 'Sec B (더 깊게 들여씀)', { sectionTitle: true, accentBar: 'blue' }, 2),
       line('d', 'body of B', {}, 3)
     ]
+    expect(computeSectionBlockRange(lines, 0)).toEqual([0, 3])
     const hidden = computeSectionHiddenIndices(lines)
-    expect([...hidden].sort()).toEqual([1])
+    expect([...hidden].sort((x, y) => x - y)).toEqual([1, 2, 3])
   })
 
   it('does not hide when section is expanded', () => {
@@ -169,13 +171,20 @@ describe('section fold (들여쓰기 기반)', () => {
       expect(computeSectionBlockRange(lines, 0)).toEqual([0, 4])
     })
 
-    it('a claude block always stops at the next header (section title or another claude block), no nesting', () => {
-      const lines = [
+    it('클로드 블록도 같은 규칙 — 얕거나 같은 헤더에서 끊기고, 더 깊은 헤더는 품는다', () => {
+      const deeper = [
         line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
         line('sec', 'Sec B (더 깊게 들여씀)', { sectionTitle: true }, 2)
       ]
-      expect(computeSectionBlockRange(lines, 0)).toEqual([0, 1])
+      expect(computeSectionBlockRange(deeper, 0)).toEqual([0, 2])
+
+      const sameLevel = [
+        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
+        line('sec', 'Sec B (같은 들여쓰기)', { sectionTitle: true }, 0)
+      ]
+      expect(computeSectionBlockRange(sameLevel, 0)).toEqual([0, 1])
     })
 
     it('collapsing a claude block hides its slots and content via the shared sectionCollapsed field', () => {
@@ -201,5 +210,63 @@ describe('section fold (들여쓰기 기반)', () => {
       expect(findEnclosingSectionTitleIndex(lines, 1)).toBe(0)
       expect(findEnclosingSectionTitleIndex(lines, 2)).toBe(0)
     })
+  })
+})
+
+describe('중첩 (섹션 > 클로드 블록)', () => {
+  /** 섹션(0) > 클로드 블록(1) > 슬롯(2) > 내용(3) > 섹션으로 복귀한 줄(1) */
+  const nested = (): EditorLine[] => [
+    line('sec', '섹션 A', { sectionTitle: true, accentBar: 'blue' }, 0),
+    line('s-body', '섹션 본문', {}, 1),
+    line(
+      'cb',
+      '클로드 블록',
+      { claudeBlock: { templateId: 'blank', status: 'draft' }, accentBar: 'blue' },
+      1
+    ),
+    line('slot', '{명령}', { claudeSlot: '명령' }, 2),
+    line('content', '고쳐줘', {}, 3),
+    line('after', '블록 뒤 섹션 본문', {}, 1),
+    line('top', '최상위로 복귀', {}, 0)
+  ]
+
+  it('섹션 범위가 더 깊게 들여쓴 클로드 블록을 품는다', () => {
+    expect(computeSectionBlockRange(nested(), 0)).toEqual([0, 5])
+  })
+
+  it('클로드 블록 범위는 자기 슬롯·내용까지만이다', () => {
+    expect(computeSectionBlockRange(nested(), 2)).toEqual([2, 4])
+  })
+
+  it('같거나 얕은 들여쓰기의 헤더에서는 여전히 끊긴다', () => {
+    const lines = [
+      line('a', '섹션 A', { sectionTitle: true }, 0),
+      line('b', '본문', {}, 1),
+      line('c', '섹션 B', { sectionTitle: true }, 0),
+      line('d', 'B 본문', {}, 1)
+    ]
+    expect(computeSectionBlockRange(lines, 0)).toEqual([0, 1])
+  })
+
+  it('섹션을 접으면 안의 클로드 블록까지 전부 숨는다', () => {
+    const lines = nested()
+    lines[0] = { ...lines[0]!, formatting: { ...lines[0]!.formatting, sectionCollapsed: true } }
+    const hidden = computeSectionHiddenIndices(lines)
+    expect([...hidden].sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('끝난 클로드 블록 뒤의 줄도 바깥 섹션 소속으로 잡는다', () => {
+    // index 5 = '블록 뒤 섹션 본문' — 역방향 첫 헤더인 클로드 블록(2)의 범위 밖이지만
+    // 거기서 멈추지 말고 바깥으로 계속 스캔해 섹션(0)을 찾아야 한다
+    expect(findEnclosingSectionTitleIndex(nested(), 5)).toBe(0)
+  })
+
+  it('클로드 블록 내부는 가장 안쪽 클로드 블록 헤더를 돌려준다', () => {
+    expect(findEnclosingClaudeBlockIndex(nested(), 4)).toBe(2)
+  })
+
+  it('섹션 안이지만 클로드 블록 밖이면 클로드 헤더가 없다고 답한다', () => {
+    expect(findEnclosingClaudeBlockIndex(nested(), 1)).toBeNull()
+    expect(findEnclosingClaudeBlockIndex(nested(), 5)).toBeNull()
   })
 })
