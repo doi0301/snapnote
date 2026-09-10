@@ -305,3 +305,50 @@ test.describe('섹션 하위 중첩 (P6)', () => {
     }
   })
 })
+
+test.describe('슬롯 이름 편집 (P6)', () => {
+  test('슬롯 이름을 바꾸면 [복사] 출력에 새 이름이 나간다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
+
+      const ta = (i: number) => edit.locator('.editor-line-textarea').nth(i)
+      await ta(4).click()
+      await ta(4).fill('{자료}')
+      await ta(5).click()
+      await ta(5).fill('스크린샷 3장')
+      await edit.waitForTimeout(200)
+
+      await edit.locator('.editor-claude-copy-btn').first().click()
+      await edit.waitForTimeout(300)
+
+      const copied = await edit.evaluate(() => navigator.clipboard.readText())
+      expect(copied).toContain('{자료}')
+      expect(copied).not.toContain('{첨부}')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('슬롯 라벨이 중괄호 형태를 벗어나면 슬롯이 해제된다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
+
+      expect(await edit.locator('.editor-line--claude-slot').count()).toBe(2)
+
+      const ta = (i: number) => edit.locator('.editor-line-textarea').nth(i)
+      await ta(4).click()
+      await ta(4).fill('그냥 텍스트')
+      await edit.waitForTimeout(200)
+
+      expect(await edit.locator('.editor-line--claude-slot').count()).toBe(1)
+    } finally {
+      await app.close()
+    }
+  })
+})

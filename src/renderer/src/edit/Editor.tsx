@@ -24,7 +24,8 @@ import { keycapDisplayChar } from '@shared/keycapChar'
 import {
   CLAUDE_DEFAULT_SLOT_NAMES,
   CLAUDE_FOLLOWUP_SLOT_NAME,
-  slotLabelText
+  slotLabelText,
+  slotNameFromLabelText
 } from '@shared/claudeBlock'
 import { exportClaudeBlockToText } from '@shared/claudeBlockExport'
 import { looksLikeMarkdown, parseMarkdownToEditorLines } from '@shared/memoMarkdownImport'
@@ -188,6 +189,9 @@ function isBlockMarkdownLine(line: EditorLineModel): boolean {
     f.hasCheckbox || f.headingLevel || f.hasDivider || f.isTable || line.indentLevel > 0
   )
 }
+
+/** 슬롯 라벨 줄로 인정하는 텍스트 — 앞뒤 공백 허용, 중괄호 안에 중괄호는 불가 */
+const SLOT_LABEL_RE = /^\s*\{[^{}]+\}\s*$/
 
 /** 클로드 블록 헤더 한 줄 + 기본 슬롯(라벨+빈 내용 줄) 쌍들을 만든다 (P6) */
 function buildClaudeBlockLines(headerText: string, headerIndent: number): EditorLineModel[] {
@@ -1465,7 +1469,22 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
             spans = addBoldOnRange(spans, ins, ins + 1)
           }
         }
-        return prev.map((l, i) => (i === index ? { ...l, text: newT, spans } : l))
+        /**
+         * 슬롯 라벨 줄을 고치면 `claudeSlot` 을 다시 뽑아 동기화한다 (P6).
+         * `{...}` 형태를 벗어나면 슬롯을 해제해 평범한 텍스트 줄로 되돌린다 —
+         * 슬롯 삭제 UI 를 따로 두지 않아도 되는 자연스러운 경로다.
+         */
+        let formatting = line.formatting
+        if (formatting?.claudeSlot) {
+          const nextSlot = SLOT_LABEL_RE.test(newT) ? slotNameFromLabelText(newT) : null
+          if (nextSlot !== formatting.claudeSlot) {
+            const nextFmt = { ...formatting }
+            if (nextSlot) nextFmt.claudeSlot = nextSlot
+            else delete nextFmt.claudeSlot
+            formatting = nextFmt
+          }
+        }
+        return prev.map((l, i) => (i === index ? { ...l, text: newT, spans, formatting } : l))
       })
     },
     [lines]
