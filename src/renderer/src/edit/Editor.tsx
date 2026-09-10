@@ -19,6 +19,7 @@ import type {
   MemoId,
   TextSpan
 } from '@shared/types'
+import type { SectionStatus } from '@shared/sectionStatus'
 import { tryExpandTodayMacro } from '@shared/dateMacro'
 import { keycapDisplayChar } from '@shared/keycapChar'
 import {
@@ -2352,6 +2353,19 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     bumpToolbar()
   }, [bumpToolbar, lines, normalizeSelection, pushUndoSnapshot])
 
+  /** 섹션 진행상태 선택 — undefined 면 미지정으로 되돌린다 (P6) */
+  const onPickSectionStatus = useCallback((index: number, status: SectionStatus | undefined) => {
+    setLines((prev) =>
+      prev.map((l, i) => {
+        if (i !== index || !l.formatting?.sectionTitle) return l
+        const formatting = { ...l.formatting }
+        if (status) formatting.sectionStatus = status
+        else delete formatting.sectionStatus
+        return { ...l, formatting }
+      })
+    )
+  }, [])
+
   /** 섹션 타이틀 배경색 — 타이틀 행의 색상 아이콘에서 직접 그 줄에만 적용. 같은 색을 다시 고르면 기본색으로 되돌린다 */
   const onPickSectionColor = useCallback(
     (index: number, color: HighlightColor) => {
@@ -3732,6 +3746,11 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   onPickSectionColor={
                     line.formatting?.sectionTitle
                       ? (color) => onPickSectionColor(index, color)
+                      : undefined
+                  }
+                  onPickSectionStatus={
+                    line.formatting?.sectionTitle
+                      ? (status) => onPickSectionStatus(index, status)
                       : undefined
                   }
                   onPickClaudeStatus={

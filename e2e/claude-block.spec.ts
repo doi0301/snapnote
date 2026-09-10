@@ -135,18 +135,18 @@ test.describe('진행상태', () => {
       await triggerClaudeBlock(edit)
       await edit.waitForTimeout(300)
 
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('작성중')
+      await expect(edit.locator('.editor-status-btn')).toContainText('작성중')
 
-      await edit.locator('.editor-claude-status-btn').click()
-      await edit.locator('.editor-claude-status-option', { hasText: '답변검토' }).click()
+      await edit.locator('.editor-status-btn').click()
+      await edit.locator('.editor-status-option', { hasText: '답변검토' }).click()
       await edit.waitForTimeout(150)
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('답변검토')
+      await expect(edit.locator('.editor-status-btn')).toContainText('답변검토')
 
       // 순서 강제 없이 바로 종료로도 전환 가능
-      await edit.locator('.editor-claude-status-btn').click()
-      await edit.locator('.editor-claude-status-option', { hasText: '종료' }).click()
+      await edit.locator('.editor-status-btn').click()
+      await edit.locator('.editor-status-option', { hasText: '종료' }).click()
       await edit.waitForTimeout(150)
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('종료')
+      await expect(edit.locator('.editor-status-btn')).toContainText('종료')
     } finally {
       await app.close()
     }
@@ -159,8 +159,8 @@ test.describe('진행상태', () => {
       await triggerClaudeBlock(edit)
       await edit.waitForTimeout(300)
 
-      await edit.locator('.editor-claude-status-btn').click()
-      await edit.locator('.editor-claude-status-option', { hasText: '추가질문' }).click()
+      await edit.locator('.editor-status-btn').click()
+      await edit.locator('.editor-status-option', { hasText: '추가질문' }).click()
       await edit.waitForTimeout(200)
 
       expect(await lineValues(edit)).toEqual([
@@ -197,7 +197,7 @@ test.describe('[복사]', () => {
       await ta(5).fill('최신 기획안 ppt')
       await edit.waitForTimeout(150)
 
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('작성중')
+      await expect(edit.locator('.editor-status-btn')).toContainText('작성중')
       await edit.locator('.editor-claude-copy-btn').click()
       await edit.waitForTimeout(300)
 
@@ -205,7 +205,7 @@ test.describe('[복사]', () => {
       expect(clip).toBe(
         ['{명령}', '9/2 미팅 수정사항 정리', '', '{첨부}', '최신 기획안 ppt'].join('\n')
       )
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('질문완료')
+      await expect(edit.locator('.editor-status-btn')).toContainText('질문완료')
     } finally {
       await app.close()
     }
@@ -218,14 +218,14 @@ test.describe('[복사]', () => {
       await triggerClaudeBlock(edit)
       await edit.waitForTimeout(300)
 
-      await edit.locator('.editor-claude-status-btn').click()
-      await edit.locator('.editor-claude-status-option', { hasText: '종료' }).click()
+      await edit.locator('.editor-status-btn').click()
+      await edit.locator('.editor-status-option', { hasText: '종료' }).click()
       await edit.waitForTimeout(150)
 
       await edit.locator('.editor-claude-copy-btn').click()
       await edit.waitForTimeout(300)
 
-      await expect(edit.locator('.editor-claude-status-btn')).toContainText('종료')
+      await expect(edit.locator('.editor-status-btn')).toContainText('종료')
     } finally {
       await app.close()
     }

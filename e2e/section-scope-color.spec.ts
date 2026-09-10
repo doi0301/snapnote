@@ -245,3 +245,42 @@ test.describe('섹션 색상', () => {
     }
   })
 })
+
+test.describe('섹션 상태 (P6)', () => {
+  test('섹션 상태 배지를 지정하고 다시 지울 수 있다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await makeSectionTitle(edit)
+      await edit.waitForTimeout(200)
+
+      const badge = edit.locator('.editor-line--section-title .editor-status-btn').first()
+      await badge.click()
+      await edit.getByRole('menuitem', { name: /진행중/ }).click()
+      await edit.waitForTimeout(200)
+      await expect(badge).toHaveText(/진행중/)
+
+      await badge.click()
+      await edit.getByRole('menuitem', { name: '상태 지우기' }).click()
+      await edit.waitForTimeout(200)
+      await expect(badge).toHaveText(/상태/)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('섹션이 아닌 줄에는 상태 배지가 없다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      const first = edit.locator('.editor-line-textarea').first()
+      await first.click()
+      await first.fill('보통 줄')
+      await edit.waitForTimeout(200)
+
+      expect(await edit.locator('.editor-status-btn').count()).toBe(0)
+    } finally {
+      await app.close()
+    }
+  })
+})

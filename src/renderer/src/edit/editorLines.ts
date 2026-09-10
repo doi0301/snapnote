@@ -25,6 +25,15 @@ function normalizeAccentBar(line: EditorLineModel): EditorLineModel {
 }
 
 const VALID_CLAUDE_STATUSES = new Set(['draft', 'sent', 'review', 'followup', 'done'])
+const VALID_SECTION_STATUSES = new Set(['todo', 'doing', 'hold', 'done'])
+
+/** sectionStatus 는 섹션 타이틀 줄에서만, 정해진 값만 유지한다 (P6) */
+function normalizeSectionStatus(formatting: Record<string, unknown>): void {
+  const s = formatting.sectionStatus
+  if (!formatting.sectionTitle || typeof s !== 'string' || !VALID_SECTION_STATUSES.has(s)) {
+    delete formatting.sectionStatus
+  }
+}
 
 /** 알 수 없는 status 는 draft 로 폴백. 구버전 templateId 는 조용히 버린다 (P6) */
 function normalizeClaudeBlock(formatting: Record<string, unknown>): void {
@@ -54,6 +63,7 @@ function normalizeSectionTitle(line: EditorLineModel): EditorLineModel {
   if (!formatting.sectionTitle) delete formatting.sectionTitle
   normalizeClaudeBlock(formatting)
   normalizeClaudeSlot(formatting)
+  normalizeSectionStatus(formatting)
   const isHeader = Boolean(formatting.sectionTitle) || Boolean(formatting.claudeBlock)
   if (!isHeader || !formatting.sectionCollapsed) delete formatting.sectionCollapsed
   return { ...line, formatting }

@@ -618,7 +618,7 @@
   color: #18181b;
 }
 
-.editor-claude-status-wrap {
+.editor-status-wrap {
   position: absolute;
   top: 50%;
   right: 62px;
@@ -626,7 +626,7 @@
   z-index: 3;
 }
 
-.editor-claude-status-btn {
+.editor-status-btn {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -643,11 +643,11 @@
   -webkit-app-region: no-drag;
 }
 
-.editor-claude-status-btn:hover {
+.editor-status-btn:hover {
   border-color: rgba(0, 0, 0, 0.3);
 }
 
-.editor-claude-status-popover {
+.editor-status-popover {
   position: absolute;
   top: 26px;
   right: 0;
@@ -662,7 +662,7 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
-.editor-claude-status-option {
+.editor-status-option {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -677,12 +677,29 @@
   white-space: nowrap;
 }
 
-.editor-claude-status-option:hover {
+.editor-status-option:hover {
   background: rgba(0, 0, 0, 0.06);
 }
 
-.editor-claude-status-option--current {
+.editor-status-option--current {
   background: rgba(37, 99, 235, 0.12);
   font-weight: 600;
 }
 
+
+/* 미지정 섹션 상태 — 평소엔 거의 안 보이고 줄에 호버할 때만 드러난다 (P6) */
+.editor-status-btn--empty {
+  opacity: 0;
+  color: rgba(100, 116, 139, 0.9);
+  transition: opacity 120ms ease;
+}
+
+.editor-line:hover .editor-status-btn--empty,
+.editor-status-btn--empty[aria-expanded='true'] {
+  opacity: 0.7;
+}
+
+.editor-status-option--clear {
+  border-top: 1px solid rgba(148, 163, 184, 0.28);
+  color: rgba(100, 116, 139, 0.95);
+}

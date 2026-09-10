@@ -139,3 +139,36 @@ describe('로드 경로는 들여쓰기를 마이그레이션하지 않는다 (P
     expect((out[0]!.formatting as Record<string, unknown>).sectionScope).toBeUndefined()
   })
 })
+
+describe('sectionStatus 정규화 (P6)', () => {
+  it('섹션 타이틀이 아닌 줄의 sectionStatus 는 버린다', () => {
+    const out = normalizeEditorLines([
+      { id: 'a', text: '보통 줄', indentLevel: 0, formatting: { sectionStatus: 'doing' } as never }
+    ])
+    expect(out[0]!.formatting.sectionStatus).toBeUndefined()
+  })
+
+  it('알 수 없는 값은 버린다', () => {
+    const out = normalizeEditorLines([
+      {
+        id: 'a',
+        text: '섹션',
+        indentLevel: 0,
+        formatting: { sectionTitle: true, sectionStatus: 'nope' } as never
+      }
+    ])
+    expect(out[0]!.formatting.sectionStatus).toBeUndefined()
+  })
+
+  it('섹션 타이틀의 정상 값은 유지한다', () => {
+    const out = normalizeEditorLines([
+      {
+        id: 'a',
+        text: '섹션',
+        indentLevel: 0,
+        formatting: { sectionTitle: true, sectionStatus: 'hold' } as never
+      }
+    ])
+    expect(out[0]!.formatting.sectionStatus).toBe('hold')
+  })
+})

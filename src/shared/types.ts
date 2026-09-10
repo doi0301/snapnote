@@ -1,3 +1,5 @@
+import type { SectionStatus } from './sectionStatus'
+
 /**
  * SnapNote 공유 타입 (SRD DR-01~03, TRD §3.2 정합)
  */
@@ -11,6 +13,9 @@ export type AccentBarKind = 'blue' | 'teal' | 'orange'
 
 /** 클로드 블록 진행상태 (P5) */
 export type ClaudeBlockStatus = 'draft' | 'sent' | 'review' | 'followup' | 'done'
+
+/** 섹션 진행상태 (P6) — 정의는 sectionStatus.ts, 여기서는 재수출만 한다 */
+export type { SectionStatus } from './sectionStatus'
 
 /** 인라인 서식 구간 */
 export interface TextSpan {
@@ -45,6 +50,8 @@ export interface LineFormatting {
   sectionCollapsed?: boolean
   /** 섹션 타이틀 행 배경색 — 하이라이트 팔레트 재사용. 미지정 시 기본(파랑 톤) */
   sectionColor?: HighlightColor
+  /** 섹션 진행상태 (P6). 미지정이면 배지를 그리지 않는다 */
+  sectionStatus?: SectionStatus
   /** 클로드 블록 헤더 (P5) — 섹션과 동일한 들여쓰기 기반 소속 판정을 공유한다.
    *  P6 에서 templateId 를 제거하고 상태만 남겼다 (템플릿 폐기, 슬롯 조립식) */
   claudeBlock?: { status: ClaudeBlockStatus }

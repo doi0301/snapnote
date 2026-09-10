@@ -12,6 +12,9 @@ import type { ClaudeBlockStatus, EditorLine as EditorLineModel, HighlightColor }
 import { isBlockHeader } from '@shared/sectionFold'
 import type { ClaudeBoxPos } from '@shared/claudeBlock'
 import { CLAUDE_STATUS_META, CLAUDE_STATUS_ORDER } from '@shared/claudeBlock'
+import type { SectionStatus } from '@shared/sectionStatus'
+import { SECTION_STATUS_META, SECTION_STATUS_ORDER } from '@shared/sectionStatus'
+import { StatusBadge } from './StatusBadge'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
@@ -94,67 +97,6 @@ function SectionColorPicker(props: {
   )
 }
 
-/** 클로드 블록 진행상태 배지 + 드롭다운 (P5) */
-function ClaudeStatusBadge(props: {
-  status: ClaudeBlockStatus
-  onPick: (status: ClaudeBlockStatus) => void
-}): React.JSX.Element {
-  const { status, onPick } = props
-  const [open, setOpen] = useState(false)
-  const meta = CLAUDE_STATUS_META[status]
-
-  useEffect(() => {
-    if (!open) return
-    const onDocDown = (ev: MouseEvent): void => {
-      const el = ev.target as Element | null
-      if (el?.closest('.editor-claude-status-popover') || el?.closest('.editor-claude-status-btn')) {
-        return
-      }
-      setOpen(false)
-    }
-    const id = window.setTimeout(() => document.addEventListener('mousedown', onDocDown), 0)
-    return () => {
-      window.clearTimeout(id)
-      document.removeEventListener('mousedown', onDocDown)
-    }
-  }, [open])
-
-  return (
-    <div className="editor-claude-status-wrap">
-      <button
-        type="button"
-        className="editor-claude-status-btn"
-        title="진행상태"
-        aria-label={`진행상태: ${meta.label}`}
-        aria-expanded={open}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {meta.emoji} {meta.label} <span aria-hidden>▾</span>
-      </button>
-      {open ? (
-        <div className="editor-claude-status-popover" role="menu" aria-label="진행상태 선택">
-          {CLAUDE_STATUS_ORDER.map((s) => (
-            <button
-              key={s}
-              type="button"
-              role="menuitem"
-              className={`editor-claude-status-option${s === status ? ' editor-claude-status-option--current' : ''}`}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onPick(s)
-                setOpen(false)
-              }}
-            >
-              {CLAUDE_STATUS_META[s].emoji} {CLAUDE_STATUS_META[s].label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 /** stuck 바에 표시할 제목 (첫 줄만, 줄바꿈은 공백) */
 function stickyTitlePreviewText(text: string): string {
   const first = text.split(/\n/)[0] ?? ''
@@ -195,6 +137,8 @@ export interface EditorLineViewProps {
   onPickClaudeStatus?: (status: ClaudeBlockStatus) => void
   /** 클로드 블록 [복사] */
   onCopyClaudeBlock?: () => void
+  /** 섹션 진행상태 선택 — undefined 는 미지정으로 되돌림 (P6) */
+  onPickSectionStatus?: (status: SectionStatus | undefined) => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -229,6 +173,7 @@ export const EditorLineView = memo(
       onPickSectionColor,
       onPickClaudeStatus,
       onCopyClaudeBlock,
+      onPickSectionStatus,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -380,6 +325,17 @@ export const EditorLineView = memo(
                 <IconDragHandle size={13} />
               </button>
             ) : null}
+            {isSectionTitle && onPickSectionStatus ? (
+              <StatusBadge
+                value={line.formatting?.sectionStatus}
+                order={SECTION_STATUS_ORDER}
+                meta={SECTION_STATUS_META}
+                onPick={onPickSectionStatus}
+                allowClear
+                emptyLabel="상태"
+                ariaLabel="섹션 상태"
+              />
+            ) : null}
             {isSectionTitle && onPickSectionColor ? (
               <SectionColorPicker color={line.formatting?.sectionColor} onPick={onPickSectionColor} />
             ) : null}
@@ -435,7 +391,13 @@ export const EditorLineView = memo(
               tabIndex={isLineCollapsed ? -1 : undefined}
             />
             {isClaudeBlockHeader && claudeBlock && onPickClaudeStatus ? (
-              <ClaudeStatusBadge status={claudeBlock.status} onPick={onPickClaudeStatus} />
+              <StatusBadge
+                value={claudeBlock.status}
+                order={CLAUDE_STATUS_ORDER}
+                meta={CLAUDE_STATUS_META}
+                onPick={(s) => s && onPickClaudeStatus(s)}
+                ariaLabel="진행상태"
+              />
             ) : null}
             {isClaudeBlockHeader && onCopyClaudeBlock ? (
               <button
