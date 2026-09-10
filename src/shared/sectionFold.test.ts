@@ -155,14 +155,14 @@ describe('section fold (들여쓰기 기반)', () => {
     it('isBlockHeader recognizes both sectionTitle and claudeBlock', () => {
       expect(isBlockHeader(line('a', 'Sec', { sectionTitle: true }))).toBe(true)
       expect(
-        isBlockHeader(line('b', 'Block', { claudeBlock: { templateId: 'blank', status: 'draft' } }))
+        isBlockHeader(line('b', 'Block', { claudeBlock: { status: 'draft' } }))
       ).toBe(true)
       expect(isBlockHeader(line('c', 'plain'))).toBe(false)
     })
 
     it('computeSectionBlockRange treats claudeSlot lines as plain deeper-indented body', () => {
       const lines = [
-        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('h', '클로드 블록', { claudeBlock: { status: 'draft' } }, 0),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
         line('c1', '파일 A', {}, 2),
         line('s2', '{명령}', { claudeSlot: '명령' }, 1),
@@ -173,14 +173,14 @@ describe('section fold (들여쓰기 기반)', () => {
 
     it('클로드 블록도 같은 규칙 — 얕거나 같은 헤더에서 끊기고, 더 깊은 헤더는 품는다', () => {
       const deeper = [
-        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('h', '클로드 블록', { claudeBlock: { status: 'draft' } }, 0),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
         line('sec', 'Sec B (더 깊게 들여씀)', { sectionTitle: true }, 2)
       ]
       expect(computeSectionBlockRange(deeper, 0)).toEqual([0, 2])
 
       const sameLevel = [
-        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('h', '클로드 블록', { claudeBlock: { status: 'draft' } }, 0),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
         line('sec', 'Sec B (같은 들여쓰기)', { sectionTitle: true }, 0)
       ]
@@ -192,7 +192,7 @@ describe('section fold (들여쓰기 기반)', () => {
         line(
           'h',
           '클로드 블록',
-          { claudeBlock: { templateId: 'blank', status: 'draft' }, sectionCollapsed: true },
+          { claudeBlock: { status: 'draft' }, sectionCollapsed: true },
           0
         ),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
@@ -203,7 +203,7 @@ describe('section fold (들여쓰기 기반)', () => {
 
     it('findEnclosingSectionTitleIndex finds the owning claude block header', () => {
       const lines = [
-        line('h', '클로드 블록', { claudeBlock: { templateId: 'blank', status: 'draft' } }, 0),
+        line('h', '클로드 블록', { claudeBlock: { status: 'draft' } }, 0),
         line('s1', '{첨부}', { claudeSlot: '첨부' }, 1),
         line('c1', '파일 A', {}, 2)
       ]
@@ -221,7 +221,7 @@ describe('중첩 (섹션 > 클로드 블록)', () => {
     line(
       'cb',
       '클로드 블록',
-      { claudeBlock: { templateId: 'blank', status: 'draft' }, accentBar: 'blue' },
+      { claudeBlock: { status: 'draft' }, accentBar: 'blue' },
       1
     ),
     line('slot', '{명령}', { claudeSlot: '명령' }, 2),

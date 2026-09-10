@@ -22,9 +22,8 @@ import type {
 import { tryExpandTodayMacro } from '@shared/dateMacro'
 import { keycapDisplayChar } from '@shared/keycapChar'
 import {
-  CLAUDE_BLOCK_BLANK_TEMPLATE_ID,
+  CLAUDE_DEFAULT_SLOT_NAMES,
   CLAUDE_FOLLOWUP_SLOT_NAME,
-  findClaudeBlockTemplate,
   slotLabelText
 } from '@shared/claudeBlock'
 import { exportClaudeBlockToText } from '@shared/claudeBlockExport'
@@ -189,25 +188,19 @@ function isBlockMarkdownLine(line: EditorLineModel): boolean {
   )
 }
 
-/** 클로드 블록 헤더 한 줄 + 템플릿 슬롯(라벨+빈 내용 줄) 쌍들을 만든다 (P5) */
-function buildClaudeBlockLines(
-  headerText: string,
-  headerIndent: number,
-  templateId: string
-): EditorLineModel[] {
-  const template = findClaudeBlockTemplate(templateId)
-  const slots = template?.slots ?? []
+/** 클로드 블록 헤더 한 줄 + 기본 슬롯(라벨+빈 내용 줄) 쌍들을 만든다 (P6) */
+function buildClaudeBlockLines(headerText: string, headerIndent: number): EditorLineModel[] {
   const header: EditorLineModel = {
     id: crypto.randomUUID(),
     text: headerText,
     indentLevel: headerIndent,
     formatting: {
-      claudeBlock: { templateId: template?.id ?? CLAUDE_BLOCK_BLANK_TEMPLATE_ID, status: 'draft' },
+      claudeBlock: { status: 'draft' },
       accentBar: 'blue'
     }
   }
   const rest: EditorLineModel[] = []
-  for (const slotName of slots) {
+  for (const slotName of CLAUDE_DEFAULT_SLOT_NAMES) {
     rest.push({
       id: crypto.randomUUID(),
       text: slotLabelText(slotName),
@@ -578,7 +571,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
   /** 섹션 블록 드래그 재정렬 — hover 손잡이에서만 시작, 텍스트 선택 드래그와 격리 */
   const [sectionDrag, setSectionDrag] = useState<SectionDragState | null>(null)
   /** `/클로드` 입력 직후 열리는 템플릿 선택 드롭다운 — 그 줄(헤더)의 인덱스 */
-  const [claudeTemplatePickerIndex, setClaudeTemplatePickerIndex] = useState<number | null>(null)
   const [toolbarTick, setToolbarTick] = useState(0)
   const [emojiPaletteOpen, setEmojiPaletteOpen] = useState(false)
   const [selectionTick, setSelectionTick] = useState(0)
@@ -1449,14 +1441,13 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           !cur.formatting?.claudeSlot &&
           findEnclosingSectionTitleIndex(lines, index) === null
         ) {
-          const built = buildClaudeBlockLines('', cur.indentLevel, CLAUDE_BLOCK_BLANK_TEMPLATE_ID)
+          const built = buildClaudeBlockLines('', cur.indentLevel)
           pendingFocusRef.current = { index: index + 2, cursor: 0 }
           setLines((prev) => {
             const next = [...prev]
             next.splice(index, 1, ...built)
             return next
           })
-          setClaudeTemplatePickerIndex(index)
           return
         }
       }
@@ -2340,29 +2331,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     },
     [lines, pushUndoSnapshot]
   )
-
-  /** 템플릿 드롭다운에서 다른 템플릿을 고르면, 방금 만든 슬롯들을 새 템플릿 것으로 통째로 교체한다 */
-  const onPickClaudeTemplate = useCallback(
-    (headerIndex: number, templateId: string) => {
-      pushUndoSnapshot(lines, headerIndex, 0)
-      setLines((prev) => {
-        const header = prev[headerIndex]
-        if (!header) return prev
-        const [, end] = computeSectionBlockRange(prev, headerIndex)
-        const rebuilt = buildClaudeBlockLines(header.text, header.indentLevel, templateId)
-        const next = [...prev]
-        next.splice(headerIndex, end - headerIndex + 1, ...rebuilt)
-        return next
-      })
-      setClaudeTemplatePickerIndex(null)
-      pendingFocusRef.current = { index: headerIndex + 2, cursor: 0 }
-    },
-    [lines, pushUndoSnapshot]
-  )
-
-  const onCloseClaudeTemplatePicker = useCallback(() => {
-    setClaudeTemplatePickerIndex(null)
-  }, [])
 
   /**
    * 진행상태 변경. `followup` 을 고르면 블록 끝에 `{추가질문}` 슬롯 + 빈 내용 줄을
@@ -3717,13 +3685,6 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   onCopyClaudeBlock={
                     line.formatting?.claudeBlock ? () => onCopyClaudeBlock(index) : undefined
                   }
-                  showClaudeTemplatePicker={claudeTemplatePickerIndex === index}
-                  onPickClaudeTemplate={
-                    line.formatting?.claudeBlock
-                      ? (templateId) => onPickClaudeTemplate(index, templateId)
-                      : undefined
-                  }
-                  onCloseClaudeTemplatePicker={onCloseClaudeTemplatePicker}
                 />
               )
             return (

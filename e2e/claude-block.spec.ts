@@ -44,33 +44,15 @@ function lineValues(page: Page): Promise<string[]> {
 }
 
 test.describe('클로드 블록 삽입', () => {
-  test('/클로드 입력 시 템플릿 드롭다운이 열리고, 템플릿을 고르면 슬롯이 깔린다', async () => {
+  test('/클로드 는 템플릿 선택 없이 {명령}·{첨부} 슬롯을 바로 깐다', async () => {
     const app = await launchSnapNote()
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
 
-      await expect(edit.locator('.editor-claude-template-popover')).toBeVisible()
-      await edit.locator('.editor-claude-template-option', { hasText: '원문 요약' }).click()
-      await edit.waitForTimeout(200)
-
-      expect(await lineValues(edit)).toEqual(['메모', '', '{첨부}', '', '{명령}', ''])
-      await expect(edit.locator('.editor-claude-template-popover')).toHaveCount(0)
-    } finally {
-      await app.close()
-    }
-  })
-
-  test('Esc 로 드롭다운을 닫으면 빈 블록({첨부}{명령})이 그대로 남는다', async () => {
-    const app = await launchSnapNote()
-    try {
-      const edit = await newEditWindow(app)
-      await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(200)
-
-      await expect(edit.locator('.editor-claude-template-popover')).toHaveCount(0)
-      expect(await lineValues(edit)).toEqual(['메모', '', '{첨부}', '', '{명령}', ''])
+      expect(await lineValues(edit)).toEqual(['메모', '', '{명령}', '', '{첨부}', ''])
+      expect(await edit.locator('.editor-claude-template-popover').count()).toBe(0)
     } finally {
       await app.close()
     }
@@ -81,17 +63,15 @@ test.describe('클로드 블록 삽입', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
-      // 첨부 슬롯의 내용 줄(index 3)에 /클로드 를 입력 — 이미 블록 범위 안이라 무시돼야 함
+      // 명령 슬롯의 내용 줄(index 3)에 /클로드 를 입력 — 이미 블록 범위 안이라 무시돼야 함
       await edit.locator('.editor-line-textarea').nth(3).click()
       await edit.keyboard.type('/클로드')
       await edit.waitForTimeout(200)
 
-      await expect(edit.locator('.editor-claude-template-popover')).toHaveCount(0)
       await expect(edit.locator('.editor-claude-block-icon')).toHaveCount(1)
-      expect(await lineValues(edit)).toEqual(['메모', '', '{첨부}', '/클로드', '{명령}', ''])
+      expect(await lineValues(edit)).toEqual(['메모', '', '{명령}', '/클로드', '{첨부}', ''])
     } finally {
       await app.close()
     }
@@ -104,8 +84,7 @@ test.describe('클로드 블록 접기', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       expect(await edit.locator('.editor-line-textarea').count()).toBe(6)
       await edit.locator('.editor-section-fold-btn').click()
@@ -125,8 +104,7 @@ test.describe('클로드 블록 접기', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       await edit.locator('.editor-section-fold-btn').click()
       await edit.waitForTimeout(200)
@@ -155,8 +133,7 @@ test.describe('진행상태', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       await expect(edit.locator('.editor-claude-status-btn')).toContainText('작성중')
 
@@ -180,8 +157,7 @@ test.describe('진행상태', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       await edit.locator('.editor-claude-status-btn').click()
       await edit.locator('.editor-claude-status-option', { hasText: '추가질문' }).click()
@@ -190,9 +166,9 @@ test.describe('진행상태', () => {
       expect(await lineValues(edit)).toEqual([
         '메모',
         '',
-        '{첨부}',
-        '',
         '{명령}',
+        '',
+        '{첨부}',
         '',
         '{추가질문}',
         ''
@@ -211,17 +187,14 @@ test.describe('[복사]', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.locator('.editor-claude-template-option', { hasText: '수정가이드 요청' }).click()
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       const ta = (i: number) => edit.locator('.editor-line-textarea').nth(i)
-      // 1: 헤더 / 2: {프로젝트} / 3: 내용 / 4: {첨부} / 5: 내용 / 6: {명령} / 7: 내용 / 8: {산출물형식} / 9: 내용
+      // 1: 헤더 / 2: {명령} / 3: 내용 / 4: {첨부} / 5: 내용
       await ta(3).click()
-      await ta(3).fill('KT로컬문서 연결 프로젝트')
+      await ta(3).fill('9/2 미팅 수정사항 정리')
       await ta(5).click()
       await ta(5).fill('최신 기획안 ppt')
-      await ta(7).click()
-      await ta(7).fill('9/2 미팅 수정사항 정리')
       await edit.waitForTimeout(150)
 
       await expect(edit.locator('.editor-claude-status-btn')).toContainText('작성중')
@@ -230,16 +203,7 @@ test.describe('[복사]', () => {
 
       const clip = await edit.evaluate(() => navigator.clipboard.readText())
       expect(clip).toBe(
-        [
-          '{프로젝트}',
-          'KT로컬문서 연결 프로젝트',
-          '',
-          '{첨부}',
-          '최신 기획안 ppt',
-          '',
-          '{명령}',
-          '9/2 미팅 수정사항 정리'
-        ].join('\n')
+        ['{명령}', '9/2 미팅 수정사항 정리', '', '{첨부}', '최신 기획안 ppt'].join('\n')
       )
       await expect(edit.locator('.editor-claude-status-btn')).toContainText('질문완료')
     } finally {
@@ -252,8 +216,7 @@ test.describe('[복사]', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       await edit.locator('.editor-claude-status-btn').click()
       await edit.locator('.editor-claude-status-option', { hasText: '종료' }).click()
@@ -275,8 +238,7 @@ test.describe('블록 삭제', () => {
     try {
       const edit = await newEditWindow(app)
       await triggerClaudeBlock(edit)
-      await edit.keyboard.press('Escape')
-      await edit.waitForTimeout(150)
+      await edit.waitForTimeout(300)
 
       // 헤더(index 1) 맨 앞에서 Backspace — 이전 줄(메모)과 병합돼 헤더 자체가 사라진다
       const header = edit.locator('.editor-line-textarea').nth(1)
@@ -288,7 +250,7 @@ test.describe('블록 삭제', () => {
       await expect(edit.locator('.editor-claude-block-icon')).toHaveCount(0)
       await expect(edit.locator('.editor-section-fold-btn')).toHaveCount(0)
       // 하위 줄(슬롯·내용)은 텍스트 그대로 남아있다
-      expect(await lineValues(edit)).toEqual(['메모', '{첨부}', '', '{명령}', ''])
+      expect(await lineValues(edit)).toEqual(['메모', '{명령}', '', '{첨부}', ''])
     } finally {
       await app.close()
     }

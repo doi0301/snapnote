@@ -1,37 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CLAUDE_BLOCK_BLANK_TEMPLATE_ID,
-  CLAUDE_BLOCK_TEMPLATES,
+  CLAUDE_DEFAULT_SLOT_NAMES,
   CLAUDE_STATUS_META,
   CLAUDE_STATUS_ORDER,
-  findClaudeBlockTemplate,
   slotLabelText,
   slotNameFromLabelText
 } from './claudeBlock'
 
-describe('claudeBlock templates', () => {
-  it('has the 5 templates from the spec, each with an id/label/slots', () => {
-    expect(CLAUDE_BLOCK_TEMPLATES).toHaveLength(5)
-    for (const t of CLAUDE_BLOCK_TEMPLATES) {
-      expect(typeof t.id).toBe('string')
-      expect(typeof t.label).toBe('string')
-      expect(Array.isArray(t.slots)).toBe(true)
-      expect(t.slots.length).toBeGreaterThan(0)
-    }
-  })
-
-  it('has a blank template with {첨부}/{명령} slots', () => {
-    const blank = findClaudeBlockTemplate(CLAUDE_BLOCK_BLANK_TEMPLATE_ID)
-    expect(blank?.slots).toEqual(['첨부', '명령'])
-  })
-
-  it('findClaudeBlockTemplate returns undefined for unknown ids', () => {
-    expect(findClaudeBlockTemplate('nope')).toBeUndefined()
-  })
-
-  it('template ids are unique', () => {
-    const ids = CLAUDE_BLOCK_TEMPLATES.map((t) => t.id)
-    expect(new Set(ids).size).toBe(ids.length)
+describe('기본 슬롯', () => {
+  it('사용 빈도 순서대로 명령 → 첨부 두 개다', () => {
+    expect([...CLAUDE_DEFAULT_SLOT_NAMES]).toEqual(['명령', '첨부'])
   })
 })
 

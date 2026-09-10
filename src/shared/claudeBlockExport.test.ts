@@ -12,7 +12,7 @@ function line(
 }
 
 function header(id: string, text: string, indentLevel = 0): EditorLine {
-  return line(id, text, { claudeBlock: { templateId: 'blank', status: 'draft' } }, indentLevel)
+  return line(id, text, { claudeBlock: { status: 'draft' } }, indentLevel)
 }
 
 function slot(id: string, name: string, indentLevel: number): EditorLine {

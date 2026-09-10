@@ -26,16 +26,16 @@ function normalizeAccentBar(line: EditorLineModel): EditorLineModel {
 
 const VALID_CLAUDE_STATUSES = new Set(['draft', 'sent', 'review', 'followup', 'done'])
 
-/** 알 수 없는 status/templateId 는 draft/blank 로 폴백 (P5) */
+/** 알 수 없는 status 는 draft 로 폴백. 구버전 templateId 는 조용히 버린다 (P6) */
 function normalizeClaudeBlock(formatting: Record<string, unknown>): void {
-  const cb = formatting.claudeBlock as { templateId?: unknown; status?: unknown } | undefined
+  const cb = formatting.claudeBlock as { status?: unknown } | undefined
   if (!cb || typeof cb !== 'object') {
     delete formatting.claudeBlock
     return
   }
-  const status = typeof cb.status === 'string' && VALID_CLAUDE_STATUSES.has(cb.status) ? cb.status : 'draft'
-  const templateId = typeof cb.templateId === 'string' && cb.templateId ? cb.templateId : 'blank'
-  formatting.claudeBlock = { templateId, status }
+  const status =
+    typeof cb.status === 'string' && VALID_CLAUDE_STATUSES.has(cb.status) ? cb.status : 'draft'
+  formatting.claudeBlock = { status }
 }
 
 function normalizeClaudeSlot(formatting: Record<string, unknown>): void {

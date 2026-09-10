@@ -44,28 +44,28 @@ describe('normalizeEditorLines', () => {
     expect(r[1]!.indentLevel).toBe(3)
   })
 
-  it('클로드 블록: 알 수 없는 status 는 draft 로 폴백한다 (templateId는 참조값이라 그대로 둔다)', () => {
+  it('클로드 블록: 알 수 없는 status 는 draft 로 폴백한다', () => {
     const r = normalizeEditorLines([
       {
         id: 'a',
         text: '클로드 블록',
         indentLevel: 0,
-        formatting: { claudeBlock: { templateId: 'some-template', status: 'weird' } } as never
+        formatting: { claudeBlock: { status: 'weird' } } as never
       }
     ])
-    expect(r[0]!.formatting.claudeBlock).toEqual({ templateId: 'some-template', status: 'draft' })
+    expect(r[0]!.formatting.claudeBlock).toEqual({ status: 'draft' })
   })
 
-  it('클로드 블록: templateId 가 빈 문자열이면 blank 로 폴백한다', () => {
+  it('클로드 블록: 구버전 templateId 는 조용히 버리고 status 만 남긴다 (P6)', () => {
     const r = normalizeEditorLines([
       {
         id: 'a',
         text: '클로드 블록',
         indentLevel: 0,
-        formatting: { claudeBlock: { templateId: '', status: 'draft' } }
+        formatting: { claudeBlock: { templateId: 'summarize', status: 'review' } } as never
       }
     ])
-    expect(r[0]!.formatting.claudeBlock).toEqual({ templateId: 'blank', status: 'draft' })
+    expect(r[0]!.formatting.claudeBlock).toEqual({ status: 'review' })
   })
 
   it('클로드 블록: 정상 값은 그대로 유지한다', () => {
@@ -74,10 +74,10 @@ describe('normalizeEditorLines', () => {
         id: 'a',
         text: '클로드 블록',
         indentLevel: 0,
-        formatting: { claudeBlock: { templateId: 'revise-guide', status: 'sent' } }
+        formatting: { claudeBlock: { status: 'sent' } }
       }
     ])
-    expect(r[0]!.formatting.claudeBlock).toEqual({ templateId: 'revise-guide', status: 'sent' })
+    expect(r[0]!.formatting.claudeBlock).toEqual({ status: 'sent' })
   })
 
   it('클로드 블록: sectionCollapsed 는 claudeBlock 헤더에서도 유지된다 (섹션과 필드 공유)', () => {
@@ -87,7 +87,7 @@ describe('normalizeEditorLines', () => {
         text: '클로드 블록',
         indentLevel: 0,
         formatting: {
-          claudeBlock: { templateId: 'blank', status: 'draft' },
+          claudeBlock: { status: 'draft' },
           sectionCollapsed: true
         }
       }

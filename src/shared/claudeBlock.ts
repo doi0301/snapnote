@@ -1,20 +1,12 @@
 import type { ClaudeBlockStatus } from './types'
-import templatesJson from './claudeBlockTemplates.json'
 
-export interface ClaudeBlockTemplate {
-  id: string
-  label: string
-  slots: string[]
-}
-
-/** 템플릿 정의 — 이 파일(JSON)만 편집하면 코드 수정 없이 종류를 추가·변경할 수 있다 */
-export const CLAUDE_BLOCK_TEMPLATES: ClaudeBlockTemplate[] = templatesJson as ClaudeBlockTemplate[]
-
-export const CLAUDE_BLOCK_BLANK_TEMPLATE_ID = 'blank'
-
-export function findClaudeBlockTemplate(templateId: string): ClaudeBlockTemplate | undefined {
-  return CLAUDE_BLOCK_TEMPLATES.find((t) => t.id === templateId)
-}
+/**
+ * `/클로드` 로 블록을 만들 때 깔리는 기본 슬롯 (P6).
+ * 템플릿 유형 개념은 폐기했다 — 실사용이 사실상 {명령} + {첨부} 조합에 수렴해서,
+ * 유형을 고르는 단계보다 슬롯을 그때그때 붙이는 편이 빠르다.
+ * 사용 빈도 순서대로 깐다.
+ */
+export const CLAUDE_DEFAULT_SLOT_NAMES = ['명령', '첨부'] as const
 
 /** 슬롯 라벨 텍스트("{첨부}") ↔ claudeSlot 값("첨부") 변환 */
 export function slotLabelText(slotName: string): string {

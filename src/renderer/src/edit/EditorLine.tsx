@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { ClaudeBlockStatus, EditorLine as EditorLineModel, HighlightColor } from '@shared/types'
 import { isBlockHeader } from '@shared/sectionFold'
-import { CLAUDE_BLOCK_TEMPLATES, CLAUDE_STATUS_META, CLAUDE_STATUS_ORDER } from '@shared/claudeBlock'
+import { CLAUDE_STATUS_META, CLAUDE_STATUS_ORDER } from '@shared/claudeBlock'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
 import { SpannedLineMirror } from './InlineSpan'
@@ -154,56 +154,6 @@ function ClaudeStatusBadge(props: {
   )
 }
 
-/**
- * `/클로드` 입력 직후 자동으로 열리는 템플릿 선택 드롭다운 (P5).
- * 이미 빈 템플릿으로 블록이 만들어진 상태이므로, 여기서는 "다른 템플릿 고르기"만
- * 담당한다 — 바깥을 클릭하거나 Esc 를 누르면 그냥 닫히고 빈 블록이 그대로 남는다
- * (기획서 3-3 "Esc → 빈 블록"과 동일한 결과).
- */
-function ClaudeTemplatePicker(props: {
-  onPick: (templateId: string) => void
-  onClose: () => void
-}): React.JSX.Element {
-  const { onPick, onClose } = props
-
-  useEffect(() => {
-    const onDocDown = (ev: MouseEvent): void => {
-      const el = ev.target as Element | null
-      if (el?.closest('.editor-claude-template-popover')) return
-      onClose()
-    }
-    const onKeyDown = (ev: KeyboardEvent): void => {
-      if (ev.key === 'Escape') onClose()
-    }
-    const id = window.setTimeout(() => {
-      document.addEventListener('mousedown', onDocDown)
-      document.addEventListener('keydown', onKeyDown)
-    }, 0)
-    return () => {
-      window.clearTimeout(id)
-      document.removeEventListener('mousedown', onDocDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [onClose])
-
-  return (
-    <div className="editor-claude-template-popover" role="menu" aria-label="클로드 블록 템플릿 선택">
-      {CLAUDE_BLOCK_TEMPLATES.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          role="menuitem"
-          className="editor-claude-template-option"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onPick(t.id)}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 /** stuck 바에 표시할 제목 (첫 줄만, 줄바꿈은 공백) */
 function stickyTitlePreviewText(text: string): string {
   const first = text.split(/\n/)[0] ?? ''
@@ -243,9 +193,6 @@ export interface EditorLineViewProps {
   /** 클로드 블록 [복사] */
   onCopyClaudeBlock?: () => void
   /** `/클로드` 입력 직후 템플릿 선택 드롭다운을 보여줄지 */
-  showClaudeTemplatePicker?: boolean
-  onPickClaudeTemplate?: (templateId: string) => void
-  onCloseClaudeTemplatePicker?: () => void
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -279,9 +226,6 @@ export const EditorLineView = memo(
       onPickSectionColor,
       onPickClaudeStatus,
       onCopyClaudeBlock,
-      showClaudeTemplatePicker,
-      onPickClaudeTemplate,
-      onCloseClaudeTemplatePicker,
       isStickyTitle,
       searchHighlights,
       onStickyStuckChange,
@@ -438,9 +382,6 @@ export const EditorLineView = memo(
               <span className="editor-claude-block-icon" aria-hidden>
                 <IconToolbarRobot size={15} />
               </span>
-            ) : null}
-            {isClaudeBlockHeader && showClaudeTemplatePicker && onPickClaudeTemplate && onCloseClaudeTemplatePicker ? (
-              <ClaudeTemplatePicker onPick={onPickClaudeTemplate} onClose={onCloseClaudeTemplatePicker} />
             ) : null}
             {isStuck ? (
               <div className="editor-sticky-title-preview" aria-hidden>
