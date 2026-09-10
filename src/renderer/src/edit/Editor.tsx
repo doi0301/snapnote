@@ -1455,6 +1455,39 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           })
           return
         }
+
+        /**
+         * 클로드 블록 안의 평범한 칸에 `{이름}` 만 치면 그 줄을 슬롯 라벨로 승격하고,
+         * 바로 아래에 빈 내용 칸을 깔아 커서를 옮긴다 (P6 — 슬롯 조립식).
+         * 템플릿 유형을 고르는 대신 필요한 슬롯을 그때그때 붙이는 경로다.
+         */
+        if (cur && SLOT_LABEL_RE.test(newT) && !isBlockHeader(cur) && !cur.formatting?.claudeSlot) {
+          const headerIndex = findEnclosingClaudeBlockIndex(lines, index)
+          if (headerIndex !== null) {
+            const headerIndent = lines[headerIndex]!.indentLevel
+            const slotName = slotNameFromLabelText(newT)
+            const slotLine: EditorLineModel = {
+              ...cur,
+              text: slotLabelText(slotName),
+              spans: undefined,
+              indentLevel: Math.min(MAX_INDENT, headerIndent + 1),
+              formatting: { ...(cur.formatting ?? {}), claudeSlot: slotName }
+            }
+            const bodyLine: EditorLineModel = {
+              id: crypto.randomUUID(),
+              text: '',
+              indentLevel: Math.min(MAX_INDENT, headerIndent + 2),
+              formatting: {}
+            }
+            pendingFocusRef.current = { index: index + 1, cursor: 0 }
+            setLines((prev) => {
+              const next = [...prev]
+              next.splice(index, 1, slotLine, bodyLine)
+              return next
+            })
+            return
+          }
+        }
       }
 
       setLines((prev) => {

@@ -352,3 +352,49 @@ test.describe('슬롯 이름 편집 (P6)', () => {
     }
   })
 })
+
+test.describe('슬롯 추가 (P6)', () => {
+  test('블록 안 빈 칸에 {요구사항} 을 치면 슬롯으로 승격되고 내용 칸이 생긴다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
+
+      // index 5 = {첨부} 의 내용 칸. 거기서 Shift+Enter 로 같은 깊이의 빈 칸을 하나 만든다
+      await edit.locator('.editor-line-textarea').nth(5).click()
+      await edit.keyboard.press('Shift+Enter')
+      await edit.keyboard.type('{요구사항}')
+      await edit.waitForTimeout(400)
+
+      expect(await edit.locator('.editor-line--claude-slot').count()).toBe(3)
+      const values = await lineValues(edit)
+      expect(values).toContain('{요구사항}')
+      expect(values[values.indexOf('{요구사항}') + 1]).toBe('')
+
+      // 커서가 그 내용 칸으로 옮겨가 있어 바로 타이핑할 수 있다
+      await edit.keyboard.type('존대말로 통일')
+      await edit.waitForTimeout(200)
+      const after = await lineValues(edit)
+      expect(after[after.indexOf('{요구사항}') + 1]).toBe('존대말로 통일')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('블록 밖에서 {이름} 을 치면 슬롯이 되지 않는다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      const first = edit.locator('.editor-line-textarea').first()
+      await first.click()
+      await first.fill('{요구사항}')
+      await edit.waitForTimeout(300)
+
+      expect(await edit.locator('.editor-line--claude-slot').count()).toBe(0)
+      expect(await first.inputValue()).toBe('{요구사항}')
+    } finally {
+      await app.close()
+    }
+  })
+})
