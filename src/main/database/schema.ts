@@ -1,8 +1,10 @@
 import type { Database } from 'sql.js'
 import { selectAll, selectOne, run } from '../repositories/sqlRun'
+import type { EditorLine } from '@shared/types'
+import { migrateSectionScopeToIndent } from '@shared/sectionScopeMigration'
 
 /** 스키마 버전 (PRAGMA user_version) */
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 11
 
 /** TRD §3.1 + DESIGN_SYSTEM 슬롯 기본색 */
 const DEFAULT_COLOR_SLOT_1 = '#F28B74'
@@ -194,6 +196,34 @@ function migrateSettingsAutoMarkdownPaste(db: Database): void {
   run(db, 'PRAGMA user_version = 10')
 }
 
+/**
+ * 섹션 소속 규칙이 "다음 타이틀 전까지"에서 들여쓰기 기반으로 바뀌면서(v1.0.18) 필요해진
+ * 본문 들여쓰기 변환. 구버전 문서와 "섹션을 의도적으로 빠져나온 줄"은 내용만으로 구분되지
+ * 않으므로 로드할 때마다 돌리면 안 된다 — 저장된 문서를 딱 한 번 훑어 변환한다.
+ * 내용이 깨진 메모는 건너뛴다 (마이그레이션 하나가 전체 실행을 막지 않게).
+ */
+function migrateMemoContentSectionIndent(db: Database): void {
+  const verRow = selectOne(db, 'PRAGMA user_version', [])
+  const ver = verRow ? Number(verRow.user_version) : 0
+  if (ver >= 11) return
+
+  const rows = selectAll(db, 'SELECT id, content FROM memos', [])
+  for (const row of rows) {
+    let before: EditorLine[]
+    try {
+      before = JSON.parse(String(row.content)) as EditorLine[]
+    } catch {
+      continue
+    }
+    if (!Array.isArray(before)) continue
+    const after = migrateSectionScopeToIndent(before)
+    const changed = after.some((l, i) => l.indentLevel !== before[i]?.indentLevel)
+    if (!changed) continue
+    run(db, 'UPDATE memos SET content = ? WHERE id = ?', [JSON.stringify(after), String(row.id)])
+  }
+  run(db, 'PRAGMA user_version = 11')
+}
+
 /** 테이블 생성 */
 export function applySchema(db: Database): void {
   db.run(CREATE_MEMOS)
@@ -211,6 +241,7 @@ export function applySchema(db: Database): void {
   migrateMemosIsFavorite(db)
   migrateMemosCategoryId(db)
   migrateSettingsAutoMarkdownPaste(db)
+  migrateMemoContentSectionIndent(db)
 
   db.run(
     `INSERT OR IGNORE INTO app_state (id, folded_stack, folded_panel_x, folded_panel_y)

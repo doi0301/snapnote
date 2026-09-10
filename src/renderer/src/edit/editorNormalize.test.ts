@@ -21,26 +21,7 @@ describe('normalizeEditorLines', () => {
     expect(r[0].indentLevel).toBe(6)
   })
 
-  it('구버전 섹션(들여쓰기 0 본문) 을 새 규칙에 맞춰 자동으로 1단 들여쓰기한다', () => {
-    const r = normalizeEditorLines([
-      { id: 'a', text: 'Sec A', indentLevel: 0, formatting: { sectionTitle: true } },
-      { id: 'b', text: 'body 1', indentLevel: 0, formatting: {} },
-      { id: 'c', text: 'body 2', indentLevel: 0, formatting: {} },
-      { id: 'd', text: 'Sec B', indentLevel: 0, formatting: { sectionTitle: true } }
-    ])
-    expect(r.map((l) => l.indentLevel)).toEqual([0, 1, 1, 0])
-  })
-
-  it('마이그레이션은 멱등이다 (이미 들여쓰인 본문은 다시 건드리지 않는다)', () => {
-    const once = normalizeEditorLines([
-      { id: 'a', text: 'Sec A', indentLevel: 0, formatting: { sectionTitle: true } },
-      { id: 'b', text: 'body 1', indentLevel: 0, formatting: {} }
-    ])
-    const twice = normalizeEditorLines(once)
-    expect(twice.map((l) => l.indentLevel)).toEqual(once.map((l) => l.indentLevel))
-  })
-
-  it('구버전 self-only 섹션은 건드리지 않고, sectionScope 필드는 제거한다', () => {
+  it('폐기된 sectionScope 필드는 정리하되 들여쓰기는 건드리지 않는다', () => {
     const r = normalizeEditorLines([
       {
         id: 'a',
@@ -119,5 +100,42 @@ describe('normalizeEditorLines', () => {
       { id: 'a', text: '{첨부}', indentLevel: 1, formatting: { claudeSlot: 42 } as never }
     ])
     expect(r[0]!.formatting.claudeSlot).toBeUndefined()
+  })
+})
+
+describe('로드 경로는 들여쓰기를 마이그레이션하지 않는다 (P6)', () => {
+  // 구버전 섹션 본문 변환은 DB 마이그레이션(user_version 11)으로 옮겼다.
+  // 로드마다 돌리면 섹션을 의도적으로 빠져나온 줄까지 섹션 안으로 끌어들인다.
+  it('섹션 밖 최상위 줄의 들여쓰기를 건드리지 않는다', () => {
+    const out = normalizeEditorLines([
+      { id: 'a', text: '섹션 A', indentLevel: 0, formatting: { sectionTitle: true } },
+      { id: 'b', text: '섹션 본문', indentLevel: 1, formatting: {} },
+      { id: 'c', text: '섹션을 빠져나온 줄', indentLevel: 0, formatting: {} }
+    ])
+    expect(out.map((l) => l.indentLevel)).toEqual([0, 1, 0])
+  })
+
+  it('여러 번 정규화해도 결과가 같다 (멱등)', () => {
+    const once = normalizeEditorLines([
+      { id: 'a', text: '섹션 A', indentLevel: 0, formatting: { sectionTitle: true } },
+      { id: 'b', text: '본문', indentLevel: 1, formatting: {} },
+      { id: 'c', text: '밖', indentLevel: 0, formatting: {} }
+    ])
+    const twice = normalizeEditorLines(once)
+    expect(twice.map((l) => l.indentLevel)).toEqual(once.map((l) => l.indentLevel))
+  })
+
+  it('legacy sectionScope 가 남아 있어도 들여쓰기를 바꾸지 않는다 (필드만 정리)', () => {
+    const out = normalizeEditorLines([
+      {
+        id: 'a',
+        text: '섹션 A',
+        indentLevel: 0,
+        formatting: { sectionTitle: true, sectionScope: 'until-next' } as never
+      },
+      { id: 'b', text: '옛 규칙에선 섹션 소속이던 줄', indentLevel: 0, formatting: {} }
+    ])
+    expect(out[1]!.indentLevel).toBe(0)
+    expect((out[0]!.formatting as Record<string, unknown>).sectionScope).toBeUndefined()
   })
 })

@@ -64,26 +64,6 @@ function normalizeSectionTitle(line: EditorLineModel): EditorLineModel {
  * 새 들여쓰기 기반 규칙(타이틀보다 깊게 들여쓴 줄만 소속)으로 1회 변환한다.
  * 이미 새 규칙을 만족하는 문서에는 아무 효과가 없어(멱등) 매 로드마다 안전하게 돌 수 있다.
  */
-function migrateSectionScopeToIndent(content: EditorLineModel[]): EditorLineModel[] {
-  const next = content.map((l) => ({ ...l }))
-  for (let i = 0; i < next.length; i++) {
-    const title = next[i]!
-    if (!title.formatting?.sectionTitle) continue
-    const legacyScope = (title.formatting as Record<string, unknown>).sectionScope
-    if (legacyScope === 'self-only') continue
-    const titleIndent = Math.max(0, Math.min(MAX_INDENT, title.indentLevel ?? 0))
-    const targetIndent = Math.min(MAX_INDENT, titleIndent + 1)
-    for (let j = i + 1; j < next.length; j++) {
-      const body = next[j]!
-      if (body.formatting?.sectionTitle) break
-      if ((body.indentLevel ?? 0) <= titleIndent) {
-        next[j] = { ...body, indentLevel: targetIndent }
-      }
-    }
-  }
-  return next
-}
-
 function migrateHeadingMarkers(line: EditorLineModel): EditorLineModel {
   const formatting = { ...(line.formatting ?? {}) }
   const hl = formatting.headingLevel
@@ -165,7 +145,7 @@ export function normalizeEditorLines(content: EditorLineModel[]): EditorLineMode
   if (!content.length) {
     return [{ id: crypto.randomUUID(), text: '', indentLevel: 0, formatting: {} }]
   }
-  return migrateSectionScopeToIndent(content).map((l) => {
+  return content.map((l) => {
     const migrated = migrateHeadingMarkers(normalizeLineHighlights(l))
     const base = {
       ...migrated,
