@@ -23,6 +23,7 @@ import { tryExpandTodayMacro } from '@shared/dateMacro'
 import { keycapDisplayChar } from '@shared/keycapChar'
 import {
   CLAUDE_DEFAULT_SLOT_NAMES,
+  computeClaudeBoxPositions,
   CLAUDE_FOLLOWUP_SLOT_NAME,
   slotLabelText,
   slotNameFromLabelText
@@ -2311,6 +2312,9 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
 
   const sectionHiddenIndices = useMemo(() => computeSectionHiddenIndices(lines), [lines])
 
+  /** 클로드 블록 테두리 세그먼트용 파생 데이터 (P6) */
+  const claudeBoxPositions = useMemo(() => computeClaudeBoxPositions(lines), [lines])
+
   /** 섹션 컬러바 타이틀 적용/해제 (Ctrl+`) */
   const toggleSectionTitle = useCallback(() => {
     const indices: number[] = []
@@ -3738,6 +3742,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
                   onCopyClaudeBlock={
                     line.formatting?.claudeBlock ? () => onCopyClaudeBlock(index) : undefined
                   }
+                  claudeBoxPos={claudeBoxPositions.get(index)}
                 />
               )
             return (

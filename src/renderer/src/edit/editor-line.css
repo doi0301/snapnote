@@ -515,19 +515,59 @@
 
 /* ===== 클로드 블록 (P5) — 섹션과 같은 들여쓰기 소속 판정·접기 매커니즘을 공유한다 ===== */
 
-/* 슬롯 라벨 줄 — 섹션 타이틀과 동일한 배경·글자 스타일만 재사용, 아이콘 여백은 없음 */
-.editor-line--claude-slot {
-  background: rgba(37, 99, 235, 0.12);
+/* ── 줄별 테두리 세그먼트로 블록 영역을 감싼다 (P6) ─────────────────────
+   DOM 을 그룹핑하지 않고 각 줄에 start/mid/end/single 조각을 그린다.
+   렌더 루프의 평면 구조를 건드리지 않으려는 선택이다. */
+
+:root {
+  --claude-box-border: rgba(59, 130, 246, 0.38);
+  --claude-box-bg: rgba(239, 246, 255, 0.72);
+  --claude-slot-bg: rgba(191, 219, 254, 0.85);
+  --claude-slot-fg: rgba(30, 58, 138, 0.95);
+}
+
+.editor-line--claude-box-start,
+.editor-line--claude-box-mid,
+.editor-line--claude-box-end,
+.editor-line--claude-box-single {
+  background: var(--claude-box-bg);
+  border-left: 1px solid var(--claude-box-border);
+  border-right: 1px solid var(--claude-box-border);
+}
+
+.editor-line--claude-box-start,
+.editor-line--claude-box-single {
+  border-top: 1px solid var(--claude-box-border);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  padding-top: 2px;
+}
+
+.editor-line--claude-box-end,
+.editor-line--claude-box-single {
+  border-bottom: 1px solid var(--claude-box-border);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  padding-bottom: 4px;
 }
 
 .editor-line--claude-slot .editor-line-gutter {
   background-color: transparent;
 }
 
+/* 슬롯 라벨: 섹션 타이틀 스타일 재사용을 끊고 작은 알약으로 (P6) */
 .editor-line--claude-slot .editor-line-textarea,
 .editor-line--claude-slot .editor-line-mirror {
-  font-size: 15px;
+  display: inline-block;
+  width: auto;
+  min-width: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--claude-slot-bg);
+  color: var(--claude-slot-fg);
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.6;
 }
 
 /* 블록 헤더 줄 — 좌측 고정 아이콘 + 우측 진행상태·복사·접기 컨트롤 공간 */

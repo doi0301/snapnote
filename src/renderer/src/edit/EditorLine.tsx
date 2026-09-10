@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { ClaudeBlockStatus, EditorLine as EditorLineModel, HighlightColor } from '@shared/types'
 import { isBlockHeader } from '@shared/sectionFold'
+import type { ClaudeBoxPos } from '@shared/claudeBlock'
 import { CLAUDE_STATUS_META, CLAUDE_STATUS_ORDER } from '@shared/claudeBlock'
 import { Checkbox } from './Checkbox'
 import type { SearchHighlight } from './InlineSpan'
@@ -162,6 +163,8 @@ function stickyTitlePreviewText(text: string): string {
 
 export interface EditorLineViewProps {
   line: EditorLineModel
+  /** 클로드 블록 테두리 세그먼트 위치 (P6) */
+  claudeBoxPos?: ClaudeBoxPos
   mirrorSelectionRange?: { start: number; end: number }
   placeholder?: string
   isStickyTitle?: boolean
@@ -192,7 +195,6 @@ export interface EditorLineViewProps {
   onPickClaudeStatus?: (status: ClaudeBlockStatus) => void
   /** 클로드 블록 [복사] */
   onCopyClaudeBlock?: () => void
-  /** `/클로드` 입력 직후 템플릿 선택 드롭다운을 보여줄지 */
   /** sticky 제목이 상단에 고정됐을 때(true) — 한 줄 말줄임용 */
   onStickyStuckChange?: (stuck: boolean) => void
   /** 제목 sticky 감지용 스크롤 컨테이너 */
@@ -203,6 +205,7 @@ export const EditorLineView = memo(
   forwardRef<HTMLTextAreaElement, EditorLineViewProps>(function EditorLineView(props, ref) {
     const {
       line,
+      claudeBoxPos,
       mirrorSelectionRange,
       placeholder,
       onChange,
@@ -250,6 +253,8 @@ export const EditorLineView = memo(
         : isClaudeBlockHeader
           ? ' editor-line--claude-block'
           : ''
+    /** 블록을 감싸는 테두리 조각 — Editor 가 범위에서 파생해 내려준다 (P6) */
+    const claudeBoxClass = claudeBoxPos ? ` editor-line--claude-box-${claudeBoxPos}` : ''
     const isSectionCollapsed = isHeader && Boolean(line.formatting?.sectionCollapsed)
 
     const accent = line.formatting?.accentBar
@@ -324,7 +329,7 @@ export const EditorLineView = memo(
       <>
         {isStickyTitle && <div ref={sentinelRef} className="editor-sticky-sentinel" />}
         <div
-          className={`editor-line editor-line--level-${level}${headingClass}${sectionClass}${stickyClass}${stuckClass}${collapsedClass}`}
+          className={`editor-line editor-line--level-${level}${headingClass}${sectionClass}${claudeBoxClass}${stickyClass}${stuckClass}${collapsedClass}`}
           style={{ '--indent-level': level } as React.CSSProperties}
         >
           <div

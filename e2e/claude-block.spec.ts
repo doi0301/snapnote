@@ -398,3 +398,27 @@ test.describe('슬롯 추가 (P6)', () => {
     }
   })
 })
+
+test.describe('테두리 시각화 (P6)', () => {
+  test('클로드 블록이 테두리 세그먼트로 감싸지고, 접으면 single 이 된다', async () => {
+    const app = await launchSnapNote()
+    try {
+      const edit = await newEditWindow(app)
+      await triggerClaudeBlock(edit)
+      await edit.waitForTimeout(300)
+
+      expect(await edit.locator('.editor-line--claude-box-start').count()).toBe(1)
+      expect(await edit.locator('.editor-line--claude-box-end').count()).toBe(1)
+      expect(await edit.locator('.editor-line--claude-box-mid').count()).toBeGreaterThan(0)
+      expect(await edit.locator('.editor-line--claude-box-single').count()).toBe(0)
+
+      await edit.locator('.editor-line--claude-block .editor-section-fold-btn').first().click()
+      await edit.waitForTimeout(300)
+
+      expect(await edit.locator('.editor-line--claude-box-single').count()).toBe(1)
+      expect(await edit.locator('.editor-line--claude-box-start').count()).toBe(0)
+    } finally {
+      await app.close()
+    }
+  })
+})
