@@ -327,6 +327,48 @@ function buildClusterRectsFromMirror(mirror: Element, text: string): ClusterRect
   return clusters
 }
 
+/**
+ * `offset` 위치 캐럿의 화면 세로 범위 (mirror 실측). 잴 수 없으면 null.
+ *
+ * 스크롤 보정이 '줄 전체'가 아니라 '캐럿'을 기준으로 움직이게 하는 데 쓴다. 붙여넣기로
+ * 한 칸이 뷰포트보다 커지면 줄의 바닥을 맞추는 순간 캐럿이 화면 밖으로 밀려났다 (P7-G).
+ */
+export function caretViewportRect(
+  ta: HTMLTextAreaElement,
+  offset: number
+): { top: number; bottom: number } | null {
+  const mirror = mirrorForTextarea(ta)
+  if (!mirror) return null
+  const nodes = textNodesWithOffsets(mirror)
+  if (!nodes.length) return null
+
+  let joined = ''
+  for (const e of nodes) joined += e.node.nodeValue ?? ''
+  const text = ta.value
+  if (joined !== text) return null
+
+  // 캐럿이 걸친 한 글자만 잰다. 줄 전체 클러스터를 만들면 붙여넣은 긴 칸에서
+  // 키 입력마다 수천 번 측정하게 돼 편집이 눈에 띄게 느려진다.
+  const at = Math.max(0, Math.min(text.length, offset))
+  const start = at > 0 ? at - 1 : 0
+  const end = at > 0 ? at : Math.min(1, text.length)
+  if (start === end) {
+    const only = nodes[0]!
+    const r = only.node.parentElement?.getBoundingClientRect()
+    return r ? { top: r.top, bottom: r.bottom } : null
+  }
+  const sa = locateInTextNodes(nodes, start)
+  const sb = locateInTextNodes(nodes, end)
+  if (!sa || !sb) return null
+
+  const range = document.createRange()
+  range.setStart(sa.node, sa.local)
+  range.setEnd(sb.node, sb.local)
+  const rect = range.getBoundingClientRect()
+  if (!rect.height) return null
+  return { top: rect.top, bottom: rect.bottom }
+}
+
 function mirrorForTextarea(ta: HTMLTextAreaElement): Element | null {
   const editor = ta.closest('.editor-line-editor')
   return editor ? editor.querySelector('.editor-line-mirror') : null

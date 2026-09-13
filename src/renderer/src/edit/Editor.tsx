@@ -39,6 +39,7 @@ import {
   serializeLinesForClipboard
 } from '@shared/snapnoteClipboard'
 import { useAutoSave } from '@renderer/hooks/useAutoSave'
+import { caretViewportRect } from './editorCaretFromPoint'
 import { EditorBlockAfterPad } from './EditorBlockAfterPad'
 import { EditorLineView } from './EditorLine'
 import { ClipboardHistoryControl } from './ClipboardPanel'
@@ -823,15 +824,38 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
     el.style.height = `${Math.max(28, el.scrollHeight)}px`
   }, [])
 
-  /** 줄이 커져 뷰포트 하단을 벗어나면 그만큼만 스크롤을 내려 하단 내용이 가려지지 않게 한다 */
+  /**
+   * 캐럿이 뷰포트 밖으로 나갔으면 딱 그만큼만 스크롤해 다시 보이게 한다.
+   *
+   * 예전에는 '줄의 바닥'을 맞췄는데, 붙여넣기로 한 칸이 뷰포트보다 커지면 바닥을 맞추는
+   * 순간 그 위에 있던 캐럿이 화면 밖으로 밀려났다 (P7-G). 캐럿을 잴 수 없을 때만 줄
+   * 기준으로 되돌아가되, 줄이 뷰포트보다 크면 아예 건드리지 않는다.
+   */
   const scrollLineBottomIntoView = useCallback((index: number, baseScrollTop: number): void => {
     const scrollEl = editorScrollRef.current
     if (!scrollEl) return
-    const lineEl = textareaRefs.current[index]?.closest('.editor-line') as HTMLElement | null
-    const overflowBottom = lineEl
-      ? lineEl.getBoundingClientRect().bottom - scrollEl.getBoundingClientRect().bottom
-      : 0
-    scrollEl.scrollTop = overflowBottom > 0 ? baseScrollTop + overflowBottom + 4 : baseScrollTop
+    const ta = textareaRefs.current[index]
+    const lineEl = ta?.closest('.editor-line') as HTMLElement | null
+
+    // 측정 전에 기준 위치로 되돌려, 사각형과 baseScrollTop 이 같은 프레임을 가리키게 한다
+    scrollEl.scrollTop = baseScrollTop
+    if (!lineEl) return
+
+    const view = scrollEl.getBoundingClientRect()
+    const caret = ta ? caretViewportRect(ta, ta.selectionStart) : null
+    let target = caret
+    if (!target) {
+      const lineRect = lineEl.getBoundingClientRect()
+      // 캐럿을 못 쟀는데 줄이 뷰포트보다 크면, 어디로 맞춰도 캐럿을 가릴 수 있으니 그대로 둔다
+      if (lineRect.height > view.height) return
+      target = { top: lineRect.top, bottom: lineRect.bottom }
+    }
+
+    if (target.bottom > view.bottom) {
+      scrollEl.scrollTop = baseScrollTop + (target.bottom - view.bottom) + 4
+    } else if (target.top < view.top) {
+      scrollEl.scrollTop = baseScrollTop - (view.top - target.top) - 4
+    }
   }, [])
 
   const handleLineCompositionStart = useCallback((index: number) => {
