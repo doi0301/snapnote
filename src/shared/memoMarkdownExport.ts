@@ -3,7 +3,8 @@ import type { EditorLine, TextSpan } from './types'
 
 export const MARKDOWN_INDENT_SPACES = 2
 
-const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = {
+/** 본문에 실제로 붙는 SnapNote 위계 마커. Editor.tsx 도 이걸 쓴다 — 복사본을 만들지 말 것 (P7-H) */
+export const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = {
   1: { open: '[', close: ']' },
   2: { open: '<', close: '>' },
   3: { open: '(', close: ')' },

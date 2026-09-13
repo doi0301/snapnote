@@ -31,6 +31,7 @@ import {
 } from '@shared/claudeBlock'
 import { exportClaudeBlockToText } from '@shared/claudeBlockExport'
 import { looksLikeMarkdown, parseMarkdownToEditorLines } from '@shared/memoMarkdownImport'
+import { HEADING_MARKERS, stripAllHeadingMarkers } from '@shared/memoMarkdownExport'
 import {
   deserializeSnapnoteClipboard,
   extractLinesForSelection,
@@ -285,15 +286,6 @@ function buildLinesFromImportedInsert(
   return next
 }
 
-const HEADING_MARKERS: Record<number, { open: string; close: string | null }> = {
-  1: { open: '[', close: ']' },
-  2: { open: '<', close: '>' },
-  3: { open: '(', close: ')' },
-  4: { open: '- ', close: null },
-  5: { open: '\u25B8 ', close: null },
-  6: { open: '\u25AB ', close: null }
-}
-
 function headingUsesStructuralBold(level?: number): boolean {
   return level === 1 || level === 2
 }
@@ -321,7 +313,7 @@ function mergeSpansForBracketHeadingJoin(
   for (let i = startLine; i <= endLine; i++) {
     const line = prev[i]
     if (!line) continue
-    const stripped = stripAllHeadingMarkers(line.text).trim()
+    const stripped = stripAllHeadingMarkers(line.text, line.formatting?.headingLevel).trim()
     if (!stripped) continue
     const innerStart = line.text.indexOf(stripped)
     if (innerStart === -1) continue
@@ -362,32 +354,6 @@ function mergeSpansForBracketHeadingJoin(
     }
   }
   return merged.length ? merged.sort((a, b) => a.start - b.start || a.end - b.end) : undefined
-}
-
-function stripAllHeadingMarkers(text: string): string {
-  let t = text
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const m of Object.values(HEADING_MARKERS)) {
-      if (m.close) {
-        if (t.startsWith(m.open)) {
-          t = t.slice(m.open.length)
-          changed = true
-        }
-        if (t.endsWith(m.close)) {
-          t = t.slice(0, t.length - m.close.length)
-          changed = true
-        }
-      } else {
-        if (t.startsWith(m.open)) {
-          t = t.slice(m.open.length)
-          changed = true
-        }
-      }
-    }
-  }
-  return t
 }
 
 /** H4~H6 접두형: 맨 앞 가운데점 목록(`• `)이 있으면 제목 접두와 겹치지 않도록 제거한 본문 */
@@ -2085,7 +2051,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           setLines((prev) =>
             prev.map((l, i) => {
               if (i < startLine || i > endLine) return l
-              const stripped = stripAllHeadingMarkers(l.text)
+              const stripped = stripAllHeadingMarkers(l.text, l.formatting?.headingLevel)
               const cur = l.formatting?.headingLevel
               if (cur === level) {
                 const newText = stripped
@@ -2129,7 +2095,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
           for (let i = startLine; i <= endLine; i++) {
             const l = prev[i]
             if (!l) continue
-            mergedTexts.push(stripAllHeadingMarkers(l.text).trim())
+            mergedTexts.push(stripAllHeadingMarkers(l.text, l.formatting?.headingLevel).trim())
           }
           const joinedRaw = mergedTexts.filter(Boolean).join(' ')
           const marker = HEADING_MARKERS[level]
@@ -2181,7 +2147,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         prev.map((l, i) => {
           if (i !== index) return l
           const cur = l.formatting?.headingLevel
-          const stripped = stripAllHeadingMarkers(l.text)
+          const stripped = stripAllHeadingMarkers(l.text, cur)
           const marker = HEADING_MARKERS[level]
 
           if (cur === level) {
@@ -2222,7 +2188,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         if (!taEl) return
         const marker = HEADING_MARKERS[level]
         const curLevel = line.formatting?.headingLevel
-        const stripped = stripAllHeadingMarkers(line.text)
+        const stripped = stripAllHeadingMarkers(line.text, curLevel)
         if (curLevel === level) {
           taEl.setSelectionRange(stripped.length, stripped.length)
         } else {
@@ -2342,7 +2308,7 @@ export const Editor = forwardRef<EditorHandle, EditorProps>(function Editor(
         formatting.sectionTitle = true
         // 섹션이 최상위 — 위계 마커/레벨은 해제
         if (formatting.headingLevel) {
-          const stripped = stripAllHeadingMarkers(l.text)
+          const stripped = stripAllHeadingMarkers(l.text, formatting.headingLevel)
           const newSpans = remapSpansForHeadingMarkerChange(l.text, stripped, stripped, l.spans)
           delete formatting.headingLevel
           return { ...l, text: stripped, spans: newSpans, formatting }
