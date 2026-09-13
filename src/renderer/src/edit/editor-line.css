@@ -71,10 +71,15 @@
   text-shadow: 0.35px 0 currentColor, -0.35px 0 currentColor;
 }
 
+/* 이미 구조적으로 굵은 줄(H1·H2·섹션 타이틀)에서는 볼드가 아무것도 더하지 않는다.
+   본문 볼드는 font-weight 가 아니라 faux-bold(text-shadow)로 표현되는데, 여기에
+   덧발리면 H1·H2 는 주변보다 두꺼워지고 섹션 타이틀은 .inline-bold 의 기본 400 이
+   제목의 700 을 덮어 오히려 얇아졌다 (P7-C) */
 .editor-line--heading-1 .inline-bold,
-.editor-line--heading-2 .inline-bold {
-  font-weight: 700;
-  text-shadow: 0.35px 0 currentColor, -0.35px 0 currentColor;
+.editor-line--heading-2 .inline-bold,
+.editor-line--section-title .inline-bold {
+  font-weight: inherit;
+  text-shadow: none;
 }
 
 /* 컬러 이모지는 faux-bold text-shadow가 검정 테두리처럼 보이므로 그림자 제거 */
@@ -164,6 +169,13 @@
 
 .editor-line-mirror span.inline-selected.inline-bold {
   text-shadow: 0.35px 0 #ffffff, -0.35px 0 #ffffff !important;
+}
+
+/* 선택 강조 중에도 구조적으로 굵은 줄에는 faux-bold 를 덧바르지 않는다 (P7-C) */
+.editor-line--heading-1 .editor-line-mirror span.inline-selected.inline-bold,
+.editor-line--heading-2 .editor-line-mirror span.inline-selected.inline-bold,
+.editor-line--section-title .editor-line-mirror span.inline-selected.inline-bold {
+  text-shadow: none !important;
 }
 
 .editor-line-gutter {
