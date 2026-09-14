@@ -235,27 +235,53 @@
   outline: none;
 }
 
-/* 섹션 컬러바 타이틀 (텍스트 유형 최상위) — 행 전체 배경색. 색 미지정 시 기본(파랑 톤) */
+/* 섹션 컬러바 타이틀 (텍스트 유형 최상위) — 색 미지정 시 기본(파랑 톤).
+
+   색 바는 들여쓴 만큼 안쪽에서 시작한다 — 거터가 드러나야 '부모 안에 들어있다'로 읽힌다 (P7-E).
+   하드 스톱이라 그라데이션은 보이지 않고 거터 폭에서 딱 잘린다. 오프셋의 20px 는
+   `EditorLine.tsx` 의 `INDENT_PX` 와 같은 값이고, level 0 은 0px 이라 예전처럼 행 전체를 채운다. */
 .editor-line--section-title {
-  background: rgba(37, 99, 235, 0.12);
+  --section-bg: rgba(37, 99, 235, 0.12);
+  background: linear-gradient(
+    to right,
+    transparent calc(var(--indent-level, 0) * 20px),
+    var(--section-bg) calc(var(--indent-level, 0) * 20px)
+  );
 }
 
-.editor-line--section-yellow { background: rgba(254, 240, 138, 0.35); }
-.editor-line--section-green { background: rgba(187, 247, 208, 0.35); }
-.editor-line--section-pink { background: rgba(251, 207, 232, 0.35); }
-.editor-line--section-gray { background: rgba(174, 184, 198, 0.35); }
-.editor-line--section-blue { background: rgba(191, 219, 254, 0.4); }
-.editor-line--section-orange { background: rgba(254, 215, 170, 0.35); }
-.editor-line--section-purple { background: rgba(233, 213, 255, 0.35); }
-
-.editor-line--section-title .editor-line-gutter {
-  background-color: transparent;
-}
+.editor-line--section-yellow { --section-bg: rgba(254, 240, 138, 0.35); }
+.editor-line--section-green { --section-bg: rgba(187, 247, 208, 0.35); }
+.editor-line--section-pink { --section-bg: rgba(251, 207, 232, 0.35); }
+.editor-line--section-gray { --section-bg: rgba(174, 184, 198, 0.35); }
+.editor-line--section-blue { --section-bg: rgba(191, 219, 254, 0.4); }
+.editor-line--section-orange { --section-bg: rgba(254, 215, 170, 0.35); }
+.editor-line--section-purple { --section-bg: rgba(233, 213, 255, 0.35); }
 
 .editor-line--section-title .editor-line-textarea,
 .editor-line--section-title .editor-line-mirror {
   font-size: 16px;
   font-weight: 700;
+}
+
+/* 깊이마다 타이틀 글자를 한 단계씩 줄인다 — 본문(14px)에서 멈춘다 (P7-E).
+   level 은 원시 들여쓰기지 섹션 중첩 깊이가 아니다. 색 바 인셋도 같은 값으로
+   결정되므로 둘이 따로 놀지 않게 일부러 같은 기준을 쓴다. */
+.editor-line--section-title.editor-line--level-1 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-1 .editor-line-mirror {
+  font-size: 15px;
+}
+
+.editor-line--section-title.editor-line--level-2 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-2 .editor-line-mirror,
+.editor-line--section-title.editor-line--level-3 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-3 .editor-line-mirror,
+.editor-line--section-title.editor-line--level-4 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-4 .editor-line-mirror,
+.editor-line--section-title.editor-line--level-5 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-5 .editor-line-mirror,
+.editor-line--section-title.editor-line--level-6 .editor-line-textarea,
+.editor-line--section-title.editor-line--level-6 .editor-line-mirror {
+  font-size: 14px;
 }
 
 /* 접기 버튼 공간 — 섹션·accent 접기 모두 mirror·textarea에 동일 우측 여백.
